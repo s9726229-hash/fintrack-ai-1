@@ -1,0 +1,268 @@
+import { GoogleGenAI, Type } from "@google/genai";
+import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction } from "../types";
+import { getApiKey, getFeeDiscount } from "./storage";
+
+const cleanJsonString = (text: string) => {
+    if (!text) return "{}";
+    // 移除 Markdown 標記 ```json 和 ```
+    let clean = text.replace(/```json/g, "").replace(/```/g, "");
+    return clean.trim();
+};
+
+const getAI = () => {
+    const key = getApiKey();
+    if (!key) throw new Error("API Key is missing.");
+    return new GoogleGenAI({ apiKey: key });
+};
+
+/**
+ * Calculates detailed performance metrics for a single stock asset.
+ * Follows precise Taiwanese stock market fee and tax rules.
+ */
+export const calculateStockPerformance = (stock: Asset, transactions: Transaction[] = []): StockPerformanceResult => {
+    // 確保數值至少為 0，避免出現 NaN 或 -100% 的慘劇
+    const shares = Number(stock.shares) || 0;
+    const avgCost = Number(stock.avgCost) || 0;
+    const currentPrice = Number(stock.currentPrice) || 0;
+
+    let totalDividends = 0;
+    if (stock.symbol && transactions.length > 0) {
+        totalDividends = transactions
+            .filter(t => t.type === 'DIVIDEND' && (t.item.includes(stock.symbol!) || t.note?.includes(stock.symbol!)))
+            .reduce((sum, t) => sum + t.amount, 0);
+    }
+
+    // 增加一個防護：如果沒有買入成本或股數，損益不應計算
+    if (shares === 0 || avgCost === 0) {
+        return { totalCost: 0, marketValue: 0, estimatedReturn: 0, netProfit: 0, roi: 0, buyFee: 0, sellFee: 0, tax: 0, totalDividends };
+    }
+    
+    const feeDiscount = getFeeDiscount();
+    const feeRate = 0.001425;
+    const minFee = 20;
+
+    // Prefer the explicit boolean flag from AI, fallback to symbol check
+    const isActuallyEtf = typeof stock.isEtf === 'boolean' ? stock.isEtf : (stock.symbol?.startsWith('00') || false);
+    const taxRate = isActuallyEtf ? 0.001 : 0.003;
+
+    // --- Calculation Logic ---
+    const calculateFee = (price: number) => {
+        const fee = Math.floor(price * shares * feeRate * feeDiscount);
+        return fee < minFee ? minFee : fee;
+    };
+
+    const buyValue = avgCost * shares;
+    const buyFee = calculateFee(avgCost);
+    const totalCost = buyValue + buyFee;
+
+    const marketValue = currentPrice * shares;
+    const sellFee = calculateFee(currentPrice);
+    const tax = Math.floor(marketValue * taxRate);
+
+    const estimatedReturn = marketValue - sellFee - tax;
+    const netProfit = estimatedReturn - totalCost;
+    const roi = totalCost > 0 ? (netProfit / totalCost) * 100 : 0;
+    
+    return {
+        totalCost,
+        marketValue,
+        estimatedReturn,
+        netProfit,
+        roi,
+        buyFee,
+        sellFee,
+        tax,
+        totalDividends,
+    };
+};
+
+/**
+ * [Fast Mode V7.0.1] Enriches a stock symbol with basic info like price.
+ */
+export const enrichStockBasicInfo = async (stock: Asset): Promise<Partial<Asset> | null> => {
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-flash-latest',
+            contents: `Search "Taiwan stock ${stock.symbol} price Yahoo Finance TW". Find the current price and name. Return the NAME in Traditional Chinese (繁體中文). Do NOT use English. Return a single line of plain text in this exact format: PRICE:value, NAME:value. Example: PRICE:980, NAME:台積電`,
+            config: {
+                tools: [{ googleSearch: {} }],
+            }
+        });
+
+        const text = response.text || '';
+        const priceMatch = text.match(/PRICE:([\d.,]+)/);
+        const nameMatch = text.match(/NAME:([^,]+)/);
+        
+        const priceStr = priceMatch ? priceMatch[1].replace(/,/g, '') : '0';
+        const price = parseFloat(priceStr);
+        const name = nameMatch ? nameMatch[1].trim() : (stock.name || stock.symbol);
+
+        if (price > 0) {
+            return {
+                name: name,
+                currentPrice: price,
+            };
+        }
+        console.warn(`Could not parse price for symbol ${stock.symbol} from response: "${text}"`);
+        return null;
+    } catch (error) {
+        console.error(`Gemini basic info error for symbol ${stock.symbol}:`, error);
+        return null;
+    }
+};
+
+/**
+ * [Deep Mode V7.0.0] Enriches a stock symbol with TTM dividend information.
+ */
+export const enrichStockDividendInfo = async (stock: Asset): Promise<Partial<Asset> | null> => {
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-flash-latest',
+            contents: `Search "Stock ${stock.symbol} dividend history HiStock" or "Yahoo Finance TW". Find the Sum of Cash Dividends (現金股利) paid in the trailing 12 months. Ignore Stock Dividends (股票股利). Return a single line of plain text in this exact format: FREQUENCY:value, TTM_DPS:value, EX_DATE:value.`,
+            config: {
+                tools: [{ googleSearch: {} }],
+            }
+        });
+
+        const text = response.text || '';
+        
+        const freqMatch = text.match(/FREQUENCY:([^,]+)/);
+        const dpsMatch = text.match(/TTM_DPS:([\d.]+)/);
+        const exDateMatch = text.match(/EX_DATE:(\d{4}-\d{2}-\d{2})/);
+
+        const dividendFrequency = freqMatch ? freqMatch[1].trim() : undefined;
+        const dividendPerShare = dpsMatch ? parseFloat(dpsMatch[1]) : undefined;
+        const exDate = exDateMatch ? exDateMatch[1].trim() : undefined;
+
+        if (dividendPerShare !== undefined) {
+            // Sanity Check: If calculated yield is > 20%, it's likely an error.
+            if (stock.currentPrice && stock.currentPrice > 0) {
+                const yieldCheck = dividendPerShare / stock.currentPrice;
+                if (yieldCheck > 0.20) {
+                    console.warn(`Sanity check failed for ${stock.symbol}: Calculated yield ${yieldCheck*100}% is abnormally high. Discarding dividend data.`);
+                    return { dividendPerShare: 0, dividendFrequency: 'N/A' }; // Reset data
+                }
+            }
+
+            return {
+                dividendPerShare,
+                dividendFrequency,
+                exDate,
+            };
+        }
+        
+        console.warn(`Could not parse TTM dividend info for symbol ${stock.symbol} from response: "${text}"`);
+        return null;
+
+    } catch (error) {
+        console.error(`Gemini dividend info error for symbol ${stock.symbol}:`, error);
+        return null;
+    }
+};
+
+
+/**
+ * Parses free-text stock input into structured data using Gemini.
+ * Example input: "2330 1張 600", "00878 5000股 22.5"
+ */
+export const parseStockInput = async (input: string): Promise<Partial<Asset>[] | null> => {
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-flash-latest', // Use Flash for speed
+            contents: `
+                Parse the following stock inventory text into a JSON array.
+                Each line represents a stock position.
+                Extract: symbol (string), shares (number, convert '張' to 1000 shares), avgCost (number).
+                
+                Input Text:
+                "${input}"
+            `,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            symbol: { type: Type.STRING },
+                            shares: { type: Type.NUMBER },
+                            avgCost: { type: Type.NUMBER }
+                        },
+                        required: ["symbol", "shares", "avgCost"]
+                    }
+                }
+            }
+        });
+
+        let text = cleanJsonString(response.text ?? "");
+        if (text === "{}") text = "[]"; // Handle empty default
+        
+        return JSON.parse(text);
+    } catch (error) {
+        console.error("Gemini parseStockInput error:", error);
+        return null;
+    }
+};
+
+/**
+ * Parses a CSV string of Taiwanese stock brokerage transaction history.
+ */
+export const parseStockTransactionCSV = (csvText: string): { transactions: StockTransaction[], error: string | null } => {
+  const transactions: StockTransaction[] = [];
+  const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
+  if (lines.length < 2) return { transactions: [], error: "CSV 檔案是空的或缺少標題列 (Header)。" };
+  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  const findColumnIndex = (keywords: string[]): number => {
+    for (const keyword of keywords) { const index = headers.findIndex(header => header.includes(keyword)); if (index !== -1) return index; }
+    return -1;
+  };
+  const columnMap = { date: findColumnIndex(['成交日期']), symbol: findColumnIndex(['股票代號']), name: findColumnIndex(['股票名稱', '商品名稱']), side: findColumnIndex(['買賣別', '買賣']), shares: findColumnIndex(['成交數量', '股數', '成交股數']), price: findColumnIndex(['成交價', '成交單價', '成交價格']), amount: findColumnIndex(['應收付帳款', '收付金額', '發生金額']), realizedProfit: findColumnIndex(['損益']), fee: findColumnIndex(['手續費']), tax: findColumnIndex(['交易稅']), };
+  const requiredFields: { key: keyof typeof columnMap; name: string }[] = [ { key: 'date', name: '成交日期' }, { key: 'symbol', name: '股票代號' }, { key: 'side', name: '買賣別' }, { key: 'shares', name: '成交數量' }, { key: 'price', name: '成交價' }, { key: 'amount', name: '應收付帳款' }, ];
+  const missingColumns = requiredFields.filter(field => columnMap[field.key] === -1);
+  if (missingColumns.length > 0) { const missingNames = missingColumns.map(field => field.name); return { transactions: [], error: `CSV 檔案缺少必要的欄位，請檢查是否包含：${missingNames.join('、')}` }; }
+  const cleanNumber = (str: string | undefined): number => { if (!str) return 0; const cleaned = str.replace(/"/g, '').replace(/,/g, ''); const num = parseFloat(cleaned); return isNaN(num) ? 0 : num; };
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.includes('小計') || line.includes('總計')) continue;
+    const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+    try {
+      const symbol = parts[columnMap.symbol]?.trim().replace(/"/g, '');
+      const dateStr = parts[columnMap.date]?.trim().replace(/"/g, '');
+      if (!symbol || !dateStr || !dateStr.match(/^\d{4}\/?\d{2}\/?\d{2}/)) continue;
+      const sideText = parts[columnMap.side].trim().replace(/"/g, '');
+      const side: 'BUY' | 'SELL' = sideText.includes('買') ? 'BUY' : 'SELL';
+      const fees = columnMap.fee !== -1 ? cleanNumber(parts[columnMap.fee]) : 0;
+      const tax = columnMap.tax !== -1 ? cleanNumber(parts[columnMap.tax]) : 0;
+      const totalFees = fees + tax;
+      let realizedProfitValue: number | undefined = side === 'SELL' ? (columnMap.realizedProfit !== -1 ? cleanNumber(parts[columnMap.realizedProfit]) : 0) : 0;
+      const stockName = columnMap.name !== -1 ? parts[columnMap.name]?.trim().replace(/"/g, '') : undefined;
+      transactions.push({ id: crypto.randomUUID(), date: dateStr.replace(/\//g, '-'), symbol: symbol, name: stockName, side: side, tradeType: '', shares: cleanNumber(parts[columnMap.shares]), price: cleanNumber(parts[columnMap.price]), fees: totalFees, realizedProfit: realizedProfitValue, amount: cleanNumber(parts[columnMap.amount]), });
+    } catch (error) { console.warn(`Skipping invalid row during CSV parse: ${line}`, error); }
+  }
+  return { transactions, error: null };
+};
+
+export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset>[], error: string | null } => {
+    const assets: Partial<Asset>[] = [];
+    const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
+    if (lines.length < 2) return { assets: [], error: "CSV 檔案是空的或缺少標題列 (Header)。" };
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const findColumnIndex = (keywords: string[]): number => { for (const keyword of keywords) { const index = headers.findIndex(header => header.includes(keyword)); if (index !== -1) return index; } return -1; };
+    const columnMap = { symbol: findColumnIndex(['股票代號']), name: findColumnIndex(['股票名稱']), shares: findColumnIndex(['合計庫存數量']), avgCost: findColumnIndex(['成本均價']), currentPrice: findColumnIndex(['現價']), };
+    const requiredFields = ['symbol', 'name', 'shares', 'avgCost', 'currentPrice'];
+    const missingColumns = requiredFields.filter(field => columnMap[field as keyof typeof columnMap] === -1);
+    if (missingColumns.length > 0) return { assets: [], error: `CSV 缺少必要欄位: ${missingColumns.join(', ')}` };
+    const cleanNumber = (str: string | undefined): number => { if (!str) return 0; const cleaned = str.replace(/"/g, '').replace(/,/g, ''); const num = parseFloat(cleaned); return isNaN(num) ? 0 : num; };
+    const formatSymbol = (str: string | undefined): string => { if (!str) return ''; let cleaned = str.replace(/"/g, '').trim(); const dotIndex = cleaned.indexOf('.'); if (dotIndex !== -1) cleaned = cleaned.substring(0, dotIndex); return cleaned; };
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i]; const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        try {
+            const symbol = formatSymbol(parts[columnMap.symbol]); if (!symbol) continue;
+            assets.push({ symbol: symbol, name: parts[columnMap.name]?.trim().replace(/"/g, ''), shares: cleanNumber(parts[columnMap.shares]), avgCost: cleanNumber(parts[columnMap.avgCost]), currentPrice: cleanNumber(parts[columnMap.currentPrice]), });
+        } catch (error) { console.warn(`Skipping invalid inventory row: ${line}`, error); }
+    }
+    return { assets, error: null };
+};
