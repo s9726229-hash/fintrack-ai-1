@@ -3,7 +3,7 @@ import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction } from '
 import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV } from '../services/stock';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetch20MA } from '../services/stock';
 import { getApiKey } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
@@ -15,6 +15,7 @@ interface InvestmentsProps {
     transactions: Transaction[]; // For dividend calculation
     onAdd: (asset: Asset) => void;
     onUpdate: (asset: Asset) => void;
+    onUpdateMultiple?: (assets: Asset[]) => void;
     onDelete: (id: string) => void;
     
     enrichStatus: {
@@ -56,13 +57,14 @@ const translateFrequency = (freq: string | undefined): string => {
 
 export const Investments: React.FC<InvestmentsProps> = ({ 
     assets, stockHistory, stockTransactions, transactions, 
-    onAdd, onUpdate, onDelete, 
+    onAdd, onUpdate, onUpdateMultiple, onDelete, 
     enrichStatus, onUpdatePrices, onUpdateDividends,
     onImportTransactions, onImportInventory 
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
+    const [isUpdatingBias, setIsUpdatingBias] = useState(false);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inventoryFileInputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +151,23 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
     const handleOpenModal = (asset: Asset | null = null) => { setEditingAsset(asset); setIsModalOpen(true); };
     const handleSaveAsset = (asset: Asset) => { if (editingAsset) onUpdate(asset); else onAdd(asset); setIsModalOpen(false); setEditingAsset(null); };
+
+    const handleUpdateBias = async () => {
+        setIsUpdatingBias(true);
+        const updatedAssets: Asset[] = [];
+        for (const stock of inventory) {
+            if (stock.symbol) {
+                const ma20 = await fetch20MA(stock.symbol);
+                if (ma20 !== null) {
+                    updatedAssets.push({ ...stock, ma20, lastUpdated: Date.now() });
+                }
+            }
+        }
+        if (updatedAssets.length > 0 && onUpdateMultiple) {
+            onUpdateMultiple(updatedAssets);
+        }
+        setIsUpdatingBias(false);
+    };
     const handleTransactionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { transactions: p, error } = parseStockTransactionCSV(t); if (error) { alert(`CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportTransactions(p); else alert('CSV 中找不到有效交易。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     
@@ -176,7 +195,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 </div>
                 <div className="relative flex items-center gap-2">
                     <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"><Landmark size={14}/>{enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}</Button>
-                    <Button onClick={() => onUpdatePrices(null)} disabled={isEnriching || !hasApiKey} loading={enrichStatus.price.isUpdating} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"><BrainCircuit size={14}/>{enrichStatus.price.isUpdating ? `更新中...(${enrichStatus.price.progress.current}/${enrichStatus.price.progress.total})` : 'AI 更新現價'}</Button>
+                    <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"><TrendingUp size={14}/>{isUpdatingBias ? '分析中...' : '分析乖離率'}</Button>
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
                 </div>
             </div>
@@ -190,6 +209,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <th className="p-3 font-medium">股票</th>
                                 <th className="p-3 font-medium text-right">持股</th>
                                 <th className="p-3 font-medium text-right">價格</th>
+                                <th className="p-3 font-medium text-right">技術面 (20MA)</th>
                                 <th className="p-3 font-medium text-right">損益</th>
                                 <th className="p-3 font-medium text-center">操作</th>
                             </tr></thead>
@@ -206,6 +226,28 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                         <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
                                         <div className="flex items-center justify-end gap-1.5"><p className={`text-[10px] ${timeAgo.color}`}>{timeAgo.text}</p><p className="text-xs text-slate-500 font-mono">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
                                     </td>
+                                    <td className="p-3 text-right">
+                                        {pos.ma20 && pos.currentPrice ? (() => {
+                                            const bias = ((pos.currentPrice - pos.ma20) / pos.ma20) * 100;
+                                            const isPos = bias > 0;
+                                            let badgeClass = ''; let badgeText = '';
+                                            if (bias > 20) { badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/30'; badgeText = '建議賣出'; }
+                                            else if (bias >= 5) { badgeClass = 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; badgeText = '偏多持有'; }
+                                            else if (bias >= -5) { badgeClass = 'bg-slate-500/20 text-slate-300 border border-slate-500/30'; badgeText = '觀望'; }
+                                            else if (bias >= -10) { badgeClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'; badgeText = '分批低接'; }
+                                            else { badgeClass = 'bg-green-600/30 text-green-400 border border-green-500/50'; badgeText = '強力買進'; }
+                                            
+                                            return (
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-sm ${badgeClass}`}>{badgeText}</span>
+                                                        <span className={`font-mono font-bold ${isPos ? 'text-red-400' : 'text-emerald-400'}`}>{isPos ? '+' : ''}{bias.toFixed(2)}%</span>
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 font-mono">20MA: {pos.ma20.toFixed(2)}</span>
+                                                </div>
+                                            );
+                                        })() : <span className="text-slate-600 text-xs">-</span>}
+                                    </td>
                                     <td className="p-3 text-right"><p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
                                     <td className="p-3 text-center"><div className="flex items-center justify-center gap-1">
                                         <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價"><RefreshCw size={14}/></button>
@@ -213,7 +255,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                         <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500" title="刪除"><Trash2 size={14}/></button>
                                     </div></td>
                                 </tr>);
-                            }) : (<tr><td colSpan={5} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
+                            }) : (<tr><td colSpan={6} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
                         </table></div>
                     </div>
                 </div>

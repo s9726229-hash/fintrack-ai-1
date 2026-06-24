@@ -113,6 +113,15 @@ export default function App() {
     });
   };
 
+  const updateMultipleAssets = (updatedAssets: Asset[]) => {
+    setAssets(prev => {
+        const updatedMap = new Map(updatedAssets.map(a => [a.id, a]));
+        const updated = prev.map(a => updatedMap.has(a.id) ? updatedMap.get(a.id)! : a);
+        storage.saveAssets(updated);
+        return updated;
+    });
+  };
+
   const deleteAsset = (id: string) => {
     setAssets(prev => {
         const updated = prev.filter(a => a.id !== id);
@@ -303,7 +312,7 @@ export default function App() {
       />}
       {view === 'ASSETS' && <Assets assets={assets} onAdd={addAsset} onUpdate={updateAsset} onDelete={deleteAsset} />}
       {/* FIX: Pass the correct props to the Investments component as per its definition in types.ts. */}
-      {view === 'INVESTMENTS' && <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} />}
+      {view === 'INVESTMENTS' && <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} />}
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}
       {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}

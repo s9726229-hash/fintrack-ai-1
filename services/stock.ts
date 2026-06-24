@@ -266,3 +266,38 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
     }
     return { assets, error: null };
 };
+
+/**
+ * Fetches 20MA for a stock symbol from Yahoo Finance API via CORS proxy.
+ */
+export const fetch20MA = async (symbol: string): Promise<number | null> => {
+    try {
+        if (!symbol) return null;
+        
+        const fetchYahoo = async (suffix: string) => {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=2mo&interval=1d`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl);
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (!data.contents) return null;
+            const yahooData = JSON.parse(data.contents);
+            return yahooData.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        };
+
+        let closes = await fetchYahoo('.TW');
+        if (!closes) closes = await fetchYahoo('.TWO'); // Fallback for OTC
+
+        if (!closes || !Array.isArray(closes)) return null;
+
+        const validCloses = closes.filter((c: number | null) => c !== null);
+        if (validCloses.length < 20) return null;
+
+        const last20 = validCloses.slice(-20);
+        const sum = last20.reduce((a: number, b: number) => a + b, 0);
+        return sum / 20;
+    } catch (error) {
+        console.error(`Failed to fetch 20MA for ${symbol}:`, error);
+        return null;
+    }
+};

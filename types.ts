@@ -53,6 +53,7 @@ export interface Asset {
   shares?: number;
   avgCost?: number;
   currentPrice?: number;
+  ma20?: number; // 20MA
   stockCategory?: string; // e.g., 'ETF', '半導體'
   yield?: number; // Dividend yield %
   isEtf?: boolean;
