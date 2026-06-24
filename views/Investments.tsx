@@ -231,7 +231,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                             const bias = ((pos.currentPrice - pos.ma20) / pos.ma20) * 100;
                                             const isPos = bias > 0;
                                             let badgeClass = ''; let badgeText = '';
-                                            if (bias > 20) { badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/30'; badgeText = '建議賣出'; }
+                                            if (bias >= 30) { badgeClass = 'bg-rose-600/30 text-rose-400 border border-rose-500/50'; badgeText = '強力賣出'; }
+                                            else if (bias >= 20) { badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/30'; badgeText = '建議賣出'; }
                                             else if (bias >= 5) { badgeClass = 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; badgeText = '偏多持有'; }
                                             else if (bias >= -5) { badgeClass = 'bg-slate-500/20 text-slate-300 border border-slate-500/30'; badgeText = '觀望'; }
                                             else if (bias >= -10) { badgeClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'; badgeText = '分批低接'; }
