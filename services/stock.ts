@@ -276,13 +276,38 @@ export const fetch20MA = async (symbol: string): Promise<number | null> => {
         
         const fetchYahoo = async (suffix: string) => {
             const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=2mo&interval=1d`;
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-            const response = await fetch(proxyUrl);
-            if (!response.ok) return null;
-            const data = await response.json();
-            if (!data.contents) return null;
-            const yahooData = JSON.parse(data.contents);
-            return yahooData.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+            
+            const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                try {
+                    const response = await fetch(targetUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!response.ok) return null;
+                    return await response.json();
+                } catch (e) {
+                    clearTimeout(timeoutId);
+                    return null;
+                }
+            };
+
+            // 1. 先嘗試直接抓取 (部分情況下 Yahoo 允許 CORS)
+            let data = await fetchWithTimeout(url, 3000);
+            
+            // 2. 備案 1：使用 corsproxy.io (速度快)
+            if (!data) {
+                data = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 5000);
+            }
+            
+            // 3. 備案 2：使用 allorigins (有時會 522 Timeout)
+            if (!data) {
+                const allData = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 5000);
+                if (allData?.contents) {
+                    try { data = JSON.parse(allData.contents); } catch(e) {}
+                }
+            }
+
+            return data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
         };
 
         let closes = await fetchYahoo('.TW');
