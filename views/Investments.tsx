@@ -210,6 +210,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <th className="p-3 font-medium text-right">持股</th>
                                 <th className="p-3 font-medium text-right">價格</th>
                                 <th className="p-3 font-medium text-right">技術面 (20MA)</th>
+                                <th className="p-3 font-medium text-right">建議賣出 (+30%)</th>
                                 <th className="p-3 font-medium text-right">損益</th>
                                 <th className="p-3 font-medium text-center">操作</th>
                             </tr></thead>
@@ -249,6 +250,14 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                             );
                                         })() : <span className="text-slate-600 text-xs">-</span>}
                                     </td>
+                                    <td className="p-3 text-right">
+                                        {pos.ma20 ? (
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="font-mono font-bold text-rose-400">{(pos.ma20 * 1.3).toFixed(2)}</span>
+                                                <span className="text-[10px] text-slate-500">目標價</span>
+                                            </div>
+                                        ) : <span className="text-slate-600 text-xs">-</span>}
+                                    </td>
                                     <td className="p-3 text-right"><p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
                                     <td className="p-3 text-center"><div className="flex items-center justify-center gap-1">
                                         <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價"><RefreshCw size={14}/></button>
@@ -256,7 +265,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                         <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500" title="刪除"><Trash2 size={14}/></button>
                                     </div></td>
                                 </tr>);
-                            }) : (<tr><td colSpan={6} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
+                            }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
                         </table></div>
                     </div>
                 </div>
