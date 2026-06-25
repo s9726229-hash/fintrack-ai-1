@@ -166,11 +166,15 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 if (techData !== null) {
                     const cleanTechData: Partial<Asset> = {};
                     if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
+                    if (techData.ma60 !== null) cleanTechData.ma60 = techData.ma60;
                     if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
                     if (techData.volumeRatio !== null) cleanTechData.volumeRatio = techData.volumeRatio;
                     cleanTechData.techScore = techData.techScore;
                     cleanTechData.techSignal = techData.techSignal;
                     cleanTechData.biasSlopes = techData.biasSlopes;
+                    if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
+                    if (techData.marginChangeRatio !== null) cleanTechData.marginChangeRatio = techData.marginChangeRatio;
+                    if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                     if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
                     
                     updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
