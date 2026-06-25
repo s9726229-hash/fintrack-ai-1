@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction } from "../types";
 import { getApiKey, getFeeDiscount } from "./storage";
+import largeCaps from '../src/data/large_caps.json';
 
 const cleanJsonString = (text: string) => {
     if (!text) return "{}";
@@ -13,6 +14,55 @@ const getAI = () => {
     const key = getApiKey();
     if (!key) throw new Error("API Key is missing.");
     return new GoogleGenAI({ apiKey: key });
+};
+
+// --- Margin Data Cache ---
+let twseMarginCache: Record<string, any> | null = null;
+let tpexMarginCache: Record<string, any> | null = null;
+let marginCacheTimestamp = 0;
+
+export const fetchAllMarginData = async () => {
+    const now = Date.now();
+    // Cache for 1 hour
+    if (twseMarginCache && tpexMarginCache && (now - marginCacheTimestamp < 3600000)) {
+        return { twse: twseMarginCache, tpex: tpexMarginCache };
+    }
+    
+    try {
+        const [twseRes, tpexRes] = await Promise.all([
+            fetch('https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN').then(r => r.json()).catch(() => []),
+            fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_margin_trading').then(r => r.json()).catch(() => [])
+        ]);
+
+        const twseMap: Record<string, any> = {};
+        if (Array.isArray(twseRes)) {
+            twseRes.forEach((item: any) => {
+                // TWSE format: "股票代號", "融資前日餘額", "融資今日餘額"
+                if (item['股票代號']) {
+                    twseMap[item['股票代號']] = item;
+                }
+            });
+        }
+
+        const tpexMap: Record<string, any> = {};
+        if (Array.isArray(tpexRes)) {
+            tpexRes.forEach((item: any) => {
+                // TPEx format: "SecuritiesCompanyCode", "PreviousMarginBalance", "CurrentMarginBalance"
+                if (item.SecuritiesCompanyCode) {
+                    tpexMap[item.SecuritiesCompanyCode] = item;
+                }
+            });
+        }
+
+        twseMarginCache = twseMap;
+        tpexMarginCache = tpexMap;
+        marginCacheTimestamp = now;
+
+        return { twse: twseMap, tpex: tpexMap };
+    } catch (error) {
+        console.error("Failed to fetch margin data", error);
+        return { twse: twseMarginCache || {}, tpex: tpexMarginCache || {} };
+    }
 };
 
 /**
@@ -269,9 +319,13 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
 
 export interface TechDataResult {
     ma20: number | null;
+    ma60: number | null;
     rsi: number | null;
     volumeRatio: number | null;
     biasSlopes: number[];
+    ma20Slope: number | null;
+    marginChangeRatio: number | null;
+    sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
     techScore: number;
     techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL';
     currentPrice?: number;
@@ -285,7 +339,7 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
         if (!symbol) return null;
         
         const fetchYahoo = async (suffix: string) => {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=3mo&interval=1d`;
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=6mo&interval=1d`;
             
             const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000) => {
                 const controller = new AbortController();
@@ -328,10 +382,9 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
             }
         }
 
-        if (validData.length < 23) return null; // Need at least 23 days for 20MA + 3 slopes
+        if (validData.length < 60) return null; // Need at least 60 days for 60MA
 
         // 1. Calculate 20MAs and Bias20 for the last 4 days (to get 3 slopes)
-        // We need 20MA for today, yesterday, day-before, day-before-that
         const bias20List: number[] = [];
         const ma20List: number[] = [];
         for (let i = 0; i < 4; i++) {
@@ -347,22 +400,26 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
 
         if (bias20List.length < 4) return null;
 
+        // 2. Calculate 60MA
+        const slice60 = validData.slice(validData.length - 60, validData.length);
+        const sum60 = slice60.reduce((a, b) => a + b.close, 0);
+        const currentMa60 = sum60 / 60;
+
         const currentPrice = validData[validData.length - 1].close;
         const currentMa20 = ma20List[3];
         const currentBias20 = bias20List[3];
 
-        // 2. Calculate Bias Slopes (T-0, T-1, T-2)
+        // 3. Calculate Bias Slopes (T-0, T-1, T-2)
         const biasSlopes = [
             bias20List[3] - bias20List[2], // Today's slope
             bias20List[2] - bias20List[1], // Yesterday's slope
             bias20List[1] - bias20List[0]  // Day before yesterday's slope
         ];
+        const ma20Slope = ma20List[3] - ma20List[2];
 
-        // 3. Calculate 14-day RSI
-        // Use Wilder's Smoothing
+        // 4. Calculate 14-day RSI
         let avgGain = 0;
         let avgLoss = 0;
-        // Seed with first 14 days
         for (let i = 1; i <= 14; i++) {
             const diff = validData[i].close - validData[i - 1].close;
             if (diff > 0) avgGain += diff;
@@ -384,22 +441,67 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
         const rs = avgGain / (avgLoss === 0 ? 1 : avgLoss);
         const rsi = 100 - (100 / (1 + rs));
 
-        // 4. Calculate VolumeRatio
+        // 5. Calculate VolumeRatio
         const last20Vols = validData.slice(-20).map(d => d.volume);
         const avgVol = last20Vols.reduce((a, b) => a + b, 0) / 20;
         const volumeRatio = avgVol === 0 ? 0 : validData[validData.length - 1].volume / avgVol;
 
-        // Identify if it is an ETF
-        const isETF = symbol.startsWith('00') || symbol.toLowerCase().includes('etf');
+        // 6. Fetch Margin Data
+        const marginData = await fetchAllMarginData();
+        let marginChangeRatio: number | null = null;
+        
+        let twseMargin = marginData.twse[symbol];
+        let tpexMargin = marginData.tpex[symbol];
+        
+        if (twseMargin && twseMargin['融資今日餘額'] && twseMargin['融資前日餘額']) {
+            const currentMargin = parseFloat(twseMargin['融資今日餘額'].replace(/,/g, ''));
+            const prevMargin = parseFloat(twseMargin['融資前日餘額'].replace(/,/g, ''));
+            if (prevMargin > 0) {
+                marginChangeRatio = ((currentMargin - prevMargin) / prevMargin) * 100;
+            }
+        } else if (tpexMargin && tpexMargin.CurrentMarginBalance && tpexMargin.PreviousMarginBalance) {
+            const currentMargin = parseFloat(tpexMargin.CurrentMarginBalance.replace(/,/g, ''));
+            const prevMargin = parseFloat(tpexMargin.PreviousMarginBalance.replace(/,/g, ''));
+            if (prevMargin > 0) {
+                marginChangeRatio = ((currentMargin - prevMargin) / prevMargin) * 100;
+            }
+        }
 
-        // 5. Evaluate Scoring
+        // 7. Determine Category
+        const isETF = symbol.startsWith('00') || symbol.toLowerCase().includes('etf');
+        const isLargeCap = !isETF && (largeCaps as string[]).includes(symbol);
+        const sizeCategory = isETF ? 'ETF' : (isLargeCap ? 'LARGE_CAP' : 'SMALL_CAP');
+
+        // 8. Evaluate Scoring
         let techScore = 0;
         
-        if (isETF) {
+        if (sizeCategory === 'ETF') {
             // ETF Scoring
+            if (currentBias20 <= -15) techScore += 50;
+            else if (currentBias20 <= -10) techScore += 35;
+            else if (currentBias20 <= -7) techScore += 25;
+
+            if (ma20Slope > 0) techScore += 20;
+            if (currentPrice > currentMa60) techScore += 20;
+
+            if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 25;
+            else if (biasSlopes[0] > 0) techScore += 15;
+
+            if (rsi < 35) techScore += 35;
+            else if (rsi < 40) techScore += 25;
+            else if (rsi < 45) techScore += 15;
+            
+        } else if (sizeCategory === 'LARGE_CAP') {
+            // Large Cap Scoring
             if (currentBias20 <= -15) techScore += 40;
             else if (currentBias20 <= -10) techScore += 30;
             else if (currentBias20 <= -7) techScore += 20;
+
+            if (ma20Slope > 0) techScore += 20;
+            if (currentPrice > currentMa60) techScore += 20;
+
+            if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 20;
+            else if (biasSlopes[0] > 0) techScore += 10;
 
             if (rsi < 35) techScore += 35;
             else if (rsi < 40) techScore += 25;
@@ -408,36 +510,51 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
             if (volumeRatio > 1.5) techScore += 25;
             else if (volumeRatio > 1) techScore += 15;
 
-            const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
-            const isImproved1 = biasSlopes[0] > 0;
-            if (isImproved2) techScore += 25;
-            else if (isImproved1) techScore += 15;
+            if (currentBias20 < 0 && marginChangeRatio !== null && marginChangeRatio < 0) {
+                techScore += 15; // 籌碼轉乾淨
+            }
+            
+            if (currentPrice < currentMa60) {
+                techScore = techScore * 0.8;
+            }
+            
         } else {
-            // Stock Scoring
+            // Small Cap Scoring
             if (currentBias20 <= -20) techScore += 40;
             else if (currentBias20 <= -15) techScore += 30;
             else if (currentBias20 <= -10) techScore += 20;
 
-            if (rsi < 30) techScore += 30;
-            else if (rsi < 35) techScore += 20;
+            if (ma20Slope > 0) techScore += 20;
+            if (currentPrice > currentMa60) techScore += 15;
 
-            if (volumeRatio > 1.5) techScore += 30;
-            else if (volumeRatio > 1) techScore += 20;
+            if (biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0) techScore += 30;
+            else if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 20;
 
-            const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
-            const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
-            if (isImproved3) techScore += 30;
-            else if (isImproved2) techScore += 20;
+            if (rsi < 30) techScore += 35;
+            else if (rsi < 35) techScore += 25;
+            else if (rsi < 40) techScore += 15;
+
+            if (volumeRatio > 2) techScore += 35;
+            else if (volumeRatio > 1.5) techScore += 25;
+            else if (volumeRatio > 1) techScore += 15;
+
+            if (currentBias20 < 0 && marginChangeRatio !== null && marginChangeRatio < 0) {
+                techScore += 15; // 籌碼轉乾淨
+            }
+            
+            if (currentPrice < currentMa60) {
+                techScore = techScore * 0.8;
+            }
         }
 
-        // 6. Signals
+        // 9. Signals
         let techSignal: TechDataResult['techSignal'] = 'NONE';
         const isDeteriorating2 = biasSlopes[0] < 0 && biasSlopes[1] < 0;
         const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
         const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
         const isImproved1 = biasSlopes[0] > 0;
 
-        if (isETF) {
+        if (sizeCategory === 'ETF') {
             if (currentBias20 >= 20 && isDeteriorating2) {
                 techSignal = 'SECOND_PARTIAL_SELL';
             } else if (currentBias20 >= 15 && isDeteriorating2) {
@@ -451,14 +568,22 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
             } else if ((currentBias20 <= -7 && isImproved1 && rsi < 45) || techScore >= 60) {
                 techSignal = 'BUY';
             }
+        } else if (sizeCategory === 'LARGE_CAP') {
+            if (currentBias20 >= 25) {
+                techSignal = 'FORCE_SELL';
+            } else if (currentBias20 >= 20 && isDeteriorating2) {
+                techSignal = 'PARTIAL_SELL';
+            } else if (currentBias20 <= -10 && isImproved2 && rsi < 40) {
+                techSignal = 'STRONG_BUY';
+            } else if ((currentBias20 <= -7 && isImproved1 && rsi < 45) || techScore >= 60) {
+                techSignal = 'BUY';
+            }
         } else {
-            // Stock Logic
+            // Small Cap
             if (currentBias20 >= 30) {
                 techSignal = 'FORCE_SELL';
-            } else if (currentBias20 >= 25) { // Relaxed UMC logic
+            } else if (currentBias20 >= 25 && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 < -25) {
-                techSignal = 'STOP_LOSS';
             } else if (currentBias20 <= -15 && isImproved3 && rsi < 35) {
                 techSignal = 'STRONG_BUY';
             } else if ((currentBias20 <= -10 && isImproved2 && rsi < 40) || techScore >= 70) {
@@ -468,10 +593,14 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
 
         return {
             ma20: currentMa20,
+            ma60: currentMa60,
             rsi,
             volumeRatio,
             biasSlopes,
-            techScore,
+            ma20Slope,
+            marginChangeRatio,
+            sizeCategory,
+            techScore: Math.round(techScore),
             techSignal,
             currentPrice
         };

@@ -136,7 +136,7 @@ export const Watchlist: React.FC = () => {
                     <td className="p-3">
                         <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     </td>
-                    <td className="p-3 text-center" colSpan={6}>
+                    <td className="p-3 text-center" colSpan={9}>
                         <span className="text-slate-500 text-sm flex items-center justify-center gap-2">
                             {isLoading ? <><Loader2 size={14} className="animate-spin"/> 載入中...</> : '等候更新'}
                         </span>
@@ -156,7 +156,7 @@ export const Watchlist: React.FC = () => {
                     <td className="p-3">
                         <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     </td>
-                    <td className="p-3 text-center" colSpan={6}>
+                    <td className="p-3 text-center" colSpan={9}>
                         <span className="text-red-400 text-sm flex items-center justify-center gap-2">
                             抓取失敗 (代號錯誤或無資料)
                         </span>
@@ -179,30 +179,43 @@ export const Watchlist: React.FC = () => {
         else if (data.techSignal === 'FORCE_SELL') signalBadge = <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利</span>;
         else if (data.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
         else if (data.techSignal === 'ADDITIONAL_BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號</span>;
-        else if (data.techSignal === 'STRONG_ADDITIONAL_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼</span>;
+        else if (data.techSignal === 'STRONG_ADDITIONAL_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">💰💰 強力加碼</span>;
         else if (data.techSignal === 'SECOND_PARTIAL_SELL') signalBadge = <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼</span>;
 
         const slopeColor = data.biasSlopes && data.biasSlopes[0] !== undefined 
             ? (data.biasSlopes[0] > 0 ? 'text-red-400' : 'text-emerald-400') 
             : 'text-slate-500';
 
-        const isETF = symbol.startsWith('00') || symbol.toLowerCase().includes('etf');
+        const categoryLabel = data.sizeCategory === 'LARGE_CAP' ? '大型股' : (data.sizeCategory === 'SMALL_CAP' ? '小型股' : 'ETF');
 
         return (
             <tr key={symbol} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
                 <td className="p-3">
                     <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
-                    <p className="text-[10px] text-slate-500 font-mono">{isETF ? 'ETF' : '個股'}</p>
+                    <p className="text-[10px] text-slate-500 font-mono">{categoryLabel}</p>
                 </td>
                 <td className="p-3 text-right font-mono font-bold text-white">{data.currentPrice?.toFixed(2) || '-'}</td>
                 <td className="p-3 text-right font-mono text-slate-400">{data.ma20?.toFixed(2) || '-'}</td>
+                <td className="p-3 text-right font-mono text-slate-500">{data.ma60?.toFixed(2) || '-'}</td>
                 <td className="p-3 text-right font-mono">
                     {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
                     {data.biasSlopes && data.biasSlopes[0] !== undefined && (
                         <p className={`text-[10px] mt-0.5 ${slopeColor}`}>Slope: {data.biasSlopes[0] > 0 ? '↗' : '↘'} {Math.abs(data.biasSlopes[0]).toFixed(2)}</p>
                     )}
                 </td>
+                <td className="p-3 text-right font-mono">
+                    <span className={data.ma20Slope && data.ma20Slope > 0 ? 'text-red-400' : 'text-emerald-400'}>
+                        {data.ma20Slope ? (data.ma20Slope > 0 ? '+' : '') + data.ma20Slope.toFixed(2) : '-'}
+                    </span>
+                </td>
                 <td className="p-3 text-right font-mono text-slate-300">{data.rsi?.toFixed(1) || '-'}</td>
+                <td className="p-3 text-right font-mono">
+                    {data.marginChangeRatio !== undefined && data.marginChangeRatio !== null ? (
+                        <span className={data.marginChangeRatio > 0 ? 'text-red-400' : 'text-emerald-400'}>
+                            {data.marginChangeRatio > 0 ? '+' : ''}{data.marginChangeRatio.toFixed(2)}%
+                        </span>
+                    ) : '-'}
+                </td>
                 <td className="p-3 text-center font-mono font-bold text-violet-400">{(data.techScore !== undefined && data.techScore !== null && data.techScore > 0) ? data.techScore : <span className="text-slate-500">-</span>}</td>
                 <td className="p-3 text-center">{signalBadge}</td>
                 <td className="p-3 text-center">
@@ -327,8 +340,11 @@ export const Watchlist: React.FC = () => {
                                 <th className="p-3 font-medium w-32">標的</th>
                                 <th className="p-3 font-medium text-right">收盤價</th>
                                 <th className="p-3 font-medium text-right">20MA</th>
+                                <th className="p-3 font-medium text-right">60MA</th>
                                 <th className="p-3 font-medium text-right">Bias20</th>
+                                <th className="p-3 font-medium text-right">MA20斜率</th>
                                 <th className="p-3 font-medium text-right">RSI(14)</th>
+                                <th className="p-3 font-medium text-right">融資增減</th>
                                 <th className="p-3 font-medium text-center">評分</th>
                                 <th className="p-3 font-medium text-center">訊號</th>
                                 <th className="p-3 font-medium text-center w-16">操作</th>
@@ -338,7 +354,7 @@ export const Watchlist: React.FC = () => {
                                     activeGroup.symbols.map(renderTechRow)
                                 ) : (
                                     <tr>
-                                        <td colSpan={8} className="text-center py-12 text-slate-500">
+                                        <td colSpan={11} className="text-center py-12 text-slate-500">
                                             <div className="flex flex-col items-center gap-2">
                                                 <Target size={32} className="text-slate-600 mb-2" />
                                                 <p className="font-bold text-slate-400">目前清單內尚無標的</p>
