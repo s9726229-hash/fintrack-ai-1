@@ -83,6 +83,22 @@ export const getFeeDiscount = (): number => {
 export const saveFeeDiscount = (discount: number) => {
     localStorage.setItem(STORAGE_KEYS.FEE_DISCOUNT, discount.toString());
 };
+
+// --- V5 Watchlists ---
+export const getWatchlists = (): import('../types').WatchlistGroup[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.WATCHLISTS);
+    if (data) {
+        return JSON.parse(data);
+    }
+    // Default watchlist if empty
+    return [
+        { id: 'default', name: '自選股', symbols: [] }
+    ];
+};
+
+export const saveWatchlists = (watchlists: import('../types').WatchlistGroup[]) => {
+    localStorage.setItem(STORAGE_KEYS.WATCHLISTS, JSON.stringify(watchlists));
+};
 // ------------------------
 
 export const getApiKey = (): string => {

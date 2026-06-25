@@ -177,6 +177,12 @@ export interface GoogleSyncConfig {
     lastSynced?: number;
 }
 
+export interface WatchlistGroup {
+    id: string;
+    name: string;
+    symbols: string[];
+}
+
 export interface LocalStorageData {
   ft_assets: Asset[];
   ft_transactions: Transaction[];
@@ -189,9 +195,10 @@ export interface LocalStorageData {
   ft_stock_history: StockSnapshot[]; // New V5.9.3
   ft_stock_transactions: StockTransaction[]; // New V6.3.0
   ft_stock_fee_discount: number; // New V5.9.3
+  ft_watchlists: WatchlistGroup[]; // New V5
 }
 
-export type ViewState = 'DASHBOARD' | 'ASSETS' | 'TRANSACTIONS' | 'RECURRING' | 'BUDGET' | 'GUIDE' | 'HISTORY' | 'SETTINGS' | 'INVESTMENTS';
+export type ViewState = 'DASHBOARD' | 'ASSETS' | 'TRANSACTIONS' | 'RECURRING' | 'BUDGET' | 'GUIDE' | 'HISTORY' | 'SETTINGS' | 'INVESTMENTS' | 'TECH_DOCS' | 'WATCHLIST';
 
 export type ApiKeyStatus = 'unchecked' | 'valid' | 'invalid' | 'verifying';
 

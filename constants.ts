@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   STOCK_HISTORY: 'ft_stock_history', // New V5.9.3
   STOCK_TRANSACTIONS: 'ft_stock_transactions', // New V6.3.0
   FEE_DISCOUNT: 'ft_stock_fee_discount', // New V5.9.3
+  WATCHLISTS: 'ft_watchlists', // New V5
 };
 
 export const EXCHANGE_RATES_DEFAULT = {

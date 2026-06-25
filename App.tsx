@@ -10,6 +10,8 @@ import { HistoryView } from './views/History';
 import { GuideView } from './views/Guide';
 import { Budget } from './views/Budget';
 import { Investments } from './views/Investments';
+import { TechDocs } from './views/TechDocs';
+import { Watchlist } from './views/Watchlist';
 import { ViewState, Asset, Transaction, RecurringItem, AssetType, BudgetConfig, ApiKeyStatus, StockSnapshot, StockTransaction, Currency } from './types';
 import * as storage from './services/storage';
 import { calculateLoanBalance } from './services/finance';
@@ -316,7 +318,9 @@ export default function App() {
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}
       {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}
+      {view === 'WATCHLIST' && <Watchlist />}
       {view === 'GUIDE' && <GuideView />}
+      {view === 'TECH_DOCS' && <TechDocs />}
       {view === 'HISTORY' && <HistoryView />}
       {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}
       {toast && (

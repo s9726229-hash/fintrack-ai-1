@@ -4,7 +4,7 @@ import React from 'react';
 import { ViewState, ApiKeyStatus } from '../../types';
 import { 
   LayoutGrid, PieChart, ScrollText, Target, CalendarClock,
-  Bot, Settings, BookOpen, TrendingUp, Loader2
+  Bot, Settings, BookOpen, TrendingUp, Loader2, Eye
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -75,11 +75,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
         <NavItem view="DASHBOARD" current={currentView} icon={LayoutGrid} label="總覽儀表板" onClick={onChangeView} />
         <NavItem view="ASSETS" current={currentView} icon={PieChart} label="資產管理" onClick={onChangeView} />
         <NavItem view="INVESTMENTS" current={currentView} icon={TrendingUp} label="股票投資" onClick={onChangeView} loading={isEnrichingInBackground} />
+        <NavItem view="WATCHLIST" current={currentView} icon={Eye} label="選股掃描" onClick={onChangeView} />
         <NavItem view="TRANSACTIONS" current={currentView} icon={ScrollText} label="收支記帳" onClick={onChangeView} />
         <NavItem view="BUDGET" current={currentView} icon={Target} label="預算與分析" onClick={onChangeView} />
         <NavItem view="RECURRING" current={currentView} icon={CalendarClock} label="固定收支" onClick={onChangeView} />
         
         <div className="pt-4 mt-2 border-t border-slate-800 space-y-2">
+          <NavItem view="TECH_DOCS" current={currentView} icon={BookOpen} label="技術分析說明" onClick={onChangeView} />
           <NavItem view="GUIDE" current={currentView} icon={BookOpen} label="功能導覽" onClick={onChangeView} />
           <NavItem view="HISTORY" current={currentView} icon={Bot} label="AI 調校日誌" onClick={onChangeView} />
         </div>
