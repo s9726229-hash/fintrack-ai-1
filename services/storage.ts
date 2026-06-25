@@ -161,7 +161,7 @@ export const getFullDataJson = () => {
     const data = {
         ft_metadata: {
             backupDate: new Date().toISOString(),
-            appVersion: '6.7.2',
+            appVersion: '7.1.0',
         },
         [STORAGE_KEYS.ASSETS]: getAssets(),
         [STORAGE_KEYS.TRANSACTIONS]: getTransactions(),
@@ -171,6 +171,8 @@ export const getFullDataJson = () => {
         [STORAGE_KEYS.BUDGETS]: getBudgets(),
         [STORAGE_KEYS.STOCK_HISTORY]: getStockHistory(),
         [STORAGE_KEYS.STOCK_TRANSACTIONS]: getStockTransactions(),
+        [STORAGE_KEYS.WATCHLISTS]: getWatchlists(),
+        [STORAGE_KEYS.TECH_PARAMS]: getTechParameters(),
         'ft_api_key': getApiKey(), 
         'ft_google_client_id': getGoogleClientId(),
         [STORAGE_KEYS.FEE_DISCOUNT]: getFeeDiscount(),
@@ -226,6 +228,8 @@ export const importData = (jsonData: string) => {
     if (data[STORAGE_KEYS.HISTORY]) saveHistory(data[STORAGE_KEYS.HISTORY]);
     if (data[STORAGE_KEYS.BUDGETS]) saveBudgets(data[STORAGE_KEYS.BUDGETS]);
     if (data[STORAGE_KEYS.STOCK_HISTORY]) saveStockHistory(data[STORAGE_KEYS.STOCK_HISTORY]);
+    if (data[STORAGE_KEYS.WATCHLISTS]) saveWatchlists(data[STORAGE_KEYS.WATCHLISTS]);
+    if (data[STORAGE_KEYS.TECH_PARAMS]) saveTechParameters(data[STORAGE_KEYS.TECH_PARAMS]);
     if (data['ft_api_key']) saveApiKey(data['ft_api_key']);
     if (data['ft_google_client_id']) saveGoogleClientId(data['ft_google_client_id']);
     if (data[STORAGE_KEYS.FEE_DISCOUNT]) saveFeeDiscount(data[STORAGE_KEYS.FEE_DISCOUNT]);
