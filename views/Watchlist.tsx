@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target } from 'lucide-react';
-import { WatchlistGroup } from '../types';
+import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert } from 'lucide-react';
+import { WatchlistGroup, MarketRegime } from '../types';
 import * as storage from '../services/storage';
-import { fetchTechnicalData } from '../services/stock';
+import { fetchTechnicalData, fetchMarketRegime } from '../services/stock';
 import twStocks from '../src/data/tw_stocks.json';
 
 export const Watchlist: React.FC = () => {
@@ -16,6 +16,7 @@ export const Watchlist: React.FC = () => {
     // Store fetched technical data
     const [techDataMap, setTechDataMap] = useState<Record<string, any>>({});
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+    const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
 
     const activeGroup = groups.find(g => g.id === activeGroupId);
 
@@ -38,10 +39,16 @@ export const Watchlist: React.FC = () => {
         setIsLoading(true);
         const newMap = { ...techDataMap };
         
+        const regime = await fetchMarketRegime();
+        setMarketRegime(regime);
+
+        const assets = storage.getAssets();
+        const transactions = storage.getStockTransactions();
+        
         // Fetch all concurrently
         await Promise.all(symbolsToFetch.map(async (symbol) => {
             try {
-                const data = await fetchTechnicalData(symbol);
+                const data = await fetchTechnicalData(symbol, assets, transactions);
                 if (data) {
                     newMap[symbol] = data;
                 } else {
@@ -178,8 +185,11 @@ export const Watchlist: React.FC = () => {
         else if (data.techSignal === 'PARTIAL_SELL') signalBadge = <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利</span>;
         else if (data.techSignal === 'FORCE_SELL') signalBadge = <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利</span>;
         else if (data.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
+        else if (data.techSignal === 'STOP_LOSS_ALERT') signalBadge = <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示</span>;
         else if (data.techSignal === 'ADDITIONAL_BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號</span>;
         else if (data.techSignal === 'STRONG_ADDITIONAL_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">💰💰 強力加碼</span>;
+        else if (data.techSignal === 'TREND_ADD') signalBadge = <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;
+        else if (data.techSignal === 'FINAL_ADD') signalBadge = <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>;
         else if (data.techSignal === 'SECOND_PARTIAL_SELL') signalBadge = <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼</span>;
 
         const slopeColor = data.biasSlopes && data.biasSlopes[0] !== undefined 
@@ -231,9 +241,14 @@ export const Watchlist: React.FC = () => {
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Eye className="text-sky-400" /> 選股掃描與觀察名單
-                    </h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                            <Eye className="text-sky-400" /> 選股掃描與觀察名單
+                        </h2>
+                        {marketRegime === 'NORMAL' && <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 正常模式</span>}
+                        {marketRegime === 'CONSERVATIVE' && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 保守模式 (停加碼/懲罰)</span>}
+                        {marketRegime === 'DEFENSIVE' && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 防禦模式 (只出不進)</span>}
+                    </div>
                     <p className="text-slate-400 text-sm mt-1">建立自訂分頁，利用雙引擎自動分析標的強弱勢與買賣點</p>
                 </div>
                 {lastUpdated && (

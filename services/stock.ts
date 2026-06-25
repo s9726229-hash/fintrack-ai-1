@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult } from "../types";
+import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts } from "../types";
 import { getApiKey, getFeeDiscount, getTechParameters } from "./storage";
 import largeCaps from '../src/data/large_caps.json';
 
@@ -338,7 +338,42 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
 /**
  * Fetches Technical Data for a stock symbol from Yahoo Finance API via CORS proxy.
  */
-export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult | null> => {
+export const fetchMarketRegime = async (): Promise<MarketRegime> => {
+    try {
+        const twiiData = await fetchTechnicalData('^TWII');
+        if (twiiData && twiiData.ma20 && twiiData.currentPrice) {
+            const bias20 = ((twiiData.currentPrice - twiiData.ma20) / twiiData.ma20) * 100;
+            if (bias20 > -5) {
+                return MarketRegime.NORMAL;
+            } else if (bias20 <= -5 && bias20 > -10) {
+                return MarketRegime.CONSERVATIVE;
+            } else {
+                return MarketRegime.DEFENSIVE;
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching market regime:", error);
+    }
+    // 預設返回 NORMAL
+    return MarketRegime.NORMAL;
+};
+
+// 判斷是否連續 3 筆交易虧損
+export const checkConsecutiveLossLock = (transactions?: StockTransaction[]): boolean => {
+    if (!transactions || transactions.length === 0) return false;
+    
+    // 找出所有賣出且有已實現損益的紀錄，依日期反向排序 (最新的在前)
+    const sells = transactions
+        .filter(t => t.side === 'SELL' && t.realizedProfit !== undefined)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+    if (sells.length < 3) return false;
+    
+    // 檢查最近 3 筆是否皆為負數
+    return sells[0].realizedProfit! < 0 && sells[1].realizedProfit! < 0 && sells[2].realizedProfit! < 0;
+};
+
+export const fetchTechnicalData = async (symbol: string, assets?: Asset[], transactions?: StockTransaction[]): Promise<TechDataResult | null> => {
     try {
         if (!symbol) return null;
         
@@ -551,7 +586,7 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
             }
         }
 
-        // 9. Signals
+        // 9. V4.0 Signals & Risk Control
         let techSignal: TechDataResult['techSignal'] = 'NONE';
         const isDeteriorating2 = biasSlopes[0] < 0 && biasSlopes[1] < 0;
         const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
@@ -559,6 +594,32 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
         const isImproved1 = biasSlopes[0] > 0;
         
         const params = getTechParameters();
+        
+        let marketRegime = MarketRegime.NORMAL;
+        if (symbol !== '^TWII') {
+            marketRegime = await fetchMarketRegime();
+        }
+        
+        const isConsecutiveLossLock = checkConsecutiveLossLock(transactions);
+        if (isConsecutiveLossLock) {
+            marketRegime = MarketRegime.CONSERVATIVE; // 強制進入保守模式
+        }
+        
+        if (marketRegime === MarketRegime.CONSERVATIVE) {
+            techScore -= 10; // 保守模式評分懲罰
+        }
+
+        // 庫存感知
+        const heldAsset = assets?.find(a => a.name.includes(symbol) || symbol.includes(a.name)); // 簡易比對
+        const isHeld = !!heldAsset;
+        const lastBuyTransaction = transactions?.filter(t => (t.symbol === symbol || t.name === symbol) && t.side === 'BUY').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        let daysSinceLastBuy = 0;
+        if (lastBuyTransaction) {
+             const msDiff = Date.now() - new Date(lastBuyTransaction.date).getTime();
+             daysSinceLastBuy = msDiff / (1000 * 60 * 60 * 24);
+        }
+
+        const canBuy = marketRegime !== MarketRegime.DEFENSIVE && currentBias20 < 0;
 
         if (sizeCategory === 'ETF') {
             if (currentBias20 >= params.etfSecondPartialSellBias && isDeteriorating2) {
@@ -569,9 +630,9 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
                 techSignal = 'STRONG_ADDITIONAL_BUY';
             } else if (currentBias20 <= params.etfAdditionalBuyBias) {
                 techSignal = 'ADDITIONAL_BUY';
-            } else if (currentBias20 <= params.etfStrongBuyBias && isImproved2 && rsi < params.etfStrongBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.etfStrongBuyBias && isImproved2 && rsi < params.etfStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if (currentBias20 <= params.etfBuyBias && isImproved1 && rsi < params.etfBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.etfBuyBias && isImproved1 && rsi < params.etfBuyRsi) {
                 techSignal = 'BUY';
             }
         } else if (sizeCategory === 'LARGE_CAP') {
@@ -579,9 +640,11 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.largeCapPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 <= params.largeCapStrongBuyBias && isImproved2 && rsi < params.largeCapStrongBuyRsi) {
+            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -10 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 65 && daysSinceLastBuy >= 3) {
+                techSignal = 'TREND_ADD';
+            } else if (canBuy && currentBias20 <= params.largeCapStrongBuyBias && isImproved2 && rsi < params.largeCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if (currentBias20 <= params.largeCapBuyBias && isImproved1 && rsi < params.largeCapBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.largeCapBuyBias && isImproved1 && rsi < params.largeCapBuyRsi) {
                 techSignal = 'BUY';
             }
         } else {
@@ -590,11 +653,21 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.smallCapPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 <= params.smallCapStrongBuyBias && isImproved3 && rsi < params.smallCapStrongBuyRsi) {
+            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -15 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 60 && daysSinceLastBuy >= 5) {
+                techSignal = 'TREND_ADD';
+            } else if (canBuy && currentBias20 <= params.smallCapStrongBuyBias && isImproved3 && rsi < params.smallCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if (currentBias20 <= params.smallCapBuyBias && isImproved2 && rsi < params.smallCapBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.smallCapBuyBias && isImproved2 && rsi < params.smallCapBuyRsi) {
                 techSignal = 'BUY';
             }
+        }
+        
+        const riskAlerts: RiskAlerts = {
+            stopLossAlert: isHeld && ((sizeCategory === 'LARGE_CAP' && currentBias20 < -20) || (sizeCategory === 'SMALL_CAP' && currentBias20 < -25)),
+            conservativeLock: isConsecutiveLossLock
+        };
+        if (riskAlerts.stopLossAlert) {
+            techSignal = 'STOP_LOSS_ALERT';
         }
 
         return {

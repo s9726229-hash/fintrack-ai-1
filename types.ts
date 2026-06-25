@@ -69,7 +69,7 @@ export interface Asset {
   rsi?: number;
   volumeRatio?: number;
   techScore?: number;
-  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL';
+  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT';
   biasSlopes?: number[]; // Index 0: today's slope, 1: yesterday's, 2: day before yesterday
   ma20Slope?: number;
   ma60?: number;
@@ -117,6 +117,17 @@ export interface TechParameters {
     smallCapForceSellBias: number;
 }
 
+export enum MarketRegime {
+    NORMAL = 'NORMAL',
+    CONSERVATIVE = 'CONSERVATIVE',
+    DEFENSIVE = 'DEFENSIVE',
+}
+
+export interface RiskAlerts {
+    stopLossAlert: boolean; // Bias20 繼續惡化 -5% 或達到停損門檻
+    conservativeLock: boolean; // 連續3筆虧損鎖定
+}
+
 export interface TechDataResult {
     ma20: number | null;
     ma60: number | null;
@@ -127,8 +138,10 @@ export interface TechDataResult {
     marginChangeRatio: number | null;
     sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
     techScore: number;
-    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL';
+    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT';
     currentPrice?: number;
+    marketRegime?: MarketRegime;
+    riskAlerts?: RiskAlerts;
 }
 
 export interface Transaction {

@@ -9,7 +9,7 @@ export const TechDocs: React.FC = () => {
                     <BookOpen size={24} className="text-indigo-400" />
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-white">技術面監控系統說明 (V3.0 立體量化版)</h2>
+                    <h2 className="text-2xl font-bold text-white">技術面監控系統說明 (V4.0 全自動決策版)</h2>
                     <p className="text-slate-400">結合長線趨勢、短線慣性與主力籌碼的量化交易輔助系統</p>
                 </div>
             </div>
@@ -72,6 +72,14 @@ export const TechDocs: React.FC = () => {
 
                     <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                         <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">順勢加碼</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">最後加碼</span>
+                        </div>
+                        <p className="text-sm text-slate-400"><span className="font-bold text-white">(V4.0 庫存連動)</span> 當系統偵測到您「已持有」該檔個股，且目前大盤處於「正常模式」，加上該股負乖離收斂並距離上次買進達一定天數時，系統會提示您這是一個安全的右側加碼點。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-2">
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">部分減碼</span>
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">再次減碼</span>
                         </div>
@@ -83,6 +91,29 @@ export const TechDocs: React.FC = () => {
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">強制停利</span>
                         </div>
                         <p className="text-sm text-slate-400"><span className="font-bold text-white">(僅限 個股)</span> 股價出現極端不合理的狂飆（正乖離過高），隨時可能面臨劇烈的均值回歸下殺（A轉）。看到此訊號建議果斷清倉或大幅減碼，不賺最後一個銅板。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-rose-700/50">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-700 text-white border border-rose-500 shadow-lg shadow-rose-900/50">⚠️ 停損警示</span>
+                        </div>
+                        <p className="text-sm text-slate-400"><span className="font-bold text-white">(V4.0 庫存連動)</span> 當系統偵測到您「已持有」該個股，但目前股價的負乖離率持續擴大並跌破系統安全閾值（大型股 -20%，小型股 -25%）時，將觸發最高級別的停損警示，建議立即審視部位風險。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <ShieldAlert className="text-emerald-400" /> V4.0 全自動大盤避險與庫存感知機制
+                </h3>
+                <div className="space-y-4">
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <h4 className="text-white font-bold mb-1">1. 大盤狀態濾網 (Market Regime)</h4>
+                        <p className="text-sm text-slate-400">系統掃描前會自動比對 <b>^TWII 台灣加權指數</b>。若大盤乖離率跌至 -5% ~ -10%，系統切換至「🟡 保守模式」，將扣減所有個股分數並停止提示加碼；若大盤跌破 -10%，切換至「🔴 防禦模式」，將凍結所有買進訊號，純粹執行停利與停損。</p>
+                    </div>
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <h4 className="text-white font-bold mb-1">2. 連虧鎖定防禦 (Consecutive Loss Lock)</h4>
+                        <p className="text-sm text-slate-400">系統即時監控您的歷史交易紀錄。當偵測到您「連續 3 筆賣出」皆為實質虧損時，系統會自動判定目前盤感不佳或市場處於極端狀態，並強制切換至「🔒 保守鎖定模式」，限制系統再發出積極買進訊號。</p>
                     </div>
                 </div>
             </div>

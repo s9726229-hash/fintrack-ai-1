@@ -157,7 +157,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         const updatedAssets: Asset[] = [];
         for (const stock of inventory) {
             if (stock.symbol) {
-                const techData = await fetchTechnicalData(stock.symbol);
+                const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions);
                 if (techData !== null) {
                     const cleanTechData: Partial<Asset> = {};
                     if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
@@ -300,6 +300,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     else if (pos.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
                     else if (pos.techSignal === 'ADDITIONAL_BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號</span>;
                     else if (pos.techSignal === 'STRONG_ADDITIONAL_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼</span>;
+                    else if (pos.techSignal === 'TREND_ADD') signalBadge = <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;
+                    else if (pos.techSignal === 'FINAL_ADD') signalBadge = <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>;
+                    else if (pos.techSignal === 'STOP_LOSS_ALERT') signalBadge = <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示</span>;
                     else if (pos.techSignal === 'SECOND_PARTIAL_SELL') signalBadge = <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼</span>;
 
                     const slopeColor = pos.biasSlopes && pos.biasSlopes[0] !== undefined 
