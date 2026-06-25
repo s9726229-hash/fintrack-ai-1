@@ -320,7 +320,15 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         : 'text-slate-500';
 
                     return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
-                        <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-500 font-mono">{pos.symbol}</p></td>
+                        <td className="p-3">
+                            <p className="font-bold text-white truncate">{pos.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                                <p className="text-xs text-slate-500 font-mono">{pos.symbol}</p>
+                                {pos.sizeCategory === 'LARGE_CAP' && <span className="text-[9px] px-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 font-bold tracking-wider">大型股</span>}
+                                {pos.sizeCategory === 'SMALL_CAP' && <span className="text-[9px] px-1 bg-sky-500/20 text-sky-400 rounded border border-sky-500/30 font-bold tracking-wider">小型股</span>}
+                                {pos.sizeCategory === 'ETF' && <span className="text-[9px] px-1 bg-violet-500/20 text-violet-400 rounded border border-violet-500/30 font-bold tracking-wider">ETF</span>}
+                            </div>
+                        </td>
                         <td className="p-3 text-right font-mono font-bold text-white">{pos.currentPrice?.toFixed(2) || '-'}</td>
                         <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
                         <td className="p-3 text-right font-mono">
