@@ -51,6 +51,44 @@ export const TechDocs: React.FC = () => {
 
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <ShieldAlert className="text-amber-400" /> 訊號燈號含意與操作建議
+                </h3>
+                <div className="space-y-4">
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">買進訊號</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500 text-white">強力買進</span>
+                        </div>
+                        <p className="text-sm text-slate-400"><span className="font-bold text-white">買進訊號：</span>乖離率達到初步跌深門檻，且斜率反轉向上，可嘗試建倉試單。<br/><span className="font-bold text-white">強力買進：</span>乖離率與 RSI 皆達到極度超跌，且連續兩天以上斜率向上，底部確認度高，勝率極大，為主力佈局時機。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">加碼訊號</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500 text-white">強力加碼</span>
+                        </div>
+                        <p className="text-sm text-slate-400"><span className="font-bold text-white">(僅限 ETF)</span> 大盤或 ETF 遇恐慌性下殺時觸發。不看趨勢轉折，純粹依照左側交易紀律「越跌越買、無腦攤平」，建構長線低成本部位。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">部分減碼</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">再次減碼</span>
+                        </div>
+                        <p className="text-sm text-slate-400">股價短線漲幅過大產生「正乖離」，且乖離率斜率連續兩天向下（動能衰退）。建議將部位先行獲利了結 1/3 或 1/2，以鎖定利潤並收回資金。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">強制停利</span>
+                        </div>
+                        <p className="text-sm text-slate-400"><span className="font-bold text-white">(僅限 個股)</span> 股價出現極端不合理的狂飆（正乖離過高），隨時可能面臨劇烈的均值回歸下殺（A轉）。看到此訊號建議果斷清倉或大幅減碼，不賺最後一個銅板。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
                     <ShieldAlert className="text-amber-400" /> V3.0 進階核心機制
                 </h3>
                 <div className="space-y-4">
