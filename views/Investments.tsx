@@ -227,9 +227,12 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>股息分析</button>
                 </div>
                 <div className="relative flex items-center gap-2">
-                    <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"><Landmark size={14}/>{enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}</Button>
+                    <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20">
+                        {!enrichStatus.dividend.isUpdating && <Landmark size={14}/>}
+                        {enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}
+                    </Button>
                     <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20 transition-all duration-300 ease-in-out min-w-[120px] relative overflow-hidden">
-                        <TrendingUp size={14}/>
+                        {!isUpdatingBias && <TrendingUp size={14}/>}
                         {isUpdatingBias && analyzeProgress ? (
                             <span className="flex items-center gap-1 z-10 relative">
                                 處理中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>

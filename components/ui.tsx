@@ -46,9 +46,10 @@ export const Button = ({
   
   return (
     <Component {...props}>
-      {loading ? (
-        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-      ) : children}
+      {loading && (
+        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0"></span>
+      )}
+      {children}
     </Component>
   );
 };
