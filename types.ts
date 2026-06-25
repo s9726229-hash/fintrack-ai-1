@@ -89,6 +89,48 @@ export interface StockPosition {
     unrealizedPLPercent?: number;
 }
 
+export interface TechParameters {
+    // ETF
+    etfBuyBias: number;
+    etfStrongBuyBias: number;
+    etfAdditionalBuyBias: number;
+    etfStrongAdditionalBuyBias: number;
+    etfBuyRsi: number;
+    etfStrongBuyRsi: number;
+    etfPartialSellBias: number;
+    etfSecondPartialSellBias: number;
+
+    // 大型股
+    largeCapBuyBias: number;
+    largeCapStrongBuyBias: number;
+    largeCapBuyRsi: number;
+    largeCapStrongBuyRsi: number;
+    largeCapPartialSellBias: number;
+    largeCapForceSellBias: number;
+
+    // 小型股
+    smallCapBuyBias: number;
+    smallCapStrongBuyBias: number;
+    smallCapBuyRsi: number;
+    smallCapStrongBuyRsi: number;
+    smallCapPartialSellBias: number;
+    smallCapForceSellBias: number;
+}
+
+export interface TechDataResult {
+    ma20: number | null;
+    ma60: number | null;
+    rsi: number | null;
+    volumeRatio: number | null;
+    biasSlopes: number[];
+    ma20Slope: number | null;
+    marginChangeRatio: number | null;
+    sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
+    techScore: number;
+    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL';
+    currentPrice?: number;
+}
+
 export interface Transaction {
   id: string;
   date: string; // YYYY-MM-DD

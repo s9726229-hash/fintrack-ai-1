@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction } from "../types";
-import { getApiKey, getFeeDiscount } from "./storage";
+import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult } from "../types";
+import { getApiKey, getFeeDiscount, getTechParameters } from "./storage";
 import largeCaps from '../src/data/large_caps.json';
 
 const cleanJsonString = (text: string) => {
@@ -317,20 +317,6 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
     return { assets, error: null };
 };
 
-export interface TechDataResult {
-    ma20: number | null;
-    ma60: number | null;
-    rsi: number | null;
-    volumeRatio: number | null;
-    biasSlopes: number[];
-    ma20Slope: number | null;
-    marginChangeRatio: number | null;
-    sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
-    techScore: number;
-    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL';
-    currentPrice?: number;
-}
-
 /**
  * Fetches Technical Data for a stock symbol from Yahoo Finance API via CORS proxy.
  */
@@ -553,40 +539,42 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
         const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
         const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
         const isImproved1 = biasSlopes[0] > 0;
+        
+        const params = getTechParameters();
 
         if (sizeCategory === 'ETF') {
-            if (currentBias20 >= 20 && isDeteriorating2) {
+            if (currentBias20 >= params.etfSecondPartialSellBias && isDeteriorating2) {
                 techSignal = 'SECOND_PARTIAL_SELL';
-            } else if (currentBias20 >= 15 && isDeteriorating2) {
+            } else if (currentBias20 >= params.etfPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 <= -20) {
+            } else if (currentBias20 <= params.etfStrongAdditionalBuyBias) {
                 techSignal = 'STRONG_ADDITIONAL_BUY';
-            } else if (currentBias20 <= -15) {
+            } else if (currentBias20 <= params.etfAdditionalBuyBias) {
                 techSignal = 'ADDITIONAL_BUY';
-            } else if (currentBias20 <= -10 && isImproved2 && rsi < 40) {
+            } else if (currentBias20 <= params.etfStrongBuyBias && isImproved2 && rsi < params.etfStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if ((currentBias20 <= -7 && isImproved1 && rsi < 45) || techScore >= 60) {
+            } else if (currentBias20 <= params.etfBuyBias && isImproved1 && rsi < params.etfBuyRsi) {
                 techSignal = 'BUY';
             }
         } else if (sizeCategory === 'LARGE_CAP') {
-            if (currentBias20 >= 25) {
+            if (currentBias20 >= params.largeCapForceSellBias) {
                 techSignal = 'FORCE_SELL';
-            } else if (currentBias20 >= 20 && isDeteriorating2) {
+            } else if (currentBias20 >= params.largeCapPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 <= -10 && isImproved2 && rsi < 40) {
+            } else if (currentBias20 <= params.largeCapStrongBuyBias && isImproved2 && rsi < params.largeCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if ((currentBias20 <= -7 && isImproved1 && rsi < 45) || techScore >= 60) {
+            } else if (currentBias20 <= params.largeCapBuyBias && isImproved1 && rsi < params.largeCapBuyRsi) {
                 techSignal = 'BUY';
             }
         } else {
             // Small Cap
-            if (currentBias20 >= 30) {
+            if (currentBias20 >= params.smallCapForceSellBias) {
                 techSignal = 'FORCE_SELL';
-            } else if (currentBias20 >= 25 && isDeteriorating2) {
+            } else if (currentBias20 >= params.smallCapPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 <= -15 && isImproved3 && rsi < 35) {
+            } else if (currentBias20 <= params.smallCapStrongBuyBias && isImproved3 && rsi < params.smallCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if ((currentBias20 <= -10 && isImproved2 && rsi < 40) || techScore >= 70) {
+            } else if (currentBias20 <= params.smallCapBuyBias && isImproved2 && rsi < params.smallCapBuyRsi) {
                 techSignal = 'BUY';
             }
         }

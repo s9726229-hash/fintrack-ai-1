@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
-import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount } from '../services/storage';
+import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS } from '../services/storage';
 import { initGapi, initGis, handleAuthClick, uploadToDrive, downloadFromDrive, getBackupMetadata, checkConnection } from '../services/googleDrive';
-import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp } from 'lucide-react';
+import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
 import { ApiKeyStatus, Asset, AssetType } from '../types';
 import { STORAGE_KEYS } from '../constants';
 
@@ -17,6 +17,7 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [feeDiscount, setFeeDiscount] = useState(0.28);
+  const [techParams, setTechParams] = useState(DEFAULT_TECH_PARAMS);
 
   const [googleClientId, setGoogleClientId] = useState('');
   const [isDriveConnected, setIsDriveConnected] = useState(false);
@@ -27,6 +28,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
   useEffect(() => {
     setFeeDiscount(getFeeDiscount());
+    setTechParams(getTechParameters());
     const storedClientId = getGoogleClientId();
     if (storedClientId) {
         setGoogleClientId(storedClientId);
@@ -55,6 +57,19 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const handleSaveFeeDiscount = () => {
       saveFeeDiscount(feeDiscount);
       showNotify('success', '手續費折扣已儲存！');
+  };
+
+  const handleSaveTechParams = () => {
+      saveTechParameters(techParams);
+      showNotify('success', '技術面參數已儲存！將於下次分析時生效。');
+  };
+
+  const handleResetTechParams = () => {
+      if(confirm('確定要還原為系統預設的技術面參數嗎？')) {
+          setTechParams(DEFAULT_TECH_PARAMS);
+          saveTechParameters(DEFAULT_TECH_PARAMS);
+          showNotify('success', '已還原預設參數。');
+      }
   };
 
   const handleSaveClientId = () => {
@@ -210,6 +225,69 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                       <Button onClick={handleSaveFeeDiscount} variant="secondary" className="shrink-0">儲存</Button>
                   </div>
                   <p className="text-xs text-slate-500 mt-2">請輸入您的券商折扣，例如 2.8 折請輸入 0.28。此設定將影響損益計算的準確性。</p>
+              </div>
+          </div>
+      </Card>
+
+      {/* Technical Parameters Settings */}
+      <Card className="border-indigo-500/30 bg-gradient-to-br from-slate-800 to-slate-900/50">
+          <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                <SettingsIcon className="text-indigo-400"/> 技術面參數設定
+              </h3>
+              <div className="flex gap-2">
+                  <Button onClick={handleResetTechParams} variant="danger" className="text-xs h-8 px-3">還原預設</Button>
+                  <Button onClick={handleSaveTechParams} variant="secondary" className="text-xs h-8 px-3">儲存參數</Button>
+              </div>
+          </div>
+          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-6">
+              <p className="text-xs text-slate-400">自定義 V3.0 量化評分引擎的買賣門檻，參數調整後將立即影響首頁的選股掃描結果。</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* ETF */}
+                  <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-emerald-400 border-b border-slate-700 pb-2">🟢 ETF</h4>
+                      <div className="space-y-2">
+                          <label className="text-xs text-slate-400">買進乖離率 (&lt;= %)</label>
+                          <Input type="number" value={techParams.etfBuyBias} onChange={e => setTechParams({...techParams, etfBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                          
+                          <label className="text-xs text-slate-400">買進 RSI (&lt;)</label>
+                          <Input type="number" value={techParams.etfBuyRsi} onChange={e => setTechParams({...techParams, etfBuyRsi: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">減碼乖離率 (&gt;= %)</label>
+                          <Input type="number" value={techParams.etfPartialSellBias} onChange={e => setTechParams({...techParams, etfPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                      </div>
+                  </div>
+
+                  {/* Large Cap */}
+                  <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-blue-400 border-b border-slate-700 pb-2">🔵 大型股</h4>
+                      <div className="space-y-2">
+                          <label className="text-xs text-slate-400">買進乖離率 (&lt;= %)</label>
+                          <Input type="number" value={techParams.largeCapBuyBias} onChange={e => setTechParams({...techParams, largeCapBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                          
+                          <label className="text-xs text-slate-400">買進 RSI (&lt;)</label>
+                          <Input type="number" value={techParams.largeCapBuyRsi} onChange={e => setTechParams({...techParams, largeCapBuyRsi: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">停利乖離率 (&gt;= %)</label>
+                          <Input type="number" value={techParams.largeCapPartialSellBias} onChange={e => setTechParams({...techParams, largeCapPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                      </div>
+                  </div>
+
+                  {/* Small Cap */}
+                  <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-purple-400 border-b border-slate-700 pb-2">🟣 小型股</h4>
+                      <div className="space-y-2">
+                          <label className="text-xs text-slate-400">買進乖離率 (&lt;= %)</label>
+                          <Input type="number" value={techParams.smallCapBuyBias} onChange={e => setTechParams({...techParams, smallCapBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                          
+                          <label className="text-xs text-slate-400">買進 RSI (&lt;)</label>
+                          <Input type="number" value={techParams.smallCapBuyRsi} onChange={e => setTechParams({...techParams, smallCapBuyRsi: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">停利乖離率 (&gt;= %)</label>
+                          <Input type="number" value={techParams.smallCapPartialSellBias} onChange={e => setTechParams({...techParams, smallCapPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                      </div>
+                  </div>
               </div>
           </div>
       </Card>

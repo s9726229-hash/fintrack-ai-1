@@ -84,7 +84,6 @@ export const saveFeeDiscount = (discount: number) => {
     localStorage.setItem(STORAGE_KEYS.FEE_DISCOUNT, discount.toString());
 };
 
-// --- V5 Watchlists ---
 export const getWatchlists = (): import('../types').WatchlistGroup[] => {
     const data = localStorage.getItem(STORAGE_KEYS.WATCHLISTS);
     if (data) {
@@ -98,6 +97,44 @@ export const getWatchlists = (): import('../types').WatchlistGroup[] => {
 
 export const saveWatchlists = (watchlists: import('../types').WatchlistGroup[]) => {
     localStorage.setItem(STORAGE_KEYS.WATCHLISTS, JSON.stringify(watchlists));
+};
+
+// --- V7.1.0 Tech Parameters ---
+export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
+    etfBuyBias: -7,
+    etfStrongBuyBias: -10,
+    etfAdditionalBuyBias: -15,
+    etfStrongAdditionalBuyBias: -20,
+    etfBuyRsi: 45,
+    etfStrongBuyRsi: 40,
+    etfPartialSellBias: 15,
+    etfSecondPartialSellBias: 20,
+
+    largeCapBuyBias: -7,
+    largeCapStrongBuyBias: -10,
+    largeCapBuyRsi: 45,
+    largeCapStrongBuyRsi: 40,
+    largeCapPartialSellBias: 20,
+    largeCapForceSellBias: 25,
+
+    smallCapBuyBias: -10,
+    smallCapStrongBuyBias: -15,
+    smallCapBuyRsi: 40,
+    smallCapStrongBuyRsi: 35,
+    smallCapPartialSellBias: 25,
+    smallCapForceSellBias: 30,
+};
+
+export const getTechParameters = (): import('../types').TechParameters => {
+    const data = localStorage.getItem(STORAGE_KEYS.TECH_PARAMS);
+    if (data) {
+        return { ...DEFAULT_TECH_PARAMS, ...JSON.parse(data) };
+    }
+    return DEFAULT_TECH_PARAMS;
+};
+
+export const saveTechParameters = (params: import('../types').TechParameters) => {
+    localStorage.setItem(STORAGE_KEYS.TECH_PARAMS, JSON.stringify(params));
 };
 // ------------------------
 
