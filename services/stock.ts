@@ -338,24 +338,37 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
 /**
  * Fetches Technical Data for a stock symbol from Yahoo Finance API via CORS proxy.
  */
-export const fetchMarketRegime = async (): Promise<MarketRegime> => {
+let cachedMarketRegime: { regime: MarketRegime, timestamp: number } | null = null;
+
+/**
+ * 取得目前大盤狀態，並快取 60 秒以解決 N+1 Query 效能問題
+ */
+export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<MarketRegime> => {
+    if (!forceRefresh && cachedMarketRegime && (Date.now() - cachedMarketRegime.timestamp < 60000)) {
+        return cachedMarketRegime.regime;
+    }
+
     try {
         const twiiData = await fetchTechnicalData('^TWII');
         if (twiiData && twiiData.ma20 && twiiData.currentPrice) {
             const bias20 = ((twiiData.currentPrice - twiiData.ma20) / twiiData.ma20) * 100;
+            let regime = MarketRegime.NORMAL;
             if (bias20 > -5) {
-                return MarketRegime.NORMAL;
+                regime = MarketRegime.NORMAL;
             } else if (bias20 <= -5 && bias20 > -10) {
-                return MarketRegime.CONSERVATIVE;
+                regime = MarketRegime.CONSERVATIVE;
             } else {
-                return MarketRegime.DEFENSIVE;
+                regime = MarketRegime.DEFENSIVE;
             }
+            
+            cachedMarketRegime = { regime, timestamp: Date.now() };
+            return regime;
         }
     } catch (error) {
         console.error("Error fetching market regime:", error);
     }
-    // 預設返回 NORMAL
-    return MarketRegime.NORMAL;
+    // 若抓取失敗或無資料，預設使用上次快取，若無快取則返回 NORMAL
+    return cachedMarketRegime ? cachedMarketRegime.regime : MarketRegime.NORMAL;
 };
 
 // 判斷是否連續 3 筆交易虧損

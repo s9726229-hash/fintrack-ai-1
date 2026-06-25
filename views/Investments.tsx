@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction } from '../types';
+import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
 import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData } from '../services/stock';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime } from '../services/stock';
 import { getApiKey } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
@@ -65,6 +65,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
     const [isUpdatingBias, setIsUpdatingBias] = useState(false);
+    const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
+
+    React.useEffect(() => {
+        fetchMarketRegime().then(setMarketRegime);
+    }, []);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inventoryFileInputRef = useRef<HTMLInputElement>(null);
@@ -184,7 +189,12 @@ export const Investments: React.FC<InvestmentsProps> = ({
         <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
+                        {marketRegime === MarketRegime.NORMAL && <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">🟢 正常模式</span>}
+                        {marketRegime === MarketRegime.CONSERVATIVE && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">🟡 保守模式</span>}
+                        {marketRegime === MarketRegime.DEFENSIVE && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">🔴 防禦模式</span>}
+                    </div>
                     <p className="text-xs text-slate-400 mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
