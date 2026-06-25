@@ -3,6 +3,7 @@ import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target } f
 import { WatchlistGroup } from '../types';
 import * as storage from '../services/storage';
 import { fetchTechnicalData } from '../services/stock';
+import twStocks from '../src/data/tw_stocks.json';
 
 export const Watchlist: React.FC = () => {
     const [groups, setGroups] = useState<WatchlistGroup[]>(storage.getWatchlists());
@@ -24,27 +25,41 @@ export const Watchlist: React.FC = () => {
     }, [groups]);
 
     // Fetch data for active group
-    const refreshData = async () => {
+    const refreshData = async (force: boolean = false) => {
         if (!activeGroup || activeGroup.symbols.length === 0) return;
+        
+        // Find which symbols actually need fetching (skip if already cached unless forced)
+        const symbolsToFetch = force 
+            ? activeGroup.symbols 
+            : activeGroup.symbols.filter(sym => !techDataMap[sym]);
+            
+        if (symbolsToFetch.length === 0) return;
+
         setIsLoading(true);
         const newMap = { ...techDataMap };
-        for (const symbol of activeGroup.symbols) {
+        
+        // Fetch all concurrently
+        await Promise.all(symbolsToFetch.map(async (symbol) => {
             try {
                 const data = await fetchTechnicalData(symbol);
                 if (data) {
                     newMap[symbol] = data;
+                } else {
+                    newMap[symbol] = { error: true }; // Cache the failure so it doesn't spin forever
                 }
             } catch (e) {
                 console.error(`Failed to fetch data for ${symbol}`, e);
+                newMap[symbol] = { error: true };
             }
-        }
+        }));
+
         setTechDataMap(newMap);
         setLastUpdated(Date.now());
         setIsLoading(false);
     };
 
     useEffect(() => {
-        refreshData();
+        refreshData(false); // Do not force fetch on tab switch
     }, [activeGroupId]);
 
     const handleAddGroup = () => {
@@ -113,13 +128,37 @@ export const Watchlist: React.FC = () => {
 
     const renderTechRow = (symbol: string) => {
         const data = techDataMap[symbol];
+        const stockName = (twStocks as Record<string, string>)[symbol] || '';
+
         if (!data) {
             return (
                 <tr key={symbol} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
-                    <td className="p-3"><p className="font-bold text-white">{symbol}</p></td>
+                    <td className="p-3">
+                        <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
+                    </td>
                     <td className="p-3 text-center" colSpan={6}>
                         <span className="text-slate-500 text-sm flex items-center justify-center gap-2">
-                            {isLoading ? <><Loader2 size={14} className="animate-spin"/> 載入中...</> : '無資料'}
+                            {isLoading ? <><Loader2 size={14} className="animate-spin"/> 載入中...</> : '等候更新'}
+                        </span>
+                    </td>
+                    <td className="p-3 text-center">
+                        <button onClick={() => handleDeleteSymbol(symbol)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                            <Trash2 size={16} />
+                        </button>
+                    </td>
+                </tr>
+            );
+        }
+
+        if (data.error) {
+            return (
+                <tr key={symbol} className="border-b border-slate-800 last:border-b-0 hover:bg-red-900/20 transition-colors">
+                    <td className="p-3">
+                        <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
+                    </td>
+                    <td className="p-3 text-center" colSpan={6}>
+                        <span className="text-red-400 text-sm flex items-center justify-center gap-2">
+                            抓取失敗 (代號錯誤或無資料)
                         </span>
                     </td>
                     <td className="p-3 text-center">
@@ -152,7 +191,7 @@ export const Watchlist: React.FC = () => {
         return (
             <tr key={symbol} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
                 <td className="p-3">
-                    <p className="font-bold text-white">{symbol}</p>
+                    <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     <p className="text-[10px] text-slate-500 font-mono">{isETF ? 'ETF' : '個股'}</p>
                 </td>
                 <td className="p-3 text-right font-mono font-bold text-white">{data.currentPrice?.toFixed(2) || '-'}</td>
@@ -188,7 +227,7 @@ export const Watchlist: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <span className="text-xs text-slate-500 font-mono">最後更新: {new Date(lastUpdated).toLocaleTimeString()}</span>
                         <button 
-                            onClick={refreshData}
+                            onClick={() => refreshData(true)}
                             disabled={isLoading}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors text-sm font-medium border border-slate-700"
                         >
