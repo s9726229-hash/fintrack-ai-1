@@ -5,6 +5,10 @@ import * as storage from '../services/storage';
 import { fetchTechnicalData, fetchMarketRegime } from '../services/stock';
 import twStocks from '../src/data/tw_stocks.json';
 
+// --- Module Level Cache (Preserves data across tab switching) ---
+let globalTechDataCache: Record<string, any> = {};
+let globalLastUpdatedCache: number | null = null;
+
 export const Watchlist: React.FC = () => {
     const [groups, setGroups] = useState<WatchlistGroup[]>(storage.getWatchlists());
     const [activeGroupId, setActiveGroupId] = useState<string>(groups[0]?.id || '');
@@ -13,11 +17,17 @@ export const Watchlist: React.FC = () => {
     const [newSymbol, setNewSymbol] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     
-    // Store fetched technical data
-    const [techDataMap, setTechDataMap] = useState<Record<string, any>>({});
-    const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+    // Store fetched technical data (Initialize from global cache)
+    const [techDataMap, setTechDataMap] = useState<Record<string, any>>(globalTechDataCache);
+    const [lastUpdated, setLastUpdated] = useState<number | null>(globalLastUpdatedCache);
     const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
+
+    // Sync state to global cache
+    useEffect(() => {
+        globalTechDataCache = techDataMap;
+        globalLastUpdatedCache = lastUpdated;
+    }, [techDataMap, lastUpdated]);
 
     const activeGroup = groups.find(g => g.id === activeGroupId);
 
