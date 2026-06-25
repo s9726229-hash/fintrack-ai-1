@@ -17,6 +17,7 @@ export const Watchlist: React.FC = () => {
     const [techDataMap, setTechDataMap] = useState<Record<string, any>>({});
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
     const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
+    const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
 
     const activeGroup = groups.find(g => g.id === activeGroupId);
 
@@ -45,6 +46,9 @@ export const Watchlist: React.FC = () => {
         const assets = storage.getAssets();
         const transactions = storage.getStockTransactions();
         
+        let completed = 0;
+        setAnalyzeProgress({ current: 0, total: symbolsToFetch.length, symbol: symbolsToFetch[0] });
+
         // Fetch all concurrently
         await Promise.all(symbolsToFetch.map(async (symbol) => {
             try {
@@ -57,12 +61,16 @@ export const Watchlist: React.FC = () => {
             } catch (e) {
                 console.error(`Failed to fetch data for ${symbol}`, e);
                 newMap[symbol] = { error: true };
+            } finally {
+                completed++;
+                setAnalyzeProgress({ current: completed, total: symbolsToFetch.length, symbol });
             }
         }));
 
         setTechDataMap(newMap);
         setLastUpdated(Date.now());
         setIsLoading(false);
+        setAnalyzeProgress(null);
     };
 
     useEffect(() => {
@@ -261,10 +269,20 @@ export const Watchlist: React.FC = () => {
                         <button 
                             onClick={() => refreshData(true)}
                             disabled={isLoading}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors text-sm font-medium border border-slate-700"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all duration-300 ease-in-out text-sm font-medium border border-slate-700 relative overflow-hidden min-w-[120px]"
                         >
                             <RefreshCw size={16} className={isLoading ? "animate-spin text-sky-400" : ""} />
-                            {isLoading ? '掃描中...' : '重新掃描'}
+                            {isLoading && analyzeProgress ? (
+                                <span className="flex items-center gap-1 z-10 relative">
+                                    掃描中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
+                                </span>
+                            ) : '重新掃描'}
+                            {isLoading && analyzeProgress && (
+                                <div 
+                                    className="absolute left-0 top-0 bottom-0 bg-sky-500/20 transition-all duration-300"
+                                    style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
+                                />
+                            )}
                         </button>
                     </div>
                 )}

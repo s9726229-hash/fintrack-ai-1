@@ -65,6 +65,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
     const [isUpdatingBias, setIsUpdatingBias] = useState(false);
+    const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
 
     React.useEffect(() => {
@@ -159,9 +160,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
     const handleUpdateBias = async () => {
         setIsUpdatingBias(true);
+        const validStocks = inventory.filter(s => s.symbol);
+        setAnalyzeProgress({ current: 0, total: validStocks.length, symbol: '' });
+
         const updatedAssets: Asset[] = [];
+        let currentIdx = 0;
+        
         for (const stock of inventory) {
             if (stock.symbol) {
+                currentIdx++;
+                setAnalyzeProgress({ current: currentIdx, total: validStocks.length, symbol: stock.symbol });
                 const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions);
                 if (techData !== null) {
                     const cleanTechData: Partial<Asset> = {};
@@ -185,6 +193,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
             onUpdateMultiple(updatedAssets);
         }
         setIsUpdatingBias(false);
+        setAnalyzeProgress(null);
     };
     const handleTransactionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { transactions: p, error } = parseStockTransactionCSV(t); if (error) { alert(`CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportTransactions(p); else alert('CSV 中找不到有效交易。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
@@ -219,7 +228,20 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 </div>
                 <div className="relative flex items-center gap-2">
                     <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"><Landmark size={14}/>{enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}</Button>
-                    <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"><TrendingUp size={14}/>{isUpdatingBias ? '分析中...' : '分析技術面'}</Button>
+                    <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20 transition-all duration-300 ease-in-out min-w-[120px] relative overflow-hidden">
+                        <TrendingUp size={14}/>
+                        {isUpdatingBias && analyzeProgress ? (
+                            <span className="flex items-center gap-1 z-10 relative">
+                                處理中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
+                            </span>
+                        ) : '分析技術面'}
+                        {isUpdatingBias && analyzeProgress && (
+                            <div 
+                                className="absolute left-0 top-0 bottom-0 bg-sky-500/20 transition-all duration-300"
+                                style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
+                            />
+                        )}
+                    </Button>
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
                 </div>
             </div>
