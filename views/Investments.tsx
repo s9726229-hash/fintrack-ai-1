@@ -280,16 +280,62 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     </div>
                 </div>
             )}
-            {activeTab === 'MONITOR' && (
+            {activeTab === 'MONITOR' && (() => {
+                const etfInventory = inventory.filter(pos => pos.stockCategory === 'ETF' || pos.symbol?.startsWith('00') || pos.symbol?.toLowerCase().includes('etf'));
+                const stockInventory = inventory.filter(pos => !(pos.stockCategory === 'ETF' || pos.symbol?.startsWith('00') || pos.symbol?.toLowerCase().includes('etf')));
+                
+                // Get latest updated time
+                const lastUpdatedTime = inventory.length > 0 && inventory[0].lastUpdated 
+                    ? new Date(inventory[0].lastUpdated).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    : '尚無資料';
+
+                const renderTechRow = (pos: Asset) => {
+                    const bias20 = pos.ma20 && pos.currentPrice ? ((pos.currentPrice - pos.ma20) / pos.ma20) * 100 : null;
+                    
+                    let signalBadge = <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
+                    if (pos.techSignal === 'STRONG_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進</span>;
+                    else if (pos.techSignal === 'BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號</span>;
+                    else if (pos.techSignal === 'PARTIAL_SELL') signalBadge = <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利</span>;
+                    else if (pos.techSignal === 'FORCE_SELL') signalBadge = <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利</span>;
+                    else if (pos.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
+                    else if (pos.techSignal === 'ADDITIONAL_BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號</span>;
+                    else if (pos.techSignal === 'STRONG_ADDITIONAL_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼</span>;
+                    else if (pos.techSignal === 'SECOND_PARTIAL_SELL') signalBadge = <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼</span>;
+
+                    const slopeColor = pos.biasSlopes && pos.biasSlopes[0] !== undefined 
+                        ? (pos.biasSlopes[0] > 0 ? 'text-red-400' : 'text-emerald-400') 
+                        : 'text-slate-500';
+
+                    return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
+                        <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-500 font-mono">{pos.symbol}</p></td>
+                        <td className="p-3 text-right font-mono font-bold text-white">{pos.currentPrice?.toFixed(2) || '-'}</td>
+                        <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
+                        <td className="p-3 text-right font-mono">
+                            {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
+                            {pos.biasSlopes && pos.biasSlopes[0] !== undefined && (
+                                <p className={`text-[10px] mt-0.5 ${slopeColor}`}>Slope: {pos.biasSlopes[0] > 0 ? '↗' : '↘'} {Math.abs(pos.biasSlopes[0]).toFixed(2)}</p>
+                            )}
+                        </td>
+                        <td className="p-3 text-right font-mono text-slate-300">{pos.rsi?.toFixed(1) || '-'}</td>
+                        <td className="p-3 text-center font-mono font-bold text-violet-400">{(pos.techScore !== undefined && pos.techScore !== null && pos.techScore > 0) ? pos.techScore : <span className="text-slate-500">-</span>}</td>
+                        <td className="p-3 text-center">{signalBadge}</td>
+                    </tr>);
+                };
+
+                return (
                 <div className="space-y-6 animate-fade-in">
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl max-h-[70vh] flex flex-col">
+                    <div className="flex justify-end">
+                        <span className="text-xs text-slate-500 font-mono">最後分析時間：{lastUpdatedTime}</span>
+                    </div>
+                    {/* 個股監控 */}
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl flex flex-col">
                         <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 技術面監控</h3>
-                            <span className="text-xs text-slate-500">基於 20MA 乖離率與 RSI 的轉折策略</span>
+                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 📊 個股技術監控</h3>
+                            <span className="text-xs text-slate-500">轉折策略與高乖離預警</span>
                         </div>
-                        <div className="flex-1 overflow-y-auto"><table className="w-full text-left">
-                            <thead className="sticky top-0 bg-slate-900 z-10"><tr className="text-xs text-slate-400 uppercase">
-                                <th className="p-3 font-medium">股票</th>
+                        <div className="overflow-x-auto"><table className="w-full text-left">
+                            <thead className="bg-slate-900/50"><tr className="text-xs text-slate-400 uppercase">
+                                <th className="p-3 font-medium w-40">股票</th>
                                 <th className="p-3 font-medium text-right">收盤價</th>
                                 <th className="p-3 font-medium text-right">20MA</th>
                                 <th className="p-3 font-medium text-right">Bias20</th>
@@ -297,35 +343,31 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <th className="p-3 font-medium text-center">評分</th>
                                 <th className="p-3 font-medium text-center">訊號</th>
                             </tr></thead>
-                            <tbody>{inventory.length > 0 ? inventory.map(pos => {
-                                const bias20 = pos.ma20 && pos.currentPrice ? ((pos.currentPrice - pos.ma20) / pos.ma20) * 100 : null;
-                                
-                                let signalBadge = <span className="text-slate-600">-</span>;
-                                if (pos.techSignal === 'STRONG_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進</span>;
-                                else if (pos.techSignal === 'BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號</span>;
-                                else if (pos.techSignal === 'PARTIAL_SELL') signalBadge = <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利</span>;
-                                else if (pos.techSignal === 'FORCE_SELL') signalBadge = <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利</span>;
-                                else if (pos.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
-
-                                return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
-                                    <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-500 font-mono">{pos.symbol}</p></td>
-                                    <td className="p-3 text-right font-mono font-bold text-white">{pos.currentPrice?.toFixed(2) || '-'}</td>
-                                    <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
-                                    <td className="p-3 text-right font-mono">
-                                        {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
-                                        {pos.biasSlopes && pos.biasSlopes[0] !== undefined && (
-                                            <p className="text-[10px] text-slate-500 mt-0.5">Slope: {pos.biasSlopes[0] > 0 ? '↗' : '↘'} {Math.abs(pos.biasSlopes[0]).toFixed(2)}</p>
-                                        )}
-                                    </td>
-                                    <td className="p-3 text-right font-mono text-slate-300">{pos.rsi?.toFixed(1) || '-'}</td>
-                                    <td className="p-3 text-center font-mono font-bold text-violet-400">{pos.techScore !== undefined && pos.techScore !== null ? pos.techScore : '-'}</td>
-                                    <td className="p-3 text-center">{signalBadge}</td>
-                                </tr>);
-                            }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
+                            <tbody>{stockInventory.length > 0 ? stockInventory.map(renderTechRow) : (<tr><td colSpan={7} className="text-center py-6 text-slate-500 text-sm">無個股資料</td></tr>)}</tbody>
+                        </table></div>
+                    </div>
+                    {/* ETF 監控 */}
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl flex flex-col">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-emerald-400" /> 📈 ETF 技術監控</h3>
+                            <span className="text-xs text-emerald-500/70">長期投資邏輯：越跌越買、分批減碼</span>
+                        </div>
+                        <div className="overflow-x-auto"><table className="w-full text-left">
+                            <thead className="bg-slate-900/50"><tr className="text-xs text-slate-400 uppercase">
+                                <th className="p-3 font-medium w-40">ETF</th>
+                                <th className="p-3 font-medium text-right">收盤價</th>
+                                <th className="p-3 font-medium text-right">20MA</th>
+                                <th className="p-3 font-medium text-right">Bias20</th>
+                                <th className="p-3 font-medium text-right">RSI(14)</th>
+                                <th className="p-3 font-medium text-center">評分</th>
+                                <th className="p-3 font-medium text-center">訊號</th>
+                            </tr></thead>
+                            <tbody>{etfInventory.length > 0 ? etfInventory.map(renderTechRow) : (<tr><td colSpan={7} className="text-center py-6 text-slate-500 text-sm">無 ETF 資料</td></tr>)}</tbody>
                         </table></div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
             
             {activeTab === 'DIVIDEND' && (
                 <div className="space-y-6 animate-fade-in">

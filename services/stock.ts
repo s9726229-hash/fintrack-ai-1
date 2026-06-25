@@ -273,7 +273,7 @@ export interface TechDataResult {
     volumeRatio: number | null;
     biasSlopes: number[];
     techScore: number;
-    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE';
+    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL';
     currentPrice?: number;
 }
 
@@ -389,41 +389,81 @@ export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult
         const avgVol = last20Vols.reduce((a, b) => a + b, 0) / 20;
         const volumeRatio = avgVol === 0 ? 0 : validData[validData.length - 1].volume / avgVol;
 
+        // Identify if it is an ETF
+        const isETF = symbol.startsWith('00') || symbol.toLowerCase().includes('etf');
+
         // 5. Evaluate Scoring
         let techScore = 0;
-        // Bias20 Score
-        if (currentBias20 <= -20) techScore += 40;
-        else if (currentBias20 <= -15) techScore += 30;
-        else if (currentBias20 <= -10) techScore += 20;
+        
+        if (isETF) {
+            // ETF Scoring
+            if (currentBias20 <= -15) techScore += 40;
+            else if (currentBias20 <= -10) techScore += 30;
+            else if (currentBias20 <= -7) techScore += 20;
 
-        // RSI Score
-        if (rsi < 30) techScore += 30;
-        else if (rsi < 35) techScore += 20;
+            if (rsi < 35) techScore += 35;
+            else if (rsi < 40) techScore += 25;
+            else if (rsi < 45) techScore += 15;
 
-        // Volume Score
-        if (volumeRatio > 1.5) techScore += 30;
-        else if (volumeRatio > 1) techScore += 20;
+            if (volumeRatio > 1.5) techScore += 25;
+            else if (volumeRatio > 1) techScore += 15;
 
-        // Trend Reversal Score
-        const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
-        const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
-        if (isImproved3) techScore += 30;
-        else if (isImproved2) techScore += 20;
+            const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
+            const isImproved1 = biasSlopes[0] > 0;
+            if (isImproved2) techScore += 25;
+            else if (isImproved1) techScore += 15;
+        } else {
+            // Stock Scoring
+            if (currentBias20 <= -20) techScore += 40;
+            else if (currentBias20 <= -15) techScore += 30;
+            else if (currentBias20 <= -10) techScore += 20;
+
+            if (rsi < 30) techScore += 30;
+            else if (rsi < 35) techScore += 20;
+
+            if (volumeRatio > 1.5) techScore += 30;
+            else if (volumeRatio > 1) techScore += 20;
+
+            const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
+            const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
+            if (isImproved3) techScore += 30;
+            else if (isImproved2) techScore += 20;
+        }
 
         // 6. Signals
         let techSignal: TechDataResult['techSignal'] = 'NONE';
         const isDeteriorating2 = biasSlopes[0] < 0 && biasSlopes[1] < 0;
+        const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
+        const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
+        const isImproved1 = biasSlopes[0] > 0;
 
-        if (currentBias20 >= 30) {
-            techSignal = 'FORCE_SELL';
-        } else if (currentBias20 >= 25 && isDeteriorating2) {
-            techSignal = 'PARTIAL_SELL';
-        } else if (currentBias20 < -25) {
-            techSignal = 'STOP_LOSS';
-        } else if (currentBias20 <= -15 && isImproved3 && rsi < 35) {
-            techSignal = 'STRONG_BUY';
-        } else if ((currentBias20 <= -10 && isImproved2 && rsi < 40) || techScore >= 70) {
-            techSignal = 'BUY';
+        if (isETF) {
+            if (currentBias20 >= 20 && isDeteriorating2) {
+                techSignal = 'SECOND_PARTIAL_SELL';
+            } else if (currentBias20 >= 15 && isDeteriorating2) {
+                techSignal = 'PARTIAL_SELL';
+            } else if (currentBias20 <= -20) {
+                techSignal = 'STRONG_ADDITIONAL_BUY';
+            } else if (currentBias20 <= -15) {
+                techSignal = 'ADDITIONAL_BUY';
+            } else if (currentBias20 <= -10 && isImproved2 && rsi < 40) {
+                techSignal = 'STRONG_BUY';
+            } else if ((currentBias20 <= -7 && isImproved1 && rsi < 45) || techScore >= 60) {
+                techSignal = 'BUY';
+            }
+        } else {
+            // Stock Logic
+            if (currentBias20 >= 30) {
+                techSignal = 'FORCE_SELL';
+            } else if (currentBias20 >= 25) { // Relaxed UMC logic
+                techSignal = 'PARTIAL_SELL';
+            } else if (currentBias20 < -25) {
+                techSignal = 'STOP_LOSS';
+            } else if (currentBias20 <= -15 && isImproved3 && rsi < 35) {
+                techSignal = 'STRONG_BUY';
+            } else if ((currentBias20 <= -10 && isImproved2 && rsi < 40) || techScore >= 70) {
+                techSignal = 'BUY';
+            }
         }
 
         return {
