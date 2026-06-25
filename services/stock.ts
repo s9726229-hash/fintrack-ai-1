@@ -267,15 +267,25 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
     return { assets, error: null };
 };
 
+export interface TechDataResult {
+    ma20: number | null;
+    rsi: number | null;
+    volumeRatio: number | null;
+    biasSlopes: number[];
+    techScore: number;
+    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE';
+    currentPrice?: number;
+}
+
 /**
- * Fetches 20MA for a stock symbol from Yahoo Finance API via CORS proxy.
+ * Fetches Technical Data for a stock symbol from Yahoo Finance API via CORS proxy.
  */
-export const fetch20MA = async (symbol: string): Promise<number | null> => {
+export const fetchTechnicalData = async (symbol: string): Promise<TechDataResult | null> => {
     try {
         if (!symbol) return null;
         
         const fetchYahoo = async (suffix: string) => {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=2mo&interval=1d`;
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=3mo&interval=1d`;
             
             const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000) => {
                 const controller = new AbortController();
@@ -291,15 +301,8 @@ export const fetch20MA = async (symbol: string): Promise<number | null> => {
                 }
             };
 
-            // 1. 先嘗試直接抓取 (部分情況下 Yahoo 允許 CORS)
             let data = await fetchWithTimeout(url, 3000);
-            
-            // 2. 備案 1：使用 corsproxy.io (速度快)
-            if (!data) {
-                data = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 5000);
-            }
-            
-            // 3. 備案 2：使用 allorigins (有時會 522 Timeout)
+            if (!data) data = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 5000);
             if (!data) {
                 const allData = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 5000);
                 if (allData?.contents) {
@@ -307,22 +310,133 @@ export const fetch20MA = async (symbol: string): Promise<number | null> => {
                 }
             }
 
-            return data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+            const quote = data?.chart?.result?.[0]?.indicators?.quote?.[0];
+            if (!quote) return null;
+            return { closes: quote.close, volumes: quote.volume };
         };
 
-        let closes = await fetchYahoo('.TW');
-        if (!closes) closes = await fetchYahoo('.TWO'); // Fallback for OTC
+        let rawData = await fetchYahoo('.TW');
+        if (!rawData?.closes) rawData = await fetchYahoo('.TWO');
 
-        if (!closes || !Array.isArray(closes)) return null;
+        if (!rawData?.closes || !Array.isArray(rawData.closes)) return null;
 
-        const validCloses = closes.filter((c: number | null) => c !== null);
-        if (validCloses.length < 20) return null;
+        // Clean nulls
+        const validData: { close: number, volume: number }[] = [];
+        for (let i = 0; i < rawData.closes.length; i++) {
+            if (rawData.closes[i] !== null && rawData.volumes?.[i] !== null) {
+                validData.push({ close: rawData.closes[i], volume: rawData.volumes[i] });
+            }
+        }
 
-        const last20 = validCloses.slice(-20);
-        const sum = last20.reduce((a: number, b: number) => a + b, 0);
-        return sum / 20;
+        if (validData.length < 23) return null; // Need at least 23 days for 20MA + 3 slopes
+
+        // 1. Calculate 20MAs and Bias20 for the last 4 days (to get 3 slopes)
+        // We need 20MA for today, yesterday, day-before, day-before-that
+        const bias20List: number[] = [];
+        const ma20List: number[] = [];
+        for (let i = 0; i < 4; i++) {
+            const targetIdx = validData.length - 1 - i;
+            if (targetIdx - 19 < 0) break;
+            const slice = validData.slice(targetIdx - 19, targetIdx + 1);
+            const sum = slice.reduce((a, b) => a + b.close, 0);
+            const ma20 = sum / 20;
+            const close = slice[19].close;
+            ma20List.unshift(ma20); // [T-3, T-2, T-1, T-0]
+            bias20List.unshift(((close - ma20) / ma20) * 100);
+        }
+
+        if (bias20List.length < 4) return null;
+
+        const currentPrice = validData[validData.length - 1].close;
+        const currentMa20 = ma20List[3];
+        const currentBias20 = bias20List[3];
+
+        // 2. Calculate Bias Slopes (T-0, T-1, T-2)
+        const biasSlopes = [
+            bias20List[3] - bias20List[2], // Today's slope
+            bias20List[2] - bias20List[1], // Yesterday's slope
+            bias20List[1] - bias20List[0]  // Day before yesterday's slope
+        ];
+
+        // 3. Calculate 14-day RSI
+        // Use Wilder's Smoothing
+        let avgGain = 0;
+        let avgLoss = 0;
+        // Seed with first 14 days
+        for (let i = 1; i <= 14; i++) {
+            const diff = validData[i].close - validData[i - 1].close;
+            if (diff > 0) avgGain += diff;
+            else avgLoss += Math.abs(diff);
+        }
+        avgGain /= 14;
+        avgLoss /= 14;
+
+        for (let i = 15; i < validData.length; i++) {
+            const diff = validData[i].close - validData[i - 1].close;
+            let gain = 0, loss = 0;
+            if (diff > 0) gain = diff;
+            else loss = Math.abs(diff);
+
+            avgGain = (avgGain * 13 + gain) / 14;
+            avgLoss = (avgLoss * 13 + loss) / 14;
+        }
+
+        const rs = avgGain / (avgLoss === 0 ? 1 : avgLoss);
+        const rsi = 100 - (100 / (1 + rs));
+
+        // 4. Calculate VolumeRatio
+        const last20Vols = validData.slice(-20).map(d => d.volume);
+        const avgVol = last20Vols.reduce((a, b) => a + b, 0) / 20;
+        const volumeRatio = avgVol === 0 ? 0 : validData[validData.length - 1].volume / avgVol;
+
+        // 5. Evaluate Scoring
+        let techScore = 0;
+        // Bias20 Score
+        if (currentBias20 <= -20) techScore += 40;
+        else if (currentBias20 <= -15) techScore += 30;
+        else if (currentBias20 <= -10) techScore += 20;
+
+        // RSI Score
+        if (rsi < 30) techScore += 30;
+        else if (rsi < 35) techScore += 20;
+
+        // Volume Score
+        if (volumeRatio > 1.5) techScore += 30;
+        else if (volumeRatio > 1) techScore += 20;
+
+        // Trend Reversal Score
+        const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
+        const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
+        if (isImproved3) techScore += 30;
+        else if (isImproved2) techScore += 20;
+
+        // 6. Signals
+        let techSignal: TechDataResult['techSignal'] = 'NONE';
+        const isDeteriorating2 = biasSlopes[0] < 0 && biasSlopes[1] < 0;
+
+        if (currentBias20 >= 30) {
+            techSignal = 'FORCE_SELL';
+        } else if (currentBias20 >= 25 && isDeteriorating2) {
+            techSignal = 'PARTIAL_SELL';
+        } else if (currentBias20 < -25) {
+            techSignal = 'STOP_LOSS';
+        } else if (currentBias20 <= -15 && isImproved3 && rsi < 35) {
+            techSignal = 'STRONG_BUY';
+        } else if ((currentBias20 <= -10 && isImproved2 && rsi < 40) || techScore >= 70) {
+            techSignal = 'BUY';
+        }
+
+        return {
+            ma20: currentMa20,
+            rsi,
+            volumeRatio,
+            biasSlopes,
+            techScore,
+            techSignal,
+            currentPrice
+        };
     } catch (error) {
-        console.error(`Failed to fetch 20MA for ${symbol}:`, error);
+        console.error(`Failed to fetch Technical Data for ${symbol}:`, error);
         return null;
     }
 };

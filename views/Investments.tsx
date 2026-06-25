@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins } from 'lucide-react';
+import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetch20MA } from '../services/stock';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData } from '../services/stock';
 import { getApiKey } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
@@ -29,7 +29,7 @@ interface InvestmentsProps {
     onImportInventory: (assets: Partial<Asset>[]) => void;
 }
 
-type ActiveTab = 'INVENTORY' | 'HISTORY' | 'DIVIDEND';
+type ActiveTab = 'INVENTORY' | 'HISTORY' | 'DIVIDEND' | 'MONITOR';
 
 const formatTimeAgo = (timestamp: number | undefined): { text: string; color: string } => {
     if (!timestamp) return { text: 'N/A', color: 'text-slate-500' };
@@ -157,9 +157,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
         const updatedAssets: Asset[] = [];
         for (const stock of inventory) {
             if (stock.symbol) {
-                const ma20 = await fetch20MA(stock.symbol);
-                if (ma20 !== null) {
-                    updatedAssets.push({ ...stock, ma20, lastUpdated: Date.now() });
+                const techData = await fetchTechnicalData(stock.symbol);
+                if (techData !== null) {
+                    const cleanTechData: Partial<Asset> = {};
+                    if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
+                    if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
+                    if (techData.volumeRatio !== null) cleanTechData.volumeRatio = techData.volumeRatio;
+                    cleanTechData.techScore = techData.techScore;
+                    cleanTechData.techSignal = techData.techSignal;
+                    cleanTechData.biasSlopes = techData.biasSlopes;
+                    if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
+                    
+                    updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
                 }
             }
         }
@@ -190,12 +199,13 @@ export const Investments: React.FC<InvestmentsProps> = ({
             <div className="flex items-center justify-between border-b border-slate-700 flex-wrap gap-y-2">
                 <div className="flex items-center gap-4">
                     <button onClick={() => setActiveTab('INVENTORY')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'INVENTORY' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>庫存總覽</button>
+                    <button onClick={() => setActiveTab('MONITOR')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'MONITOR' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}><div className="flex items-center gap-1.5"><LineChart size={14}/> 技術監控</div></button>
                     <button onClick={() => setActiveTab('HISTORY')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'HISTORY' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>交易紀錄</button>
                     <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>股息分析</button>
                 </div>
                 <div className="relative flex items-center gap-2">
                     <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"><Landmark size={14}/>{enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}</Button>
-                    <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"><TrendingUp size={14}/>{isUpdatingBias ? '分析中...' : '分析乖離率'}</Button>
+                    <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"><TrendingUp size={14}/>{isUpdatingBias ? '分析中...' : '分析技術面'}</Button>
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
                 </div>
             </div>
@@ -264,6 +274,52 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                         <button onClick={() => handleOpenModal(pos)} className="p-2 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯"><Edit2 size={14}/></button>
                                         <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500" title="刪除"><Trash2 size={14}/></button>
                                     </div></td>
+                                </tr>);
+                            }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
+                        </table></div>
+                    </div>
+                </div>
+            )}
+            {activeTab === 'MONITOR' && (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl max-h-[70vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 技術面監控</h3>
+                            <span className="text-xs text-slate-500">基於 20MA 乖離率與 RSI 的轉折策略</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto"><table className="w-full text-left">
+                            <thead className="sticky top-0 bg-slate-900 z-10"><tr className="text-xs text-slate-400 uppercase">
+                                <th className="p-3 font-medium">股票</th>
+                                <th className="p-3 font-medium text-right">收盤價</th>
+                                <th className="p-3 font-medium text-right">20MA</th>
+                                <th className="p-3 font-medium text-right">Bias20</th>
+                                <th className="p-3 font-medium text-right">RSI(14)</th>
+                                <th className="p-3 font-medium text-center">評分</th>
+                                <th className="p-3 font-medium text-center">訊號</th>
+                            </tr></thead>
+                            <tbody>{inventory.length > 0 ? inventory.map(pos => {
+                                const bias20 = pos.ma20 && pos.currentPrice ? ((pos.currentPrice - pos.ma20) / pos.ma20) * 100 : null;
+                                
+                                let signalBadge = <span className="text-slate-600">-</span>;
+                                if (pos.techSignal === 'STRONG_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進</span>;
+                                else if (pos.techSignal === 'BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號</span>;
+                                else if (pos.techSignal === 'PARTIAL_SELL') signalBadge = <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利</span>;
+                                else if (pos.techSignal === 'FORCE_SELL') signalBadge = <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利</span>;
+                                else if (pos.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
+
+                                return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
+                                    <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-500 font-mono">{pos.symbol}</p></td>
+                                    <td className="p-3 text-right font-mono font-bold text-white">{pos.currentPrice?.toFixed(2) || '-'}</td>
+                                    <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
+                                    <td className="p-3 text-right font-mono">
+                                        {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
+                                        {pos.biasSlopes && pos.biasSlopes[0] !== undefined && (
+                                            <p className="text-[10px] text-slate-500 mt-0.5">Slope: {pos.biasSlopes[0] > 0 ? '↗' : '↘'} {Math.abs(pos.biasSlopes[0]).toFixed(2)}</p>
+                                        )}
+                                    </td>
+                                    <td className="p-3 text-right font-mono text-slate-300">{pos.rsi?.toFixed(1) || '-'}</td>
+                                    <td className="p-3 text-center font-mono font-bold text-violet-400">{pos.techScore !== undefined && pos.techScore !== null ? pos.techScore : '-'}</td>
+                                    <td className="p-3 text-center">{signalBadge}</td>
                                 </tr>);
                             }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
                         </table></div>

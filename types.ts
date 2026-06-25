@@ -64,7 +64,13 @@ export interface Asset {
   // --- V6.9.0 Dividend Dashboard ---
   dividendFrequency?: string; // e.g., 'Quarterly', 'Annual'
   exDate?: string; // 除息日
-  // lastEnriched is covered by lastUpdated
+
+  // --- V7.1.0 Technical Monitor ---
+  rsi?: number;
+  volumeRatio?: number;
+  techScore?: number;
+  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE';
+  biasSlopes?: number[]; // Index 0: today's slope, 1: yesterday's, 2: day before yesterday
 }
 
 export interface StockPosition {
