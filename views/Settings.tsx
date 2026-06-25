@@ -271,6 +271,12 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
                           <label className="text-xs text-slate-400">停利乖離率 (&gt;= %)</label>
                           <Input type="number" value={techParams.largeCapPartialSellBias} onChange={e => setTechParams({...techParams, largeCapPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">強制停利乖離 (&gt;= %)</label>
+                          <Input type="number" value={techParams.largeCapForceSellBias} onChange={e => setTechParams({...techParams, largeCapForceSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">停損乖離率 (&lt;= %)</label>
+                          <Input type="number" value={techParams.largeCapStopLossBias} onChange={e => setTechParams({...techParams, largeCapStopLossBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
                       </div>
                   </div>
 
@@ -286,6 +292,12 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
                           <label className="text-xs text-slate-400">停利乖離率 (&gt;= %)</label>
                           <Input type="number" value={techParams.smallCapPartialSellBias} onChange={e => setTechParams({...techParams, smallCapPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">強制停利乖離 (&gt;= %)</label>
+                          <Input type="number" value={techParams.smallCapForceSellBias} onChange={e => setTechParams({...techParams, smallCapForceSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+
+                          <label className="text-xs text-slate-400">停損乖離率 (&lt;= %)</label>
+                          <Input type="number" value={techParams.smallCapStopLossBias} onChange={e => setTechParams({...techParams, smallCapStopLossBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
                       </div>
                   </div>
               </div>

@@ -663,7 +663,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         }
         
         const riskAlerts: RiskAlerts = {
-            stopLossAlert: isHeld && ((sizeCategory === 'LARGE_CAP' && currentBias20 < -20) || (sizeCategory === 'SMALL_CAP' && currentBias20 < -25)),
+            stopLossAlert: isHeld && ((sizeCategory === 'LARGE_CAP' && currentBias20 < params.largeCapStopLossBias) || (sizeCategory === 'SMALL_CAP' && currentBias20 < params.smallCapStopLossBias)),
             conservativeLock: isConsecutiveLossLock
         };
         if (riskAlerts.stopLossAlert) {

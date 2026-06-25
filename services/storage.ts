@@ -116,13 +116,16 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     largeCapStrongBuyRsi: 40,
     largeCapPartialSellBias: 20,
     largeCapForceSellBias: 25,
-
+    largeCapStopLossBias: -20,
+    
+    // 小型股預設
     smallCapBuyBias: -10,
     smallCapStrongBuyBias: -15,
     smallCapBuyRsi: 40,
     smallCapStrongBuyRsi: 35,
     smallCapPartialSellBias: 25,
     smallCapForceSellBias: 30,
+    smallCapStopLossBias: -25
 };
 
 export const getTechParameters = (): import('../types').TechParameters => {

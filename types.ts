@@ -107,6 +107,7 @@ export interface TechParameters {
     largeCapStrongBuyRsi: number;
     largeCapPartialSellBias: number;
     largeCapForceSellBias: number;
+    largeCapStopLossBias: number;
 
     // 小型股
     smallCapBuyBias: number;
@@ -115,6 +116,7 @@ export interface TechParameters {
     smallCapStrongBuyRsi: number;
     smallCapPartialSellBias: number;
     smallCapForceSellBias: number;
+    smallCapStopLossBias: number;
 }
 
 export enum MarketRegime {
