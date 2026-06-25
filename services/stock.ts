@@ -28,10 +28,28 @@ export const fetchAllMarginData = async () => {
         return { twse: twseMarginCache, tpex: tpexMarginCache };
     }
     
+    const fetchOpenApi = async (url: string) => {
+        try {
+            // 1. 嘗試直接呼叫 (通常會被 CORS 擋)
+            let res = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+            if (res) return res;
+            
+            // 2. 嘗試 corsproxy
+            res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+            if (res) return res;
+            
+            // 3. 嘗試 allorigins
+            res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+            return res || [];
+        } catch {
+            return [];
+        }
+    };
+
     try {
         const [twseRes, tpexRes] = await Promise.all([
-            fetch('https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN').then(r => r.json()).catch(() => []),
-            fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_margin_trading').then(r => r.json()).catch(() => [])
+            fetchOpenApi('https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN'),
+            fetchOpenApi('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_margin_trading')
         ]);
 
         const twseMap: Record<string, any> = {};
