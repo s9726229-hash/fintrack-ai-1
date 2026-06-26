@@ -338,37 +338,41 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
 /**
  * Fetches Technical Data for a stock symbol from Yahoo Finance API via CORS proxy.
  */
-let cachedMarketRegime: { regime: MarketRegime, timestamp: number } | null = null;
+let cachedMarketRegime: { regime: MarketRegime, bias20: number, timestamp: number } | null = null;
 
 /**
- * 取得目前大盤狀態，並快取 60 秒以解決 N+1 Query 效能問題
+ * 取得目前大盤狀態，並快取 60 秒以避免 N+1 Query 問題
  */
-export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<MarketRegime> => {
+export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<{ regime: MarketRegime, bias20: number }> => {
     if (!forceRefresh && cachedMarketRegime && (Date.now() - cachedMarketRegime.timestamp < 60000)) {
-        return cachedMarketRegime.regime;
+        return { regime: cachedMarketRegime.regime, bias20: cachedMarketRegime.bias20 };
     }
 
     try {
         const twiiData = await fetchTechnicalData('^TWII');
-        if (twiiData && twiiData.ma20 && twiiData.currentPrice) {
+        if (twiiData && twiiData.ma20 && twiiData.currentPrice !== undefined) {
             const bias20 = ((twiiData.currentPrice - twiiData.ma20) / twiiData.ma20) * 100;
+            const dailyChange = twiiData.dailyChangeRatio || 0;
             let regime = MarketRegime.NORMAL;
-            if (bias20 > -5) {
-                regime = MarketRegime.NORMAL;
-            } else if (bias20 <= -5 && bias20 > -10) {
+            
+            if (bias20 <= -10 || dailyChange <= -5) {
+                regime = MarketRegime.DEFENSIVE;
+            } else if (bias20 <= -5 || dailyChange <= -3) {
                 regime = MarketRegime.CONSERVATIVE;
             } else {
-                regime = MarketRegime.DEFENSIVE;
+                regime = MarketRegime.NORMAL;
             }
             
-            cachedMarketRegime = { regime, timestamp: Date.now() };
-            return regime;
+            cachedMarketRegime = { regime, bias20, timestamp: Date.now() };
+            return { regime, bias20 };
         }
     } catch (error) {
         console.error("Error fetching market regime:", error);
     }
-    // 若抓取失敗或無資料，預設使用上次快取，若無快取則返回 NORMAL
-    return cachedMarketRegime ? cachedMarketRegime.regime : MarketRegime.NORMAL;
+    // 預設或發生錯誤時的回退
+    return cachedMarketRegime 
+        ? { regime: cachedMarketRegime.regime, bias20: cachedMarketRegime.bias20 } 
+        : { regime: MarketRegime.NORMAL, bias20: 0 };
 };
 
 // 判斷是否連續 3 筆交易虧損
@@ -465,6 +469,13 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         }
 
         const currentPrice = rawData.metaPrice || validData[validData.length - 1].close;
+        
+        let dailyChangeRatio: number | null = null;
+        if (validData.length >= 2) {
+            const todayClose = validData[validData.length - 1].close;
+            const yesterdayClose = validData[validData.length - 2].close;
+            dailyChangeRatio = ((todayClose - yesterdayClose) / yesterdayClose) * 100;
+        }
         const currentMa20 = ma20List[3];
         const currentBias20 = ((currentPrice - currentMa20) / currentMa20) * 100;
         
@@ -621,11 +632,21 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         };
 
         let techSignal: TechDataResult['techSignal'] = 'NONE';
-        const isDeteriorating2 = biasSlopes[0] < 0 && biasSlopes[1] < 0;
+        
+        const checkSlopeDeteriorated = (days: number) => {
+            if (days <= 0) return true;
+            for (let i = 0; i < days; i++) {
+                if (biasSlopes[i] >= 0) return false;
+            }
+            return true;
+        };
         
         let marketRegime = MarketRegime.NORMAL;
+        let twiiBias20 = 0;
         if (symbol !== '^TWII') {
-            marketRegime = await fetchMarketRegime();
+            const mRegimeData = await fetchMarketRegime();
+            marketRegime = mRegimeData.regime;
+            twiiBias20 = mRegimeData.bias20;
         }
         
         const isConsecutiveLossLock = checkConsecutiveLossLock(transactions);
@@ -647,12 +668,19 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
              daysSinceLastBuy = msDiff / (1000 * 60 * 60 * 24);
         }
 
-        const canBuy = marketRegime !== MarketRegime.DEFENSIVE && currentBias20 < 0;
+        // ETF 豁免大盤單日跌幅機制 (若大盤Bias20未達-10%，則豁免防禦模式)
+        let effectiveRegimeForBuy = marketRegime;
+        if (sizeCategory === 'ETF' && marketRegime === MarketRegime.DEFENSIVE && twiiBias20 > -10) {
+            // 大盤只因為單日跌幅過深進入防禦，對ETF而言視為正常/保守即可
+            effectiveRegimeForBuy = MarketRegime.CONSERVATIVE;
+        }
+
+        const canBuy = effectiveRegimeForBuy !== MarketRegime.DEFENSIVE && currentBias20 < 0;
 
         if (sizeCategory === 'ETF') {
-            if (currentBias20 >= params.etfSecondPartialSellBias && isDeteriorating2) {
+            if (currentBias20 >= params.etfSecondPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) {
                 techSignal = 'SECOND_PARTIAL_SELL';
-            } else if (currentBias20 >= params.etfPartialSellBias && isDeteriorating2) {
+            } else if (currentBias20 >= params.etfPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
             } else if (currentBias20 <= params.etfStrongAdditionalBuyBias) {
                 techSignal = 'STRONG_ADDITIONAL_BUY';
@@ -666,7 +694,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         } else if (sizeCategory === 'LARGE_CAP') {
             if (currentBias20 >= params.largeCapForceSellBias) {
                 techSignal = 'FORCE_SELL';
-            } else if (currentBias20 >= params.largeCapPartialSellBias && isDeteriorating2) {
+            } else if (currentBias20 >= params.largeCapPartialSellBias && checkSlopeDeteriorated(params.largeCapPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
             } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -10 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 65 && daysSinceLastBuy >= params.largeCapTrendAddCoolDownDays) {
                 techSignal = 'TREND_ADD';
@@ -679,7 +707,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             // Small Cap
             if (currentBias20 >= params.smallCapForceSellBias) {
                 techSignal = 'FORCE_SELL';
-            } else if (currentBias20 >= params.smallCapPartialSellBias && isDeteriorating2) {
+            } else if (currentBias20 >= params.smallCapPartialSellBias && checkSlopeDeteriorated(params.smallCapPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
             } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -15 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 60 && daysSinceLastBuy >= params.smallCapTrendAddCoolDownDays) {
                 techSignal = 'TREND_ADD';
@@ -691,11 +719,31 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         }
         
         const riskAlerts: RiskAlerts = {
-            stopLossAlert: isHeld && ((sizeCategory === 'LARGE_CAP' && currentBias20 < params.largeCapStopLossBias) || (sizeCategory === 'SMALL_CAP' && currentBias20 < params.smallCapStopLossBias)),
+            stopLossAlert: false, // 將由下方雙層停損邏輯動態判斷
             conservativeLock: isConsecutiveLossLock
         };
-        if (riskAlerts.stopLossAlert) {
-            techSignal = 'STOP_LOSS_ALERT';
+
+        // 雙層停損與預警機制 (ETF 不適用)
+        if (isHeld && sizeCategory !== 'ETF' && heldAsset && heldAsset.avgCost) {
+            const unrealizedProfit = ((currentPrice - heldAsset.avgCost) / heldAsset.avgCost) * 100;
+            const stopLossPnL = sizeCategory === 'LARGE_CAP' ? params.largeCapStopLossPnL : params.smallCapStopLossPnL;
+            const stopLossBias = sizeCategory === 'LARGE_CAP' ? params.largeCapStopLossBias : params.smallCapStopLossBias;
+            const riskAlertBias = sizeCategory === 'LARGE_CAP' ? params.largeCapRiskAlertBias : params.smallCapRiskAlertBias;
+
+            // 第一層：持倉損益停損
+            if (unrealizedProfit <= stopLossPnL) {
+                techSignal = 'STOP_LOSS_ALERT';
+                riskAlerts.stopLossAlert = true;
+            } 
+            // 第二層：乖離率停損
+            else if (currentBias20 <= stopLossBias) {
+                techSignal = 'STOP_LOSS_ALERT';
+                riskAlerts.stopLossAlert = true;
+            }
+            // 第三層：乖離率風險預警
+            else if (currentBias20 <= riskAlertBias) {
+                techSignal = 'RISK_ALERT';
+            }
         }
 
         return {
@@ -706,6 +754,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             biasSlopes,
             ma20Slope,
             marginChangeRatio,
+            dailyChangeRatio,
             sizeCategory,
             techScore: Math.round(techScore),
             techSignal,

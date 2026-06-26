@@ -58,7 +58,8 @@ export const Watchlist: React.FC = () => {
         setIsLoading(true);
         const newMap = { ...techDataMap };
         
-        const regime = await fetchMarketRegime();
+        const mRegimeData = await fetchMarketRegime();
+        const regime = mRegimeData.regime;
         setMarketRegime(regime);
 
         const assets = storage.getAssets();
@@ -282,6 +283,7 @@ export const Watchlist: React.FC = () => {
                 case 'FORCE_SELL': return <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利 (&gt;={targetSellPrice})</span>;
                 case 'STOP_LOSS': return <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
                 case 'STOP_LOSS_ALERT': return <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
+                case 'RISK_ALERT': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>;
                 case 'ADDITIONAL_BUY': return <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號 (&lt;={targetBuyPrice})</span>;
                 case 'STRONG_ADDITIONAL_BUY': return <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼 (&lt;={targetBuyPrice})</span>;
                 case 'TREND_ADD': return <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;

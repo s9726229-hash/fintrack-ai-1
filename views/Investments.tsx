@@ -69,7 +69,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
 
     React.useEffect(() => {
-        fetchMarketRegime().then(setMarketRegime);
+        fetchMarketRegime().then(r => setMarketRegime(r.regime));
     }, []);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -397,6 +397,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             case 'TREND_ADD': return <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;
                             case 'FINAL_ADD': return <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>;
                             case 'STOP_LOSS_ALERT': return <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
+                            case 'RISK_ALERT': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>;
                             case 'SECOND_PARTIAL_SELL': return <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>;
                             default: return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
                         }

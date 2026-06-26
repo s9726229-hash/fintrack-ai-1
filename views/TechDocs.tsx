@@ -47,8 +47,46 @@ export const TechDocs: React.FC = () => {
                     {/* Step 5 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 lg:col-span-2">
                         <h4 className="font-bold text-rose-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-rose-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">5</span> 庫存感知</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">對照現有庫存，觸發「順勢加碼」或「停損警示」。</p>
+                        <p className="text-xs text-slate-400 leading-relaxed">對照現有庫存，觸發「順勢加碼」或「防呆停損警示」。</p>
                     </div>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <LineChart className="text-sky-400" /> 大盤三段式雙軌制 (大盤狀態)
+                </h3>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                            <tr>
+                                <th className="p-2 border border-slate-700 w-24">模式</th>
+                                <th className="p-2 border border-slate-700">觸發條件 (較保守者優先)</th>
+                                <th className="p-2 border border-slate-700">對個股的影響</th>
+                                <th className="p-2 border border-slate-700">對 ETF 的影響</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-slate-300">
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 正常模式</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">Bias20 &gt; -5% <b className="text-white">且</b> 單日跌幅 &gt; -3%</td>
+                                <td className="p-2 border border-slate-700 text-xs">允許所有買進與加碼</td>
+                                <td className="p-2 border border-slate-700 text-xs">允許所有買進與加碼</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 保守模式</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">Bias20: -5% ~ -10%<br/><b className="text-white">或</b> 單日跌幅: -3% ~ -5%<br/><b className="text-white">或</b> 觸發連虧鎖定</td>
+                                <td className="p-2 border border-slate-700 text-xs"><b className="text-amber-400">阻斷「順勢加碼」</b><br/>允許「買進 (搶反彈)」</td>
+                                <td className="p-2 border border-slate-700 text-xs"><b className="text-emerald-400">豁免單日跌幅限制</b><br/>允許買進、加碼</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">🔴 防禦模式</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">Bias20 &le; -10%<br/><b className="text-white">或</b> 單日跌幅 &le; -5%</td>
+                                <td className="p-2 border border-slate-700 text-xs"><b className="text-rose-400">只出不進</b><br/>阻斷所有買進與加碼</td>
+                                <td className="p-2 border border-slate-700 text-xs"><b className="text-cyan-400">僅放行加碼/強加碼</b><br/>阻斷普通買進</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -101,8 +139,8 @@ export const TechDocs: React.FC = () => {
                         <div className="flex items-center gap-2 mb-1">
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-700 text-white shadow-lg">⚠️ 停損警示</span>
                         </div>
-                        <p className="text-[11px] text-rose-400/80 font-mono mb-1">庫存&gt;0 &amp;&amp; Bias20 &le; 停損門檻 (預設 -20%)</p>
-                        <p className="text-xs text-slate-400"><b>(庫存專屬)</b> 負乖離跌破極限門檻（大型 -20% / 小型 -25%），建議立即審視風險。</p>
+                        <p className="text-[11px] text-rose-400/80 font-mono mb-1">庫存&gt;0 &amp;&amp; (未實現損益 &lt; -15% || Bias20 &le; 停損門檻)</p>
+                        <p className="text-xs text-slate-400"><b>(防呆停損)</b> 原本的買點若遇到持股虧損過大，將被強制覆寫為停損，防接刀子。</p>
                     </div>
                 </div>
             </div>
@@ -145,8 +183,8 @@ export const TechDocs: React.FC = () => {
                                 <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-10%)<br/>2. RSI &lt; 強買RSI (40)<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">超跌後連續兩天反轉，確認支撐。</td></tr>
                                 <tr><td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">🔵 順勢加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中 &amp;&amp; 大盤正常<br/>2. 0% &ge; Bias20 &gt; -10%<br/>3. 月線向上 &amp;&amp; 斜率向上<br/>4. RSI(40~65)<br/>5. 距上次買進 &gt; [3] 天 (冷卻期)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">右側動能交易，確認獲利趨勢向上時再放大部位。</td></tr>
                                 <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 停利乖離率 (20%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">漲勢衰退，了結一半。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">🔴 強制停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 強制停利乖離率 (25%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">短線過熱，面臨泡沫化回檔風險。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中<br/>2. Bias20 &le; 停損乖離率 (-20%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">最高優先級防護，強制停損。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">【第一層：持倉損益】<br/>1. 庫存持有中<br/>2. 未實現虧損 &le; 停損門檻 (-20%)<br/><br/>【第二層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 停損門檻 (-20%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">最高優先級防護，防堵溫水煮青蛙與閃崩接刀。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 留意風險</span></td><td className="p-2 border border-slate-700 text-xs">【預警層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 預警門檻 (-15%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">大跌預警，提早做好心理準備或減碼。</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -165,8 +203,8 @@ export const TechDocs: React.FC = () => {
                                 <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-15%)<br/>2. RSI &lt; 強買RSI (35)<br/>3. 連續 [3] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">必須連三天上漲確認洗盤結束才重倉。</td></tr>
                                 <tr><td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">🔵 順勢加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中 &amp;&amp; 大盤正常<br/>2. 0% &ge; Bias20 &gt; -15%<br/>3. 月線向上 &amp;&amp; 斜率向上<br/>4. RSI(40~60)<br/>5. 距上次買進 &gt; [5] 天 (冷卻期)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">波動大，加碼冷卻期拉長防頻繁洗盤。</td></tr>
                                 <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 停利乖離率 (25%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">容忍較大漲幅才停利，讓利潤奔跑。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">🔴 強制停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 強制停利乖離率 (30%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">短線飆漲達 30%，面臨爆發點下車。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中<br/>2. Bias20 &le; 停損乖離率 (-25%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">容忍更深洗盤跌幅，但破線仍須斷然停損。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">【第一層：持倉損益】<br/>1. 庫存持有中<br/>2. 未實現虧損 &le; 停損門檻 (-25%)<br/><br/>【第二層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 停損門檻 (-25%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">最高優先級防護，容忍較大跌幅但破線仍斷尾。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 留意風險</span></td><td className="p-2 border border-slate-700 text-xs">【預警層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 預警門檻 (-18%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">妖股洗盤極深，提早預警破線可能。</td></tr>
                             </tbody>
                         </table>
                     </div>
