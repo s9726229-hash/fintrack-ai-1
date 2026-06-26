@@ -109,6 +109,8 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     etfStrongBuyRsi: 40,
     etfPartialSellBias: 15,
     etfSecondPartialSellBias: 20,
+    etfBuySlopeDays: 1,
+    etfStrongBuySlopeDays: 2,
 
     largeCapBuyBias: -7,
     largeCapStrongBuyBias: -10,
@@ -117,6 +119,9 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     largeCapPartialSellBias: 20,
     largeCapForceSellBias: 25,
     largeCapStopLossBias: -20,
+    largeCapBuySlopeDays: 1,
+    largeCapStrongBuySlopeDays: 2,
+    largeCapTrendAddCoolDownDays: 3,
     
     // 小型股預設
     smallCapBuyBias: -10,
@@ -125,7 +130,10 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     smallCapStrongBuyRsi: 35,
     smallCapPartialSellBias: 25,
     smallCapForceSellBias: 30,
-    smallCapStopLossBias: -25
+    smallCapStopLossBias: -25,
+    smallCapBuySlopeDays: 2,
+    smallCapStrongBuySlopeDays: 3,
+    smallCapTrendAddCoolDownDays: 5
 };
 
 export const getTechParameters = (): import('../types').TechParameters => {

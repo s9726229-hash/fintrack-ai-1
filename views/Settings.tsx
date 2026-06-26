@@ -257,6 +257,27 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                           <label className="text-xs text-slate-400">減碼乖離率 (&gt;= %)</label>
                           <Input type="number" value={techParams.etfPartialSellBias} onChange={e => setTechParams({...techParams, etfPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
                       </div>
+                      <details className="mt-4 bg-slate-900/50 rounded-lg border border-slate-700/50 p-2">
+                          <summary className="text-[11px] font-bold text-slate-400 cursor-pointer select-none hover:text-slate-300">
+                              ▼ 進階設定 (強買/加碼/斜率)
+                          </summary>
+                          <div className="space-y-2 mt-3 pt-3 border-t border-slate-700/50">
+                              <label className="text-xs text-slate-500">強買乖離率 (&lt;= %)</label>
+                              <Input type="number" value={techParams.etfStrongBuyBias} onChange={e => setTechParams({...techParams, etfStrongBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強買 RSI (&lt;)</label>
+                              <Input type="number" value={techParams.etfStrongBuyRsi} onChange={e => setTechParams({...techParams, etfStrongBuyRsi: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">加碼乖離率 (&lt;= %)</label>
+                              <Input type="number" value={techParams.etfAdditionalBuyBias} onChange={e => setTechParams({...techParams, etfAdditionalBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強力加碼乖離 (&lt;= %)</label>
+                              <Input type="number" value={techParams.etfStrongAdditionalBuyBias} onChange={e => setTechParams({...techParams, etfStrongAdditionalBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">再次減碼乖離 (&gt;= %)</label>
+                              <Input type="number" value={techParams.etfSecondPartialSellBias} onChange={e => setTechParams({...techParams, etfSecondPartialSellBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">買進斜率天數 (連增天數)</label>
+                              <Input type="number" value={techParams.etfBuySlopeDays} onChange={e => setTechParams({...techParams, etfBuySlopeDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強買斜率天數 (連增天數)</label>
+                              <Input type="number" value={techParams.etfStrongBuySlopeDays} onChange={e => setTechParams({...techParams, etfStrongBuySlopeDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                          </div>
+                      </details>
                   </div>
 
                   {/* Large Cap */}
@@ -278,6 +299,23 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                           <label className="text-xs text-slate-400">停損乖離率 (&lt;= %)</label>
                           <Input type="number" value={techParams.largeCapStopLossBias} onChange={e => setTechParams({...techParams, largeCapStopLossBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
                       </div>
+                      <details className="mt-4 bg-slate-900/50 rounded-lg border border-slate-700/50 p-2">
+                          <summary className="text-[11px] font-bold text-slate-400 cursor-pointer select-none hover:text-slate-300">
+                              ▼ 進階設定 (強買/冷卻/斜率)
+                          </summary>
+                          <div className="space-y-2 mt-3 pt-3 border-t border-slate-700/50">
+                              <label className="text-xs text-slate-500">強買乖離率 (&lt;= %)</label>
+                              <Input type="number" value={techParams.largeCapStrongBuyBias} onChange={e => setTechParams({...techParams, largeCapStrongBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強買 RSI (&lt;)</label>
+                              <Input type="number" value={techParams.largeCapStrongBuyRsi} onChange={e => setTechParams({...techParams, largeCapStrongBuyRsi: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">買進斜率天數 (連增天數)</label>
+                              <Input type="number" value={techParams.largeCapBuySlopeDays} onChange={e => setTechParams({...techParams, largeCapBuySlopeDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強買斜率天數 (連增天數)</label>
+                              <Input type="number" value={techParams.largeCapStrongBuySlopeDays} onChange={e => setTechParams({...techParams, largeCapStrongBuySlopeDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">順勢加碼冷卻期 (交易日)</label>
+                              <Input type="number" value={techParams.largeCapTrendAddCoolDownDays} onChange={e => setTechParams({...techParams, largeCapTrendAddCoolDownDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                          </div>
+                      </details>
                   </div>
 
                   {/* Small Cap */}
@@ -299,6 +337,23 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                           <label className="text-xs text-slate-400">停損乖離率 (&lt;= %)</label>
                           <Input type="number" value={techParams.smallCapStopLossBias} onChange={e => setTechParams({...techParams, smallCapStopLossBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
                       </div>
+                      <details className="mt-4 bg-slate-900/50 rounded-lg border border-slate-700/50 p-2">
+                          <summary className="text-[11px] font-bold text-slate-400 cursor-pointer select-none hover:text-slate-300">
+                              ▼ 進階設定 (強買/冷卻/斜率)
+                          </summary>
+                          <div className="space-y-2 mt-3 pt-3 border-t border-slate-700/50">
+                              <label className="text-xs text-slate-500">強買乖離率 (&lt;= %)</label>
+                              <Input type="number" value={techParams.smallCapStrongBuyBias} onChange={e => setTechParams({...techParams, smallCapStrongBuyBias: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強買 RSI (&lt;)</label>
+                              <Input type="number" value={techParams.smallCapStrongBuyRsi} onChange={e => setTechParams({...techParams, smallCapStrongBuyRsi: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">買進斜率天數 (連增天數)</label>
+                              <Input type="number" value={techParams.smallCapBuySlopeDays} onChange={e => setTechParams({...techParams, smallCapBuySlopeDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">強買斜率天數 (連增天數)</label>
+                              <Input type="number" value={techParams.smallCapStrongBuySlopeDays} onChange={e => setTechParams({...techParams, smallCapStrongBuySlopeDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                              <label className="text-xs text-slate-500">順勢加碼冷卻期 (交易日)</label>
+                              <Input type="number" value={techParams.smallCapTrendAddCoolDownDays} onChange={e => setTechParams({...techParams, smallCapTrendAddCoolDownDays: Number(e.target.value)})} className="h-8 text-sm bg-black/30" />
+                          </div>
+                      </details>
                   </div>
               </div>
           </div>

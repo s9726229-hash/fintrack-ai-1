@@ -99,6 +99,8 @@ export interface TechParameters {
     etfStrongBuyRsi: number;
     etfPartialSellBias: number;
     etfSecondPartialSellBias: number;
+    etfBuySlopeDays: number;           // 新增：買進所需斜率連增天數
+    etfStrongBuySlopeDays: number;     // 新增：強力買進所需斜率連增天數
 
     // 大型股
     largeCapBuyBias: number;
@@ -108,6 +110,9 @@ export interface TechParameters {
     largeCapPartialSellBias: number;
     largeCapForceSellBias: number;
     largeCapStopLossBias: number;
+    largeCapBuySlopeDays: number;             // 新增：買進所需斜率連增天數
+    largeCapStrongBuySlopeDays: number;       // 新增：強力買進所需斜率連增天數
+    largeCapTrendAddCoolDownDays: number;     // 新增：順勢加碼冷卻天數
 
     // 小型股
     smallCapBuyBias: number;
@@ -117,6 +122,9 @@ export interface TechParameters {
     smallCapPartialSellBias: number;
     smallCapForceSellBias: number;
     smallCapStopLossBias: number;
+    smallCapBuySlopeDays: number;             // 新增：買進所需斜率連增天數
+    smallCapStrongBuySlopeDays: number;       // 新增：強力買進所需斜率連增天數
+    smallCapTrendAddCoolDownDays: number;     // 新增：順勢加碼冷卻天數
 }
 
 export enum MarketRegime {

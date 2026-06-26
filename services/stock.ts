@@ -600,13 +600,18 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         }
 
         // 9. V4.0 Signals & Risk Control
+        const params = getTechParameters();
+
+        const checkSlopeImproved = (days: number) => {
+            if (days <= 0) return true;
+            for (let i = 0; i < Math.min(days, biasSlopes.length); i++) {
+                if (biasSlopes[i] <= 0) return false;
+            }
+            return true;
+        };
+
         let techSignal: TechDataResult['techSignal'] = 'NONE';
         const isDeteriorating2 = biasSlopes[0] < 0 && biasSlopes[1] < 0;
-        const isImproved3 = biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0;
-        const isImproved2 = biasSlopes[0] > 0 && biasSlopes[1] > 0;
-        const isImproved1 = biasSlopes[0] > 0;
-        
-        const params = getTechParameters();
         
         let marketRegime = MarketRegime.NORMAL;
         if (symbol !== '^TWII') {
@@ -643,9 +648,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'STRONG_ADDITIONAL_BUY';
             } else if (currentBias20 <= params.etfAdditionalBuyBias) {
                 techSignal = 'ADDITIONAL_BUY';
-            } else if (canBuy && currentBias20 <= params.etfStrongBuyBias && isImproved2 && rsi < params.etfStrongBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.etfStrongBuyBias && checkSlopeImproved(params.etfStrongBuySlopeDays) && rsi < params.etfStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if (canBuy && currentBias20 <= params.etfBuyBias && isImproved1 && rsi < params.etfBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.etfBuyBias && checkSlopeImproved(params.etfBuySlopeDays) && rsi < params.etfBuyRsi) {
                 techSignal = 'BUY';
             }
         } else if (sizeCategory === 'LARGE_CAP') {
@@ -653,11 +658,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.largeCapPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -10 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 65 && daysSinceLastBuy >= 3) {
+            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -10 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 65 && daysSinceLastBuy >= params.largeCapTrendAddCoolDownDays) {
                 techSignal = 'TREND_ADD';
-            } else if (canBuy && currentBias20 <= params.largeCapStrongBuyBias && isImproved2 && rsi < params.largeCapStrongBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.largeCapStrongBuyBias && checkSlopeImproved(params.largeCapStrongBuySlopeDays) && rsi < params.largeCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if (canBuy && currentBias20 <= params.largeCapBuyBias && isImproved1 && rsi < params.largeCapBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.largeCapBuyBias && checkSlopeImproved(params.largeCapBuySlopeDays) && rsi < params.largeCapBuyRsi) {
                 techSignal = 'BUY';
             }
         } else {
@@ -666,11 +671,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.smallCapPartialSellBias && isDeteriorating2) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -15 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 60 && daysSinceLastBuy >= 5) {
+            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -15 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 60 && daysSinceLastBuy >= params.smallCapTrendAddCoolDownDays) {
                 techSignal = 'TREND_ADD';
-            } else if (canBuy && currentBias20 <= params.smallCapStrongBuyBias && isImproved3 && rsi < params.smallCapStrongBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.smallCapStrongBuyBias && checkSlopeImproved(params.smallCapStrongBuySlopeDays) && rsi < params.smallCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
-            } else if (canBuy && currentBias20 <= params.smallCapBuyBias && isImproved2 && rsi < params.smallCapBuyRsi) {
+            } else if (canBuy && currentBias20 <= params.smallCapBuyBias && checkSlopeImproved(params.smallCapBuySlopeDays) && rsi < params.smallCapBuyRsi) {
                 techSignal = 'BUY';
             }
         }

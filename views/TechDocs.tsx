@@ -106,6 +106,73 @@ export const TechDocs: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <BookOpen className="text-violet-400" /> 各分類訊號觸發條件清單 (包含隱藏條件)
+                </h3>
+                
+                {/* ETF */}
+                <div className="mb-6">
+                    <h4 className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-1">🟢 ETF 專屬邏輯 (長期投資、越跌越買)</h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                            <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                                <tr><th className="p-2 border border-slate-700 w-28">燈號</th><th className="p-2 border border-slate-700">觸發條件 (需同時滿足)</th><th className="p-2 border border-slate-700">底層邏輯</th></tr>
+                            </thead>
+                            <tbody className="text-slate-300">
+                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 買進</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 買進乖離率<br/>2. RSI &lt; 買進RSI<br/>3. 連續 [1] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">跌深且出現止跌回升第一天。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-10%)<br/>2. RSI &lt; 強買RSI (40)<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">更深跌幅，更嚴格反轉確認。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-cyan-400 font-bold">💰 加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 加碼乖離率 (-15%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">跌破-15%無需等反轉，左側進場。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-cyan-400 font-bold">🔥 強加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強加碼乖離率 (-20%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">系統性崩盤極端值，無腦攤平。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 減碼乖離率 (15%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">漲多趨勢轉弱，獲利入袋。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-orange-400 font-bold">🟠 再次減碼</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 再次減碼乖離率 (20%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">乖離過大且轉弱，再次提示減碼。</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* 大型股 */}
+                <div className="mb-6">
+                    <h4 className="font-bold text-blue-400 mb-2 border-b border-slate-700 pb-1">🔵 大型股專屬邏輯 (順勢加碼、嚴格停損)</h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                            <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                                <tr><th className="p-2 border border-slate-700 w-28">燈號</th><th className="p-2 border border-slate-700">觸發條件 (需同時滿足)</th><th className="p-2 border border-slate-700">底層邏輯</th></tr>
+                            </thead>
+                            <tbody className="text-slate-300">
+                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 買進</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 買進乖離率<br/>2. RSI &lt; 買進RSI<br/>3. 連續 [1] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">回檔至均線下方的首日反轉。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-10%)<br/>2. RSI &lt; 強買RSI (40)<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">超跌後連續兩天反轉，確認支撐。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">🔵 順勢加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中 &amp;&amp; 大盤正常<br/>2. 0% &ge; Bias20 &gt; -10%<br/>3. 月線向上 &amp;&amp; 斜率向上<br/>4. RSI(40~65)<br/>5. 距上次買進 &gt; [3] 天 (冷卻期)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">右側動能交易，確認獲利趨勢向上時再放大部位。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 停利乖離率 (20%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">漲勢衰退，了結一半。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">🔴 強制停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 強制停利乖離率 (25%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">短線過熱，面臨泡沫化回檔風險。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中<br/>2. Bias20 &le; 停損乖離率 (-20%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">最高優先級防護，強制停損。</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* 小型股 */}
+                <div>
+                    <h4 className="font-bold text-purple-400 mb-2 border-b border-slate-700 pb-1">🟣 小型股專屬邏輯 (極度震盪、最嚴防騙)</h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                            <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                                <tr><th className="p-2 border border-slate-700 w-28">燈號</th><th className="p-2 border border-slate-700">觸發條件 (需同時滿足)</th><th className="p-2 border border-slate-700">底層邏輯</th></tr>
+                            </thead>
+                            <tbody className="text-slate-300">
+                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 買進</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 買進乖離率<br/>2. RSI &lt; 買進RSI<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">小型股易假突破，需連兩天上漲。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-15%)<br/>2. RSI &lt; 強買RSI (35)<br/>3. 連續 [3] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">必須連三天上漲確認洗盤結束才重倉。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">🔵 順勢加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中 &amp;&amp; 大盤正常<br/>2. 0% &ge; Bias20 &gt; -15%<br/>3. 月線向上 &amp;&amp; 斜率向上<br/>4. RSI(40~60)<br/>5. 距上次買進 &gt; [5] 天 (冷卻期)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">波動大，加碼冷卻期拉長防頻繁洗盤。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 停利乖離率 (25%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">容忍較大漲幅才停利，讓利潤奔跑。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">🔴 強制停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 強制停利乖離率 (30%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">短線飆漲達 30%，面臨爆發點下車。</td></tr>
+                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中<br/>2. Bias20 &le; 停損乖離率 (-25%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">容忍更深洗盤跌幅，但破線仍須斷然停損。</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-4">* 註：表內的 [ ] 天數或數值，皆可至「系統設定 &gt; 技術面參數設定 &gt; 進階設定」中手動修改。</p>
+            </div>
         </div>
     );
 };
