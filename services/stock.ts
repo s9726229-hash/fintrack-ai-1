@@ -391,7 +391,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         if (!symbol) return null;
         
         const fetchYahoo = async (suffix: string) => {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=6mo&interval=1d`;
+            const timestamp = Date.now();
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=6mo&interval=1d&_t=${timestamp}`;
             
             const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000) => {
                 const controller = new AbortController();
@@ -416,13 +417,16 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 }
             }
 
-            const quote = data?.chart?.result?.[0]?.indicators?.quote?.[0];
+            const result = data?.chart?.result?.[0];
+            const quote = result?.indicators?.quote?.[0];
+            const meta = result?.meta;
             if (!quote) return null;
-            return { closes: quote.close, volumes: quote.volume };
+            return { closes: quote.close, volumes: quote.volume, metaPrice: meta?.regularMarketPrice };
         };
 
         let rawData = await fetchYahoo('.TW');
         if (!rawData?.closes) rawData = await fetchYahoo('.TWO');
+        if (!rawData?.closes) rawData = await fetchYahoo('');
 
         if (!rawData?.closes || !Array.isArray(rawData.closes)) return null;
 
@@ -434,7 +438,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
         }
 
-        if (validData.length < 60) return null; // Need at least 60 days for 60MA
+        if (validData.length < 23) return null; // Need at least 23 days for 20MA and 3 slope points
 
         // 1. Calculate 20MAs and Bias20 for the last 4 days (to get 3 slopes)
         const bias20List: number[] = [];
@@ -453,13 +457,19 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         if (bias20List.length < 4) return null;
 
         // 2. Calculate 60MA
-        const slice60 = validData.slice(validData.length - 60, validData.length);
-        const sum60 = slice60.reduce((a, b) => a + b.close, 0);
-        const currentMa60 = sum60 / 60;
+        let currentMa60: number | null = null;
+        if (validData.length >= 60) {
+            const slice60 = validData.slice(validData.length - 60, validData.length);
+            const sum60 = slice60.reduce((a, b) => a + b.close, 0);
+            currentMa60 = sum60 / 60;
+        }
 
-        const currentPrice = validData[validData.length - 1].close;
+        const currentPrice = rawData.metaPrice || validData[validData.length - 1].close;
         const currentMa20 = ma20List[3];
-        const currentBias20 = bias20List[3];
+        const currentBias20 = ((currentPrice - currentMa20) / currentMa20) * 100;
+        
+        // Ensure the last element of bias20List uses the most accurate currentPrice
+        bias20List[3] = currentBias20;
 
         // 3. Calculate Bias Slopes (T-0, T-1, T-2)
         const biasSlopes = [
@@ -534,7 +544,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             else if (currentBias20 <= -7) techScore += 25;
 
             if (ma20Slope > 0) techScore += 20;
-            if (currentPrice > currentMa60) techScore += 20;
+            if (currentMa60 !== null && currentPrice > currentMa60) techScore += 20;
 
             if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 25;
             else if (biasSlopes[0] > 0) techScore += 15;
@@ -550,7 +560,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             else if (currentBias20 <= -7) techScore += 20;
 
             if (ma20Slope > 0) techScore += 20;
-            if (currentPrice > currentMa60) techScore += 20;
+            if (currentMa60 !== null && currentPrice > currentMa60) techScore += 20;
 
             if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 20;
             else if (biasSlopes[0] > 0) techScore += 10;
@@ -566,7 +576,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techScore += 15; // 籌碼轉乾淨
             }
             
-            if (currentPrice < currentMa60) {
+            if (currentMa60 !== null && currentPrice < currentMa60) {
                 techScore = techScore * 0.8;
             }
             
@@ -577,7 +587,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             else if (currentBias20 <= -10) techScore += 20;
 
             if (ma20Slope > 0) techScore += 20;
-            if (currentPrice > currentMa60) techScore += 15;
+            if (currentMa60 !== null && currentPrice > currentMa60) techScore += 15;
 
             if (biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0) techScore += 30;
             else if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 20;
@@ -594,7 +604,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techScore += 15; // 籌碼轉乾淨
             }
             
-            if (currentPrice < currentMa60) {
+            if (currentMa60 !== null && currentPrice < currentMa60) {
                 techScore = techScore * 0.8;
             }
         }
@@ -627,8 +637,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             techScore -= 10; // 保守模式評分懲罰
         }
 
-        // 庫存感知
-        const heldAsset = assets?.find(a => a.name.includes(symbol) || symbol.includes(a.name)); // 簡易比對
+        // 庫存判斷
+        const heldAsset = assets?.find(a => a.symbol === symbol || a.name.includes(symbol) || symbol.includes(a.name));
         const isHeld = !!heldAsset;
         const lastBuyTransaction = transactions?.filter(t => (t.symbol === symbol || t.name === symbol) && t.side === 'BUY').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
         let daysSinceLastBuy = 0;

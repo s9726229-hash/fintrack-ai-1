@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
 import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime } from '../services/stock';
-import { getApiKey } from '../services/storage';
+import { getApiKey, getTechParameters } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
@@ -158,6 +158,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const handleOpenModal = (asset: Asset | null = null) => { setEditingAsset(asset); setIsModalOpen(true); };
     const handleSaveAsset = (asset: Asset) => { if (editingAsset) onUpdate(asset); else onAdd(asset); setIsModalOpen(false); setEditingAsset(null); };
 
+    useEffect(() => {
+        if (activeTab === 'MONITOR' && localStorage.getItem('needs_rescan_inventory') === 'true') {
+            localStorage.removeItem('needs_rescan_inventory');
+            if (inventory.length > 0) {
+                // Use setTimeout to avoid state update during render if React 18 batches it weirdly
+                setTimeout(() => handleUpdateBias(), 100);
+            }
+        }
+    }, [activeTab, inventory]);
+
     const handleUpdateBias = async () => {
         setIsUpdatingBias(true);
         const validStocks = inventory.filter(s => s.symbol);
@@ -166,28 +176,35 @@ export const Investments: React.FC<InvestmentsProps> = ({
         const updatedAssets: Asset[] = [];
         let currentIdx = 0;
         
-        for (const stock of inventory) {
-            if (stock.symbol) {
-                currentIdx++;
-                setAnalyzeProgress({ current: currentIdx, total: validStocks.length, symbol: stock.symbol });
-                const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions);
-                if (techData !== null) {
-                    const cleanTechData: Partial<Asset> = {};
-                    if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
-                    if (techData.ma60 !== null) cleanTechData.ma60 = techData.ma60;
-                    if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
-                    if (techData.volumeRatio !== null) cleanTechData.volumeRatio = techData.volumeRatio;
-                    cleanTechData.techScore = techData.techScore;
-                    cleanTechData.techSignal = techData.techSignal;
-                    cleanTechData.biasSlopes = techData.biasSlopes;
-                    if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
-                    if (techData.marginChangeRatio !== null) cleanTechData.marginChangeRatio = techData.marginChangeRatio;
-                    if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
-                    if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
-                    
-                    updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
+        // Chunking array into smaller sizes
+        const chunkArray = <T,>(arr: T[], size: number): T[][] => 
+            Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
+
+        const chunks = chunkArray(validStocks, 5);
+        for (const chunk of chunks) {
+            await Promise.all(chunk.map(async (stock) => {
+                if (stock.symbol) {
+                    const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions);
+                    if (techData !== null) {
+                        const cleanTechData: Partial<Asset> = {};
+                        if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
+                        if (techData.ma60 !== null) cleanTechData.ma60 = techData.ma60;
+                        if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
+                        if (techData.volumeRatio !== null) cleanTechData.volumeRatio = techData.volumeRatio;
+                        cleanTechData.techScore = techData.techScore;
+                        cleanTechData.techSignal = techData.techSignal;
+                        cleanTechData.biasSlopes = techData.biasSlopes;
+                        if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
+                        if (techData.marginChangeRatio !== null) cleanTechData.marginChangeRatio = techData.marginChangeRatio;
+                        if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
+                        if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
+                        
+                        updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
+                    }
+                    currentIdx++;
+                    setAnalyzeProgress({ current: currentIdx, total: validStocks.length, symbol: stock.symbol });
                 }
-            }
+            }));
         }
         if (updatedAssets.length > 0 && onUpdateMultiple) {
             onUpdateMultiple(updatedAssets);
@@ -251,6 +268,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
             {activeTab === 'INVENTORY' && (
                 <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card><div className="text-slate-400 text-xs font-bold uppercase mb-1">庫存總市值</div><div className="text-2xl font-bold text-white font-mono">${stats.totalMarketValue.toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
+                        <Card><div className="text-slate-400 text-xs font-bold uppercase mb-1">未實現總損益</div><div className={`text-2xl font-bold font-mono ${stats.totalPL > 0 ? 'text-red-400' : stats.totalPL < 0 ? 'text-emerald-400' : 'text-white'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPL < 0 ? '-' : ''}${Math.abs(stats.totalPL).toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
+                        <Card><div className="text-slate-400 text-xs font-bold uppercase mb-1">總報酬率</div><div className={`text-2xl font-bold font-mono ${stats.totalPL > 0 ? 'text-red-400' : stats.totalPL < 0 ? 'text-emerald-400' : 'text-white'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(2)}%</div></Card>
+                    </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded-2xl max-h-[70vh] flex flex-col">
                         <div className="p-4 border-b border-slate-700"><h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><List size={16} className="text-violet-400" /> 庫存明細</h3></div>
                         <div className="flex-1 overflow-y-auto"><table className="w-full text-left">
@@ -258,8 +280,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <th className="p-3 font-medium">股票</th>
                                 <th className="p-3 font-medium text-right">持股</th>
                                 <th className="p-3 font-medium text-right">價格</th>
-                                <th className="p-3 font-medium text-right">技術面 (20MA)</th>
-                                <th className="p-3 font-medium text-right">建議賣出 (+30%)</th>
                                 <th className="p-3 font-medium text-right">損益</th>
                                 <th className="p-3 font-medium text-center">操作</th>
                             </tr></thead>
@@ -276,37 +296,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                         <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
                                         <div className="flex items-center justify-end gap-1.5"><p className={`text-[10px] ${timeAgo.color}`}>{timeAgo.text}</p><p className="text-xs text-slate-500 font-mono">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
                                     </td>
-                                    <td className="p-3 text-right">
-                                        {pos.ma20 && pos.currentPrice ? (() => {
-                                            const bias = ((pos.currentPrice - pos.ma20) / pos.ma20) * 100;
-                                            const isPos = bias > 0;
-                                            let badgeClass = ''; let badgeText = '';
-                                            if (bias >= 30) { badgeClass = 'bg-rose-600/30 text-rose-400 border border-rose-500/50'; badgeText = '強力賣出'; }
-                                            else if (bias >= 20) { badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/30'; badgeText = '建議賣出'; }
-                                            else if (bias >= 5) { badgeClass = 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; badgeText = '偏多持有'; }
-                                            else if (bias >= -5) { badgeClass = 'bg-slate-500/20 text-slate-300 border border-slate-500/30'; badgeText = '觀望'; }
-                                            else if (bias >= -10) { badgeClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'; badgeText = '分批低接'; }
-                                            else { badgeClass = 'bg-green-600/30 text-green-400 border border-green-500/50'; badgeText = '強力買進'; }
-                                            
-                                            return (
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-sm ${badgeClass}`}>{badgeText}</span>
-                                                        <span className={`font-mono font-bold ${isPos ? 'text-red-400' : 'text-emerald-400'}`}>{isPos ? '+' : ''}{bias.toFixed(2)}%</span>
-                                                    </div>
-                                                    <span className="text-xs text-slate-500 font-mono">20MA: {pos.ma20.toFixed(2)}</span>
-                                                </div>
-                                            );
-                                        })() : <span className="text-slate-600 text-xs">-</span>}
-                                    </td>
-                                    <td className="p-3 text-right">
-                                        {pos.ma20 ? (
-                                            <div className="flex flex-col items-end gap-1">
-                                                <span className="font-mono font-bold text-rose-400">{(pos.ma20 * 1.3).toFixed(2)}</span>
-                                                <span className="text-[10px] text-slate-500">目標價</span>
-                                            </div>
-                                        ) : <span className="text-slate-600 text-xs">-</span>}
-                                    </td>
+
                                     <td className="p-3 text-right"><p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
                                     <td className="p-3 text-center"><div className="flex items-center justify-center gap-1">
                                         <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價"><RefreshCw size={14}/></button>
@@ -320,8 +310,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 </div>
             )}
             {activeTab === 'MONITOR' && (() => {
-                const etfInventory = inventory.filter(pos => pos.stockCategory === 'ETF' || pos.symbol?.startsWith('00') || pos.symbol?.toLowerCase().includes('etf'));
-                const stockInventory = inventory.filter(pos => !(pos.stockCategory === 'ETF' || pos.symbol?.startsWith('00') || pos.symbol?.toLowerCase().includes('etf')));
+                const techParams = getTechParameters();
                 
                 // Get latest updated time
                 const lastUpdatedTime = inventory.length > 0 && inventory[0].lastUpdated 
@@ -331,22 +320,91 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 const renderTechRow = (pos: Asset) => {
                     const bias20 = pos.ma20 && pos.currentPrice ? ((pos.currentPrice - pos.ma20) / pos.ma20) * 100 : null;
                     
-                    let signalBadge = <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
-                    if (pos.techSignal === 'STRONG_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進</span>;
-                    else if (pos.techSignal === 'BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號</span>;
-                    else if (pos.techSignal === 'PARTIAL_SELL') signalBadge = <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利</span>;
-                    else if (pos.techSignal === 'FORCE_SELL') signalBadge = <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利</span>;
-                    else if (pos.techSignal === 'STOP_LOSS') signalBadge = <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示</span>;
-                    else if (pos.techSignal === 'ADDITIONAL_BUY') signalBadge = <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號</span>;
-                    else if (pos.techSignal === 'STRONG_ADDITIONAL_BUY') signalBadge = <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼</span>;
-                    else if (pos.techSignal === 'TREND_ADD') signalBadge = <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;
-                    else if (pos.techSignal === 'FINAL_ADD') signalBadge = <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>;
-                    else if (pos.techSignal === 'STOP_LOSS_ALERT') signalBadge = <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示</span>;
-                    else if (pos.techSignal === 'SECOND_PARTIAL_SELL') signalBadge = <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼</span>;
+                    let consecutivePositiveSlopes = 0;
+                    if (pos.biasSlopes) {
+                        for (let i = 0; i < pos.biasSlopes.length; i++) {
+                            if (pos.biasSlopes[i] !== undefined && pos.biasSlopes[i] > 0) {
+                                consecutivePositiveSlopes++;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
 
-                    const slopeColor = pos.biasSlopes && pos.biasSlopes[0] !== undefined 
-                        ? (pos.biasSlopes[0] > 0 ? 'text-red-400' : 'text-emerald-400') 
-                        : 'text-slate-500';
+                    let buyBiasThreshold = techParams.largeCapBuyBias;
+                    let rsiThreshold = techParams.largeCapBuyRsi;
+                    let slopeDaysThreshold = techParams.largeCapBuySlopeDays;
+                    let partialSellThreshold = techParams.largeCapPartialSellBias;
+                    let stopLossThreshold = techParams.largeCapStopLossBias;
+                    
+                    if (pos.sizeCategory === 'ETF') {
+                        buyBiasThreshold = techParams.etfBuyBias;
+                        rsiThreshold = techParams.etfBuyRsi;
+                        slopeDaysThreshold = techParams.etfBuySlopeDays;
+                        partialSellThreshold = techParams.etfPartialSellBias;
+                        stopLossThreshold = -999;
+                    } else if (pos.sizeCategory === 'SMALL_CAP') {
+                        buyBiasThreshold = techParams.smallCapBuyBias;
+                        rsiThreshold = techParams.smallCapBuyRsi;
+                        slopeDaysThreshold = techParams.smallCapBuySlopeDays;
+                        partialSellThreshold = techParams.smallCapPartialSellBias;
+                        stopLossThreshold = techParams.smallCapStopLossBias;
+                    }
+
+                    const currentProfit = (pos.currentPrice && pos.avgCost) ? ((pos.currentPrice - pos.avgCost) / pos.avgCost) * 100 : null;
+                    const profitAmount = (pos.currentPrice && pos.avgCost && pos.shares) ? (pos.currentPrice - pos.avgCost) * pos.shares : null;
+
+                    let biasHighlightClass = '';
+                    let biasSubtext = null;
+                    if (stopLossThreshold !== -999 && bias20 !== null && bias20 <= stopLossThreshold) {
+                        biasHighlightClass = 'bg-rose-900/30';
+                        biasSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">達停損門檻 <span className="scale-90 inline-block">(&lt;={stopLossThreshold}%)</span></div>;
+                    } else if (bias20 !== null && bias20 <= buyBiasThreshold) {
+                        biasHighlightClass = 'bg-emerald-900/30';
+                        biasSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
+                    } else if (bias20 !== null && bias20 >= partialSellThreshold) {
+                        biasHighlightClass = 'bg-orange-900/30';
+                        biasSubtext = <div className="text-[10px] text-orange-400/80 mt-0.5 leading-tight">達停利門檻 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
+                    }
+
+                    let slopeHighlightClass = '';
+                    let slopeSubtext = null;
+                    if (consecutivePositiveSlopes >= slopeDaysThreshold) {
+                        slopeHighlightClass = 'bg-emerald-900/30';
+                        slopeSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(連{slopeDaysThreshold}增)</span></div>;
+                    }
+
+                    let rsiHighlightClass = '';
+                    let rsiSubtext = null;
+                    if (pos.rsi !== undefined && pos.rsi !== null && pos.rsi <= rsiThreshold) {
+                        rsiHighlightClass = 'bg-emerald-900/30';
+                        rsiSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={rsiThreshold})</span></div>;
+                    }
+
+                    const targetBuyPrice = pos.ma20 ? (pos.ma20 * (1 + buyBiasThreshold / 100)).toFixed(2) : '-';
+                    const targetSellPrice = pos.ma20 ? (pos.ma20 * (1 + partialSellThreshold / 100)).toFixed(2) : '-';
+                    const targetStopPrice = pos.ma20 && stopLossThreshold !== -999 ? (pos.ma20 * (1 + stopLossThreshold / 100)).toFixed(2) : '-';
+
+                    const renderSignalBadge = (signal: string) => {
+                        switch (signal) {
+                            case 'STRONG_BUY': return <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進 (&lt;={targetBuyPrice})</span>;
+                            case 'BUY': return <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號 (&lt;={targetBuyPrice})</span>;
+                            case 'PARTIAL_SELL': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利 (&gt;={targetSellPrice})</span>;
+                            case 'FORCE_SELL': return <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利 (&gt;={targetSellPrice})</span>;
+                            case 'STOP_LOSS': return <span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
+                            case 'ADDITIONAL_BUY': return <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號 (&lt;={targetBuyPrice})</span>;
+                            case 'STRONG_ADDITIONAL_BUY': return <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼 (&lt;={targetBuyPrice})</span>;
+                            case 'TREND_ADD': return <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;
+                            case 'FINAL_ADD': return <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>;
+                            case 'STOP_LOSS_ALERT': return <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
+                            case 'SECOND_PARTIAL_SELL': return <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>;
+                            default: return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
+                        }
+                    };
+                    const signalBadge = renderSignalBadge(pos.techSignal || '');
+                    
+                    const currentSlope = pos.biasSlopes && pos.biasSlopes[0] !== undefined ? pos.biasSlopes[0] : null;
+                    const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
 
                     return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
                         <td className="p-3">
@@ -359,15 +417,30 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             </div>
                         </td>
                         <td className="p-3 text-right font-mono font-bold text-white">{pos.currentPrice?.toFixed(2) || '-'}</td>
-                        <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
                         <td className="p-3 text-right font-mono">
-                            {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
-                            {pos.biasSlopes && pos.biasSlopes[0] !== undefined && (
-                                <p className={`text-[10px] mt-0.5 ${slopeColor}`}>Slope: {pos.biasSlopes[0] > 0 ? '↗' : '↘'} {Math.abs(pos.biasSlopes[0]).toFixed(2)}</p>
-                            )}
+                            {currentProfit !== null && profitAmount !== null ? (
+                                <div className={`leading-tight ${currentProfit > 0 ? 'text-red-400' : currentProfit < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    <div className="font-bold">{currentProfit > 0 ? '+' : ''}{currentProfit.toFixed(2)}%</div>
+                                    <div className="text-[10px] opacity-80 mt-0.5">({profitAmount > 0 ? '+' : ''}{Math.round(profitAmount).toLocaleString()})</div>
+                                </div>
+                            ) : <span className="text-slate-500">-</span>}
                         </td>
-                        <td className="p-3 text-right font-mono text-slate-300">{pos.rsi?.toFixed(1) || '-'}</td>
-                        <td className="p-3 text-center font-mono font-bold text-violet-400">{(pos.techScore !== undefined && pos.techScore !== null && pos.techScore > 0) ? pos.techScore : <span className="text-slate-500">-</span>}</td>
+                        <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
+                        <td className={`p-3 text-right font-mono transition-colors ${biasHighlightClass}`}>
+                            {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
+                            {biasSubtext}
+                        </td>
+                        <td className={`p-3 text-right font-mono transition-colors ${slopeHighlightClass}`}>
+                            {currentSlope !== null ? (
+                                <span className={slopeColor}>{currentSlope > 0 ? '+' : ''}{currentSlope.toFixed(2)} {consecutivePositiveSlopes > 0 ? <span className="text-[10px] ml-1 opacity-80">(連{consecutivePositiveSlopes}增)</span> : ''}</span>
+                            ) : '-'}
+                            {slopeSubtext}
+                        </td>
+                        <td className={`p-3 text-right font-mono text-slate-300 transition-colors ${rsiHighlightClass}`}>
+                            {pos.rsi?.toFixed(1) || '-'}
+                            {rsiSubtext}
+                        </td>
+
                         <td className="p-3 text-center">{signalBadge}</td>
                     </tr>);
                 };
@@ -377,42 +450,24 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     <div className="flex justify-end">
                         <span className="text-xs text-slate-500 font-mono">最後分析時間：{lastUpdatedTime}</span>
                     </div>
-                    {/* 個股監控 */}
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl flex flex-col">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 📊 個股技術監控</h3>
+                    {/* 投資組合監控 */}
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl flex flex-col max-h-[75vh]">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 📊 投資組合技術監控</h3>
                             <span className="text-xs text-slate-500">轉折策略與高乖離預警</span>
                         </div>
-                        <div className="overflow-x-auto"><table className="w-full text-left">
-                            <thead className="bg-slate-900/50"><tr className="text-xs text-slate-400 uppercase">
-                                <th className="p-3 font-medium w-40">股票</th>
-                                <th className="p-3 font-medium text-right">收盤價</th>
-                                <th className="p-3 font-medium text-right">20MA</th>
-                                <th className="p-3 font-medium text-right">Bias20</th>
-                                <th className="p-3 font-medium text-right">RSI(14)</th>
-                                <th className="p-3 font-medium text-center">評分</th>
-                                <th className="p-3 font-medium text-center">訊號</th>
+                        <div className="flex-1 overflow-auto"><table className="w-full text-left table-fixed min-w-[800px]">
+                            <thead className="sticky top-0 bg-slate-900 z-10 shadow-md"><tr className="text-xs text-slate-400 uppercase">
+                                <th className="p-3 font-medium w-[18%]">標的</th>
+                                <th className="p-3 font-medium text-right w-[10%]">當前價格</th>
+                                <th className="p-3 font-medium text-right w-[13%]">當前損益</th>
+                                <th className="p-3 font-medium text-right w-[10%]">20MA</th>
+                                <th className="p-3 font-medium text-right w-[11%]">Bias20</th>
+                                <th className="p-3 font-medium text-right w-[13%]">乖離斜率</th>
+                                <th className="p-3 font-medium text-right w-[10%]">RSI(14)</th>
+                                <th className="p-3 font-medium text-center w-[15%]">訊號</th>
                             </tr></thead>
-                            <tbody>{stockInventory.length > 0 ? stockInventory.map(renderTechRow) : (<tr><td colSpan={7} className="text-center py-6 text-slate-500 text-sm">無個股資料</td></tr>)}</tbody>
-                        </table></div>
-                    </div>
-                    {/* ETF 監控 */}
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl flex flex-col">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-emerald-400" /> 📈 ETF 技術監控</h3>
-                            <span className="text-xs text-emerald-500/70">長期投資邏輯：越跌越買、分批減碼</span>
-                        </div>
-                        <div className="overflow-x-auto"><table className="w-full text-left">
-                            <thead className="bg-slate-900/50"><tr className="text-xs text-slate-400 uppercase">
-                                <th className="p-3 font-medium w-40">ETF</th>
-                                <th className="p-3 font-medium text-right">收盤價</th>
-                                <th className="p-3 font-medium text-right">20MA</th>
-                                <th className="p-3 font-medium text-right">Bias20</th>
-                                <th className="p-3 font-medium text-right">RSI(14)</th>
-                                <th className="p-3 font-medium text-center">評分</th>
-                                <th className="p-3 font-medium text-center">訊號</th>
-                            </tr></thead>
-                            <tbody>{etfInventory.length > 0 ? etfInventory.map(renderTechRow) : (<tr><td colSpan={7} className="text-center py-6 text-slate-500 text-sm">無 ETF 資料</td></tr>)}</tbody>
+                            <tbody>{inventory.length > 0 ? inventory.map(renderTechRow) : (<tr><td colSpan={8} className="text-center py-6 text-slate-500 text-sm">無庫存資料</td></tr>)}</tbody>
                         </table></div>
                     </div>
                 </div>

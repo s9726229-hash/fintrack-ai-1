@@ -6,7 +6,6 @@ import { Assets } from './views/Assets';
 import { Transactions } from './views/Transactions';
 import { Recurring } from './views/Recurring';
 import { Settings } from './views/Settings';
-import { HistoryView } from './views/History';
 import { GuideView } from './views/Guide';
 import { Budget } from './views/Budget';
 import { Investments } from './views/Investments';
@@ -321,7 +320,6 @@ export default function App() {
       {view === 'WATCHLIST' && <Watchlist />}
       {view === 'GUIDE' && <GuideView />}
       {view === 'TECH_DOCS' && <TechDocs />}
-      {view === 'HISTORY' && <HistoryView />}
       {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}
       {toast && (
         <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[60] animate-fade-in">

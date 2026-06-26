@@ -4,7 +4,7 @@ import React from 'react';
 import { ViewState, ApiKeyStatus } from '../../types';
 import { 
   LayoutGrid, PieChart, ScrollText, Target, CalendarClock,
-  Bot, Settings, BookOpen, TrendingUp, Loader2, Eye
+  Bot, Settings, BookOpen, TrendingUp, Loader2, Eye, ListTree
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -81,9 +81,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
         <NavItem view="RECURRING" current={currentView} icon={CalendarClock} label="固定收支" onClick={onChangeView} />
         
         <div className="pt-4 mt-2 border-t border-slate-800 space-y-2">
-          <NavItem view="TECH_DOCS" current={currentView} icon={BookOpen} label="技術分析說明" onClick={onChangeView} />
-          <NavItem view="GUIDE" current={currentView} icon={BookOpen} label="功能導覽" onClick={onChangeView} />
-          <NavItem view="HISTORY" current={currentView} icon={Bot} label="AI 調校日誌" onClick={onChangeView} />
+          <NavItem view="TECH_DOCS" current={currentView} icon={BookOpen} label="技術說明" onClick={onChangeView} />
+          <NavItem view="GUIDE" current={currentView} icon={ListTree} label="版本紀錄" onClick={onChangeView} />
         </div>
       </nav>
 
