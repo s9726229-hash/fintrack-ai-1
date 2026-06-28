@@ -545,80 +545,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const isLargeCap = !isETF && (largeCaps as string[]).includes(symbol);
         const sizeCategory = isETF ? 'ETF' : (isLargeCap ? 'LARGE_CAP' : 'SMALL_CAP');
 
-        // 8. Evaluate Scoring
-        let techScore = 0;
-        
-        if (sizeCategory === 'ETF') {
-            // ETF Scoring
-            if (currentBias20 <= -15) techScore += 50;
-            else if (currentBias20 <= -10) techScore += 35;
-            else if (currentBias20 <= -7) techScore += 25;
-
-            if (ma20Slope > 0) techScore += 20;
-            if (currentMa60 !== null && currentPrice > currentMa60) techScore += 20;
-
-            if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 25;
-            else if (biasSlopes[0] > 0) techScore += 15;
-
-            if (rsi < 35) techScore += 35;
-            else if (rsi < 40) techScore += 25;
-            else if (rsi < 45) techScore += 15;
-            
-        } else if (sizeCategory === 'LARGE_CAP') {
-            // Large Cap Scoring
-            if (currentBias20 <= -15) techScore += 40;
-            else if (currentBias20 <= -10) techScore += 30;
-            else if (currentBias20 <= -7) techScore += 20;
-
-            if (ma20Slope > 0) techScore += 20;
-            if (currentMa60 !== null && currentPrice > currentMa60) techScore += 20;
-
-            if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 20;
-            else if (biasSlopes[0] > 0) techScore += 10;
-
-            if (rsi < 35) techScore += 35;
-            else if (rsi < 40) techScore += 25;
-            else if (rsi < 45) techScore += 15;
-
-            if (volumeRatio > 1.5) techScore += 25;
-            else if (volumeRatio > 1) techScore += 15;
-
-            if (currentBias20 < 0 && marginChangeRatio !== null && marginChangeRatio < 0) {
-                techScore += 15; // 籌碼轉乾淨
-            }
-            
-            if (currentMa60 !== null && currentPrice < currentMa60) {
-                techScore = techScore * 0.8;
-            }
-            
-        } else {
-            // Small Cap Scoring
-            if (currentBias20 <= -20) techScore += 40;
-            else if (currentBias20 <= -15) techScore += 30;
-            else if (currentBias20 <= -10) techScore += 20;
-
-            if (ma20Slope > 0) techScore += 20;
-            if (currentMa60 !== null && currentPrice > currentMa60) techScore += 15;
-
-            if (biasSlopes[0] > 0 && biasSlopes[1] > 0 && biasSlopes[2] > 0) techScore += 30;
-            else if (biasSlopes[0] > 0 && biasSlopes[1] > 0) techScore += 20;
-
-            if (rsi < 30) techScore += 35;
-            else if (rsi < 35) techScore += 25;
-            else if (rsi < 40) techScore += 15;
-
-            if (volumeRatio > 2) techScore += 35;
-            else if (volumeRatio > 1.5) techScore += 25;
-            else if (volumeRatio > 1) techScore += 15;
-
-            if (currentBias20 < 0 && marginChangeRatio !== null && marginChangeRatio < 0) {
-                techScore += 15; // 籌碼轉乾淨
-            }
-            
-            if (currentMa60 !== null && currentPrice < currentMa60) {
-                techScore = techScore * 0.8;
-            }
-        }
+        // (TechScore legacy scoring system has been removed)
 
         // 9. V4.0 Signals & Risk Control
         const params = getTechParameters();
@@ -655,7 +582,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         }
         
         if (marketRegime === MarketRegime.CONSERVATIVE) {
-            techScore -= 10; // 保守模式評分懲罰
+            // 保守模式不再扣分，僅作為加碼限制
         }
 
         // 庫存判斷
@@ -754,25 +681,40 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 buyRsi: number, strongBuyRsi: number, 
                 buySlopeDays: number, strongBuySlopeDays: number,
                 partialSellBias: number, partialSellSlopeDays: number
-            ) => {
+            ): import('../types').SignalHint | undefined => {
                 if (currentBias20 < 0 && canBuy) {
                     if (currentBias20 <= buyBias) {
                         if (currentBias20 <= strongBuyBias) {
-                            const missing = [];
-                            if (rsi >= strongBuyRsi) missing.push(`RSI < ${strongBuyRsi}`);
-                            if (!checkSlopeImproved(strongBuySlopeDays)) missing.push(`斜率連 ${strongBuySlopeDays} 天向上`);
-                            if (missing.length > 0) return { target: '🚀 醞釀強買', missing };
+                            return {
+                                target: '🟢 醞釀強買',
+                                type: 'BUY',
+                                conditions: [
+                                    { label: '乖離', satisfied: true },
+                                    { label: 'RSI', satisfied: rsi < strongBuyRsi },
+                                    { label: '斜率', satisfied: checkSlopeImproved(strongBuySlopeDays) }
+                                ]
+                            };
                         }
-                        const missing = [];
-                        if (rsi >= buyRsi) missing.push(`RSI < ${buyRsi}`);
-                        if (!checkSlopeImproved(buySlopeDays)) missing.push(`斜率連 ${buySlopeDays} 天向上`);
-                        if (missing.length > 0) return { target: '🟢 醞釀買進', missing };
+                        return {
+                            target: '🟢 醞釀買進',
+                            type: 'BUY',
+                            conditions: [
+                                { label: '乖離', satisfied: true },
+                                { label: 'RSI', satisfied: rsi < buyRsi },
+                                { label: '斜率', satisfied: checkSlopeImproved(buySlopeDays) }
+                            ]
+                        };
                     }
                 } else if (currentBias20 > 0) {
                     if (currentBias20 >= partialSellBias) {
-                        const missing = [];
-                        if (!checkSlopeDeteriorated(partialSellSlopeDays)) missing.push(`斜率連 ${partialSellSlopeDays} 天向下`);
-                        if (missing.length > 0) return { target: '🟡 醞釀停利', missing };
+                        return {
+                            target: '🟡 醞釀停利',
+                            type: 'SELL',
+                            conditions: [
+                                { label: '乖離', satisfied: true },
+                                { label: '斜率', satisfied: checkSlopeDeteriorated(partialSellSlopeDays) }
+                            ]
+                        };
                     }
                 }
                 return undefined;
@@ -797,7 +739,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             marginChangeRatio,
             dailyChangeRatio,
             sizeCategory,
-            techScore: Math.round(techScore),
             techSignal,
             currentPrice,
             marketRegime,

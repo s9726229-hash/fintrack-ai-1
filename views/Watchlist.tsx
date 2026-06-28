@@ -292,11 +292,22 @@ export const Watchlist: React.FC = () => {
                 default: 
                     if (data.signalHint) {
                         return (
-                            <div className="flex flex-col items-center gap-1">
-                                <span className={`px-2 py-1 rounded text-xs font-bold border ${data.signalHint.target.includes('買') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
+                            <div className="flex flex-col items-center gap-1.5 mt-1">
+                                <span className={`px-2 py-1 rounded text-xs font-bold border ${data.signalHint.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
                                     {data.signalHint.target}
                                 </span>
-                                <span className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">缺: {data.signalHint.missing.join(', ')}</span>
+                                <div className="flex items-center justify-center gap-1 flex-wrap max-w-[120px]">
+                                    {data.signalHint.conditions.map((c: any, i: number) => {
+                                        const isBuy = data.signalHint!.type === 'BUY';
+                                        const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+                                        const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
+                                        return (
+                                            <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`} title={c.label}>
+                                                {c.label.split(' ')[0]}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         );
                     }
@@ -364,8 +375,8 @@ export const Watchlist: React.FC = () => {
                             <Eye className="text-sky-400" /> 選股掃描與觀察名單
                         </h2>
                         {marketRegime === 'NORMAL' && <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 正常模式</span>}
-                        {marketRegime === 'CONSERVATIVE' && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 保守模式 (停加碼/懲罰)</span>}
-                        {marketRegime === 'DEFENSIVE' && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 防禦模式 (只出不進)</span>}
+                        {marketRegime === 'CONSERVATIVE' && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -5% 或 單日跌幅 >= 3%，或近期個人操作連續3筆虧損"><ShieldAlert size={14}/> 保守模式 (大盤大跌或連虧)</span>}
+                        {marketRegime === 'DEFENSIVE' && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -10% 或 單日跌幅 >= 5%"><ShieldAlert size={14}/> 防禦模式 (大盤乖離&lt;-10%或跌幅&gt;5%)</span>}
                     </div>
                     <p className="text-slate-400 text-sm mt-1">建立自訂分頁，利用雙引擎自動分析標的強弱勢與買賣點</p>
                 </div>
@@ -482,11 +493,11 @@ export const Watchlist: React.FC = () => {
                             <thead className="sticky top-0 bg-slate-900 z-10 shadow-md"><tr className="text-xs text-slate-400 uppercase">
                                 <th className="p-3 font-medium w-32">標的</th>
                                 <th className="p-3 font-medium text-right">當前價格</th>
-                                <th className="p-3 font-medium text-right">20MA</th>
-                                <th className="p-3 font-medium text-right">60MA</th>
-                                <th className="p-3 font-medium text-right">Bias20</th>
+                                <th className="p-3 font-medium text-right">月線 (20MA)</th>
+                                <th className="p-3 font-medium text-right">季線 (60MA)</th>
+                                <th className="p-3 font-medium text-right">月乖離 (BIAS20)</th>
                                 <th className="p-3 font-medium text-right">乖離斜率</th>
-                                <th className="p-3 font-medium text-right">RSI(14)</th>
+                                <th className="p-3 font-medium text-right">強弱指標 (RSI)</th>
                                 <th className="p-3 font-medium text-right">融資增減</th>
                                 <th className="p-3 font-medium text-center">訊號</th>
                                 <th className="p-3 font-medium text-center w-16">操作</th>

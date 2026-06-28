@@ -191,7 +191,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (techData.ma60 !== null) cleanTechData.ma60 = techData.ma60;
                         if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
                         if (techData.volumeRatio !== null) cleanTechData.volumeRatio = techData.volumeRatio;
-                        cleanTechData.techScore = techData.techScore;
                         cleanTechData.techSignal = techData.techSignal;
                         cleanTechData.biasSlopes = techData.biasSlopes;
                         if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
@@ -222,9 +221,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 <div>
                     <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
-                        {marketRegime === MarketRegime.NORMAL && <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">🟢 正常模式</span>}
-                        {marketRegime === MarketRegime.CONSERVATIVE && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">🟡 保守模式</span>}
-                        {marketRegime === MarketRegime.DEFENSIVE && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">🔴 防禦模式</span>}
+                        {marketRegime === MarketRegime.NORMAL && <span className="bg-slate-500/20 text-slate-400 border border-slate-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">平穩模式</span>}
+                        {marketRegime === MarketRegime.CONSERVATIVE && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -5% 或 單日跌幅 >= 3%，或近期個人操作連續3筆虧損">🛡️ 保守模式 (大盤大跌或連虧)</span>}
+                        {marketRegime === MarketRegime.DEFENSIVE && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -10% 或 單日跌幅 >= 5%">🛡️ 防禦模式 (大盤乖離&lt;-10%或跌幅&gt;5%)</span>}
                     </div>
                     <p className="text-xs text-slate-400 mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
@@ -403,11 +402,22 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             default: 
                                 if (pos.signalHint) {
                                     return (
-                                        <div className="flex flex-col items-center gap-1">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.target.includes('買') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
+                                        <div className="flex flex-col items-center gap-1.5 mt-1">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
                                                 {pos.signalHint.target}
                                             </span>
-                                            <span className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">缺: {pos.signalHint.missing.join(', ')}</span>
+                                            <div className="flex items-center justify-center gap-1 flex-wrap max-w-[120px]">
+                                                {pos.signalHint.conditions.map((c, i) => {
+                                                    const isBuy = pos.signalHint!.type === 'BUY';
+                                                    const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+                                                    const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
+                                                    return (
+                                                        <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`} title={c.label}>
+                                                            {c.label.split(' ')[0]}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     );
                                 }
@@ -474,10 +484,10 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <th className="p-3 font-medium w-[18%]">標的</th>
                                 <th className="p-3 font-medium text-right w-[10%]">當前價格</th>
                                 <th className="p-3 font-medium text-right w-[13%]">當前損益</th>
-                                <th className="p-3 font-medium text-right w-[10%]">20MA</th>
-                                <th className="p-3 font-medium text-right w-[11%]">Bias20</th>
+                                <th className="p-3 font-medium text-right w-[10%]">月線 (20MA)</th>
+                                <th className="p-3 font-medium text-right w-[11%]">月乖離 (BIAS20)</th>
                                 <th className="p-3 font-medium text-right w-[13%]">乖離斜率</th>
-                                <th className="p-3 font-medium text-right w-[10%]">RSI(14)</th>
+                                <th className="p-3 font-medium text-right w-[10%]">強弱指標 (RSI)</th>
                                 <th className="p-3 font-medium text-center w-[15%]">訊號</th>
                             </tr></thead>
                             <tbody>{inventory.length > 0 ? inventory.map(renderTechRow) : (<tr><td colSpan={8} className="text-center py-6 text-slate-500 text-sm">無庫存資料</td></tr>)}</tbody>

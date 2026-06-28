@@ -9,8 +9,8 @@ export const TechDocs: React.FC = () => {
                     <BookOpen size={24} className="text-indigo-400" />
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-white">V4.0 全自動決策邏輯解析</h2>
-                    <p className="text-slate-400">了解系統在按下「分析」時，背後執行的 5 大關卡步驟</p>
+                    <h2 className="text-2xl font-bold text-white">V4.3 核心決策邏輯解析 (門檻制)</h2>
+                    <p className="text-slate-400">了解系統是如何分析標的，並透過「門檻制」做出交易預判</p>
                 </div>
             </div>
 
@@ -40,8 +40,8 @@ export const TechDocs: React.FC = () => {
 
                     {/* Step 4 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <h4 className="font-bold text-indigo-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-indigo-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">4</span> 指標計算</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">計算 20MA乖離、連續斜率、RSI、散戶融資變化。</p>
+                        <h4 className="font-bold text-indigo-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-indigo-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">4</span> 指標比對</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">綜合比對 20MA乖離率、均線斜率連增天數、與 RSI 絕對門檻</p>
                     </div>
 
                     {/* Step 5 */}
@@ -68,10 +68,10 @@ export const TechDocs: React.FC = () => {
                         </thead>
                         <tbody className="text-slate-300">
                             <tr>
-                                <td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 正常模式</span></td>
+                                <td className="p-2 border border-slate-700"><span className="text-slate-400 font-bold">平穩模式</span></td>
                                 <td className="p-2 border border-slate-700 text-xs">Bias20 &gt; -5% <b className="text-white">且</b> 單日跌幅 &gt; -3%</td>
-                                <td className="p-2 border border-slate-700 text-xs">允許所有買進與加碼</td>
-                                <td className="p-2 border border-slate-700 text-xs">允許所有買進與加碼</td>
+                                <td className="p-2 border border-slate-700 text-xs">允許買進與加碼</td>
+                                <td className="p-2 border border-slate-700 text-xs">允許買進與加碼</td>
                             </tr>
                             <tr>
                                 <td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 保守模式</span></td>

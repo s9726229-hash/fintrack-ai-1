@@ -68,7 +68,6 @@ export interface Asset {
   // --- V7.1.0 Technical Monitor ---
   rsi?: number;
   volumeRatio?: number;
-  techScore?: number;
   techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT';
   biasSlopes?: number[]; // Index 0: today's slope, 1: yesterday's, 2: day before yesterday
   ma20Slope?: number;
@@ -147,9 +146,15 @@ export interface RiskAlerts {
     conservativeLock: boolean; // 連續3筆虧損鎖定
 }
 
+export interface SignalCondition {
+    label: string;
+    satisfied: boolean;
+}
+
 export interface SignalHint {
     target: string;
-    missing: string[];
+    type: 'BUY' | 'SELL';
+    conditions: SignalCondition[];
 }
 
 export interface TechDataResult {
@@ -162,7 +167,6 @@ export interface TechDataResult {
     marginChangeRatio: number | null;
     dailyChangeRatio: number | null;
     sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
-    techScore: number;
     techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT';
     currentPrice?: number;
     marketRegime?: MarketRegime;
