@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts } from "../types";
+import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint } from "../types";
 import { getApiKey, getFeeDiscount, getTechParameters } from "./storage";
 import largeCaps from '../src/data/large_caps.json';
 
@@ -746,6 +746,47 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
         }
 
+        let signalHint: SignalHint | undefined = undefined;
+
+        if (techSignal === 'NONE' || techSignal === 'RISK_ALERT') {
+            const analyzeBrewing = (
+                buyBias: number, strongBuyBias: number, 
+                buyRsi: number, strongBuyRsi: number, 
+                buySlopeDays: number, strongBuySlopeDays: number,
+                partialSellBias: number, partialSellSlopeDays: number
+            ) => {
+                if (currentBias20 < 0 && canBuy) {
+                    if (currentBias20 <= buyBias) {
+                        if (currentBias20 <= strongBuyBias) {
+                            const missing = [];
+                            if (rsi >= strongBuyRsi) missing.push(`RSI < ${strongBuyRsi}`);
+                            if (!checkSlopeImproved(strongBuySlopeDays)) missing.push(`斜率連 ${strongBuySlopeDays} 天向上`);
+                            if (missing.length > 0) return { target: '🚀 醞釀強買', missing };
+                        }
+                        const missing = [];
+                        if (rsi >= buyRsi) missing.push(`RSI < ${buyRsi}`);
+                        if (!checkSlopeImproved(buySlopeDays)) missing.push(`斜率連 ${buySlopeDays} 天向上`);
+                        if (missing.length > 0) return { target: '🟢 醞釀買進', missing };
+                    }
+                } else if (currentBias20 > 0) {
+                    if (currentBias20 >= partialSellBias) {
+                        const missing = [];
+                        if (!checkSlopeDeteriorated(partialSellSlopeDays)) missing.push(`斜率連 ${partialSellSlopeDays} 天向下`);
+                        if (missing.length > 0) return { target: '🟡 醞釀停利', missing };
+                    }
+                }
+                return undefined;
+            };
+
+            if (sizeCategory === 'ETF') {
+                signalHint = analyzeBrewing(params.etfBuyBias, params.etfStrongBuyBias, params.etfBuyRsi, params.etfStrongBuyRsi, params.etfBuySlopeDays, params.etfStrongBuySlopeDays, params.etfPartialSellBias, params.etfPartialSellSlopeDays);
+            } else if (sizeCategory === 'LARGE_CAP') {
+                signalHint = analyzeBrewing(params.largeCapBuyBias, params.largeCapStrongBuyBias, params.largeCapBuyRsi, params.largeCapStrongBuyRsi, params.largeCapBuySlopeDays, params.largeCapStrongBuySlopeDays, params.largeCapPartialSellBias, params.largeCapPartialSellSlopeDays);
+            } else if (sizeCategory === 'SMALL_CAP') {
+                 signalHint = analyzeBrewing(params.smallCapBuyBias, params.smallCapStrongBuyBias, params.smallCapBuyRsi, params.smallCapStrongBuyRsi, params.smallCapBuySlopeDays, params.smallCapStrongBuySlopeDays, params.smallCapPartialSellBias, params.smallCapPartialSellSlopeDays);
+            }
+        }
+
         return {
             ma20: currentMa20,
             ma60: currentMa60,
@@ -758,7 +799,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             sizeCategory,
             techScore: Math.round(techScore),
             techSignal,
-            currentPrice
+            currentPrice,
+            marketRegime,
+            riskAlerts,
+            signalHint
         };
     } catch (error) {
         console.error(`Failed to fetch Technical Data for ${symbol}:`, error);

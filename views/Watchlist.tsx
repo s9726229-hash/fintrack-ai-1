@@ -289,7 +289,18 @@ export const Watchlist: React.FC = () => {
                 case 'TREND_ADD': return <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>;
                 case 'FINAL_ADD': return <span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>;
                 case 'SECOND_PARTIAL_SELL': return <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>;
-                default: return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
+                default: 
+                    if (data.signalHint) {
+                        return (
+                            <div className="flex flex-col items-center gap-1">
+                                <span className={`px-2 py-1 rounded text-xs font-bold border ${data.signalHint.target.includes('買') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
+                                    {data.signalHint.target}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">缺: {data.signalHint.missing.join(', ')}</span>
+                            </div>
+                        );
+                    }
+                    return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
             }
         };
         const signalBadge = renderSignalBadge(data.techSignal || '');

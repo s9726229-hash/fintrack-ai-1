@@ -196,6 +196,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         cleanTechData.biasSlopes = techData.biasSlopes;
                         if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
                         if (techData.marginChangeRatio !== null) cleanTechData.marginChangeRatio = techData.marginChangeRatio;
+                        if (techData.signalHint !== undefined) cleanTechData.signalHint = techData.signalHint;
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
                         
@@ -399,7 +400,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             case 'STOP_LOSS_ALERT': return <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
                             case 'RISK_ALERT': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>;
                             case 'SECOND_PARTIAL_SELL': return <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>;
-                            default: return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
+                            default: 
+                                if (pos.signalHint) {
+                                    return (
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.target.includes('買') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
+                                                {pos.signalHint.target}
+                                            </span>
+                                            <span className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">缺: {pos.signalHint.missing.join(', ')}</span>
+                                        </div>
+                                    );
+                                }
+                                return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
                         }
                     };
                     const signalBadge = renderSignalBadge(pos.techSignal || '');

@@ -74,6 +74,8 @@ export interface Asset {
   ma20Slope?: number;
   ma60?: number;
   marginChangeRatio?: number;
+  marketRegime?: MarketRegime;
+  signalHint?: SignalHint;
   sizeCategory?: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
 }
 
@@ -145,6 +147,11 @@ export interface RiskAlerts {
     conservativeLock: boolean; // 連續3筆虧損鎖定
 }
 
+export interface SignalHint {
+    target: string;
+    missing: string[];
+}
+
 export interface TechDataResult {
     ma20: number | null;
     ma60: number | null;
@@ -160,6 +167,7 @@ export interface TechDataResult {
     currentPrice?: number;
     marketRegime?: MarketRegime;
     riskAlerts?: RiskAlerts;
+    signalHint?: SignalHint;
 }
 
 export interface Transaction {
