@@ -597,9 +597,14 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         // ETF 豁免大盤單日跌幅機制 (若大盤Bias20未達-10%，則豁免防禦模式)
         let effectiveRegimeForBuy = marketRegime;
-        if (sizeCategory === 'ETF' && marketRegime === MarketRegime.DEFENSIVE && twiiBias20 > -10) {
-            // 大盤只因為單日跌幅過深進入防禦，對ETF而言視為正常/保守即可
-            effectiveRegimeForBuy = MarketRegime.CONSERVATIVE;
+        if (sizeCategory === 'ETF') {
+            if (twiiBias20 <= -10) {
+                effectiveRegimeForBuy = MarketRegime.DEFENSIVE;
+            } else if (twiiBias20 <= -5) {
+                effectiveRegimeForBuy = MarketRegime.CONSERVATIVE;
+            } else {
+                effectiveRegimeForBuy = MarketRegime.NORMAL;
+            }
         }
 
         const canBuy = effectiveRegimeForBuy !== MarketRegime.DEFENSIVE && currentBias20 < 0;
