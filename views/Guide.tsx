@@ -39,7 +39,25 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
         
-        <FeatureSection title="V7.4.0 自動化與精準監控" date="Latest" color="text-sky-400">
+        <FeatureSection title="V7.5.0 財務儀表板全面升級" date="Latest" color="text-amber-400">
+            <FeatureItem 
+                icon={LayoutTemplate}
+                title="版面精簡與資訊整合" 
+                description="移除原先佔據大量版面的獨立圓環倒數圖，將「寬限期警告」精煉成卡片徽章（Badge），並採用全寬卡片網格（Grid）重新排版負債清單，大幅提升首頁空間利用率與閱讀動線。"
+            />
+            <FeatureItem 
+                icon={Activity}
+                title="月度與年度收支結算" 
+                description="新增「歷史月度收支」與「歷史年度收支」雙向直條圖。系統會自動追溯包含薪資、股票損益、一般消費以及「自動預估的各項貸款每月應繳本息」，讓真實現金流餘裕一目了然。"
+            />
+            <FeatureItem 
+                icon={Sparkles}
+                title="資產趨勢與除錯優化" 
+                description="在資產趨勢圖中補齊了「淨資產」的藍色面積趨勢線。同時修復了技術監控頁面因快取舊版字串格式的 signalHint 而導致的畫面崩潰問題，提升系統強健度。"
+            />
+        </FeatureSection>
+
+        <FeatureSection title="V7.4.0 自動化與精準監控" date="Recent" color="text-sky-400">
             <FeatureItem 
                 icon={Activity}
                 title="即時連動與自動掃描" 

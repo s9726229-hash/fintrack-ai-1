@@ -400,14 +400,14 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             case 'RISK_ALERT': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>;
                             case 'SECOND_PARTIAL_SELL': return <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>;
                             default: 
-                                if (pos.signalHint) {
+                                if (pos.signalHint && typeof pos.signalHint === 'object') {
                                     return (
                                         <div className="flex flex-col items-center gap-1.5 mt-1">
                                             <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
                                                 {pos.signalHint.target}
                                             </span>
                                             <div className="flex items-center justify-center gap-1 flex-wrap max-w-[120px]">
-                                                {pos.signalHint.conditions.map((c, i) => {
+                                                {pos.signalHint.conditions?.map((c, i) => {
                                                     const isBuy = pos.signalHint!.type === 'BUY';
                                                     const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
                                                     const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
