@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Asset, AssetType } from '../types';
 import * as storage from '../services/storage';
-import { enrichStockBasicInfo, enrichStockDividendInfo } from '../services/stock';
+import { enrichStockBasicInfo, enrichStockDividendInfo, fetchMarketRegime } from '../services/stock';
 
 interface UseStockEnrichmentProps {
   setToast: (toast: { message: string; count: number } | null) => void;
@@ -16,7 +16,7 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
     dividend: { isUpdating: false, progress: { current: 0, total: 0 } },
   });
 
-  const BATCH_SIZE = 3; // Number of parallel requests
+  const BATCH_SIZE = 15; // Number of parallel requests
 
   const enrichData = async (
     type: EnrichStatusType,
@@ -25,11 +25,14 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
     onSuccess: (newAssets: Asset[]) => void
   ) => {
     setEnrichStatus(prev => ({ ...prev, [type]: { isUpdating: true, progress: { current: 0, total: stocksToUpdate.length } } }));
-    setToast({ message: `${type === 'price' ? '快速更新' : '深度分析'}：已開始更新 ${stocksToUpdate.length} 筆資料...`, count: stocksToUpdate.length });
+    setToast({ message: `${type === 'price' ? '快速更新' : '深度分析'}：正在更新 ${stocksToUpdate.length} 筆資料...`, count: stocksToUpdate.length });
 
     const currentAssets = storage.getAssets();
     let hasError = false;
     let processedCount = 0;
+
+    // Pre-warm market regime cache before parallel execution
+    await fetchMarketRegime(true);
 
     for (let i = 0; i < stocksToUpdate.length; i += BATCH_SIZE) {
       const batch = stocksToUpdate.slice(i, i + BATCH_SIZE);

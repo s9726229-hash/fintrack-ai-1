@@ -72,7 +72,9 @@ export const Watchlist: React.FC = () => {
         const chunkArray = <T,>(arr: T[], size: number): T[][] => 
             Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
 
-        const chunks = chunkArray(symbolsToFetch, 5);
+        // Pre-warm market regime cache before parallel execution to prevent duplicate TWII requests
+        await fetchMarketRegime(true);
+        const chunks = chunkArray(symbolsToFetch, 15);
         for (const chunk of chunks) {
             await Promise.all(chunk.map(async (symbol) => {
                 try {

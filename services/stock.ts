@@ -396,36 +396,44 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         
         const fetchYahoo = async (suffix: string) => {
             const timestamp = Date.now();
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=6mo&interval=1d&_t=${timestamp}`;
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=4mo&interval=1d&_t=${timestamp}`;
             
-            const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000) => {
+            const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000, isAllOrigins: boolean = false) => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 try {
                     const response = await fetch(targetUrl, { signal: controller.signal });
                     clearTimeout(timeoutId);
-                    if (!response.ok) return null;
-                    return await response.json();
+                    if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`);
+                    const json = await response.json();
+                    if (isAllOrigins) {
+                        if (!json || !json.contents) throw new Error('Invalid AllOrigins format');
+                        return JSON.parse(json.contents);
+                    }
+                    return json;
                 } catch (e) {
                     clearTimeout(timeoutId);
-                    return null;
+                    throw e; // Throw so Promise.any can catch it
                 }
             };
 
-            let data = await fetchWithTimeout(url, 3000);
-            if (!data) data = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 5000);
-            if (!data) {
-                const allData = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 5000);
-                if (allData?.contents) {
-                    try { data = JSON.parse(allData.contents); } catch(e) {}
-                }
-            }
+            try {
+                const data = await Promise.any([
+                    fetchWithTimeout(url, 4000),
+                    fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 4000),
+                    fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 5000, true)
+                ]);
 
-            const result = data?.chart?.result?.[0];
-            const quote = result?.indicators?.quote?.[0];
-            const meta = result?.meta;
-            if (!quote) return null;
-            return { closes: quote.close, volumes: quote.volume, metaPrice: meta?.regularMarketPrice };
+                const result = data?.chart?.result?.[0];
+                const quote = result?.indicators?.quote?.[0];
+                const meta = result?.meta;
+                if (!quote) return null;
+                return { closes: quote.close, volumes: quote.volume, metaPrice: meta?.regularMarketPrice };
+            } catch (error) {
+                // All requests failed
+                console.error(`Failed to fetch Yahoo data for ${symbol}${suffix}:`, error);
+                return null;
+            }
         };
 
         let rawData = await fetchYahoo('.TW');
