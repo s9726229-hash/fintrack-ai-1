@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart } from 'lucide-react';
+import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart, Clock } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime } from '../services/stock';
-import { getApiKey, getTechParameters } from '../services/storage';
+import { getApiKey, getTechParameters, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
@@ -78,8 +78,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
     
     const [filter, setFilter] = useState('');
     const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
-    const [customStart, setCustomStart] = useState('');
-    const [customEnd, setCustomEnd] = useState('');
+    const [customStart, setCustomStart] = useState<string>('');
+    const [customEnd, setCustomEnd] = useState<string>('');
+    const [autoUpdateEnabled, setAutoUpdateEnabledState] = useState(getAutoTechUpdateEnabled());
 
     const inventory = useMemo(() => assets.filter(a => a.type === AssetType.STOCK), [assets]);
 
@@ -158,17 +159,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const handleOpenModal = (asset: Asset | null = null) => { setEditingAsset(asset); setIsModalOpen(true); };
     const handleSaveAsset = (asset: Asset) => { if (editingAsset) onUpdate(asset); else onAdd(asset); setIsModalOpen(false); setEditingAsset(null); };
 
-    useEffect(() => {
-        if (activeTab === 'MONITOR' && localStorage.getItem('needs_rescan_inventory') === 'true') {
-            localStorage.removeItem('needs_rescan_inventory');
-            if (inventory.length > 0) {
-                // Use setTimeout to avoid state update during render if React 18 batches it weirdly
-                setTimeout(() => handleUpdateBias(), 100);
-            }
-        }
-    }, [activeTab, inventory]);
-
     const handleUpdateBias = async () => {
+        localStorage.setItem('last_tech_update_time', Date.now().toString());
         setIsUpdatingBias(true);
         const validStocks = inventory.filter(s => s.symbol);
         setAnalyzeProgress({ current: 0, total: validStocks.length, symbol: '' });
@@ -214,6 +206,34 @@ export const Investments: React.FC<InvestmentsProps> = ({
         setIsUpdatingBias(false);
         setAnalyzeProgress(null);
     };
+
+    useEffect(() => {
+        if (activeTab === 'MONITOR' && localStorage.getItem('needs_rescan_inventory') === 'true') {
+            localStorage.removeItem('needs_rescan_inventory');
+            if (inventory.length > 0) {
+                // Use setTimeout to avoid state update during render if React 18 batches it weirdly
+                setTimeout(() => handleUpdateBias(), 100);
+            }
+        }
+    }, [activeTab, inventory]);
+
+    const handleUpdateBiasRef = useRef(handleUpdateBias);
+    useEffect(() => {
+        handleUpdateBiasRef.current = handleUpdateBias;
+    });
+
+    useEffect(() => {
+        if (!autoUpdateEnabled) return;
+        const interval = setInterval(() => {
+            const lastUpdate = localStorage.getItem('last_tech_update_time') || '0';
+            if (Date.now() - parseInt(lastUpdate) >= 5 * 60 * 1000) {
+                if (document.visibilityState === 'visible' && !isUpdatingBias && !isEnriching) {
+                    handleUpdateBiasRef.current();
+                }
+            }
+        }, 15000); // Check every 15 seconds
+        return () => clearInterval(interval);
+    }, [autoUpdateEnabled, isUpdatingBias, isEnriching]);
     const handleTransactionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { transactions: p, error } = parseStockTransactionCSV(t); if (error) { alert(`CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportTransactions(p); else alert('CSV 中找不到有效交易。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     
@@ -263,6 +283,19 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
                             />
                         )}
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            const newState = !autoUpdateEnabled;
+                            setAutoUpdateEnabledState(newState);
+                            setAutoTechUpdateEnabled(newState);
+                        }} 
+                        variant="secondary" 
+                        className={`h-8 text-xs border transition-all duration-300 ${autoUpdateEnabled ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:bg-slate-700/50'}`}
+                        title="5分鐘自動更新"
+                    >
+                        <Clock size={14} className={autoUpdateEnabled ? "animate-pulse text-red-400" : ""} />
+                        {autoUpdateEnabled ? '自動更新中' : '自動更新'}
                     </Button>
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
                 </div>

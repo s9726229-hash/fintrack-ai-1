@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert } from 'lucide-react';
+import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock } from 'lucide-react';
 import { WatchlistGroup, MarketRegime } from '../types';
 import * as storage from '../services/storage';
+import { getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { fetchTechnicalData, fetchMarketRegime } from '../services/stock';
 import twStocks from '../src/data/tw_stocks.json';
 
@@ -22,6 +23,7 @@ export const Watchlist: React.FC = () => {
     const [lastUpdated, setLastUpdated] = useState<number | null>(globalLastUpdatedCache);
     const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
+    const [autoUpdateEnabled, setAutoUpdateEnabledState] = useState(getAutoTechUpdateEnabled());
 
     // Sync state to global cache
     useEffect(() => {
@@ -54,6 +56,10 @@ export const Watchlist: React.FC = () => {
             : activeGroup.symbols.filter(sym => !techDataMap[sym]);
             
         if (symbolsToFetch.length === 0) return;
+
+        if (force) {
+            localStorage.setItem('last_tech_update_time', Date.now().toString());
+        }
 
         setIsLoading(true);
         const newMap = { ...techDataMap };
@@ -103,6 +109,24 @@ export const Watchlist: React.FC = () => {
     useEffect(() => {
         refreshData(false); // Do not force fetch on tab switch
     }, [activeGroupId]);
+
+    const refreshDataRef = React.useRef(refreshData);
+    useEffect(() => {
+        refreshDataRef.current = refreshData;
+    });
+
+    useEffect(() => {
+        if (!autoUpdateEnabled) return;
+        const interval = setInterval(() => {
+            const lastUpdate = localStorage.getItem('last_tech_update_time') || '0';
+            if (Date.now() - parseInt(lastUpdate) >= 5 * 60 * 1000) {
+                if (document.visibilityState === 'visible' && !isLoading) {
+                    refreshDataRef.current(true);
+                }
+            }
+        }, 15000); // Check every 15 seconds
+        return () => clearInterval(interval);
+    }, [autoUpdateEnabled, isLoading]);
 
     const handleAddGroup = () => {
         if (!newGroupName.trim()) return;
@@ -393,15 +417,27 @@ export const Watchlist: React.FC = () => {
                             <RefreshCw size={16} className={isLoading ? "animate-spin text-sky-400" : ""} />
                             {isLoading && analyzeProgress ? (
                                 <span className="flex items-center gap-1 z-10 relative">
-                                    掃描中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
+                                    更新中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
                                 </span>
-                            ) : '重新掃描'}
+                            ) : '更新數據'}
                             {isLoading && analyzeProgress && (
                                 <div 
                                     className="absolute left-0 top-0 bottom-0 bg-sky-500/20 transition-all duration-300"
                                     style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
                                 />
                             )}
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const newState = !autoUpdateEnabled;
+                                setAutoUpdateEnabledState(newState);
+                                setAutoTechUpdateEnabled(newState);
+                            }} 
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 text-sm font-medium border ${autoUpdateEnabled ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`}
+                            title="5分鐘自動更新"
+                        >
+                            <Clock size={16} className={autoUpdateEnabled ? "animate-pulse text-red-400" : ""} />
+                            {autoUpdateEnabled ? '自動更新中' : '自動更新'}
                         </button>
                     </div>
                 )}
