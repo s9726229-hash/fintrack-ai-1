@@ -194,7 +194,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (techData.institutionalForeign !== null && techData.institutionalForeign !== undefined) cleanTechData.institutionalForeign = techData.institutionalForeign;
                         if (techData.institutionalTrust !== null && techData.institutionalTrust !== undefined) cleanTechData.institutionalTrust = techData.institutionalTrust;
                         if (techData.institutionalDealer !== null && techData.institutionalDealer !== undefined) cleanTechData.institutionalDealer = techData.institutionalDealer;
-                        if (techData.signalHint !== undefined) cleanTechData.signalHint = techData.signalHint;
+                        cleanTechData.signalHint = techData.signalHint ?? undefined;
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
                         if (techData.dailyChangeRatio !== null && techData.dailyChangeRatio !== undefined) cleanTechData.dailyChangeRatio = techData.dailyChangeRatio;
@@ -426,14 +426,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     const targetStopPrice = pos.ma20 && stopLossThreshold !== -999 ? (pos.ma20 * (1 + stopLossThreshold / 100)).toFixed(2) : '-';
 
                     const renderSignalBadge = (signal: string) => {
-                        if (pos.signalHint && typeof pos.signalHint === 'object') {
+                        // signalHint 只在 NONE / RISK_ALERT 時才顯示，避免舊值蓋掉正式訊號
+                        const showHint = (signal === 'NONE' || signal === 'RISK_ALERT') && pos.signalHint && typeof pos.signalHint === 'object';
+                        if (showHint) {
                             return (
                                 <div className="flex flex-col items-center gap-1.5 mt-1">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                                        {pos.signalHint.target}
+                                    <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint!.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                                        {pos.signalHint!.target}
                                     </span>
                                     <div className="flex items-center justify-center gap-1 flex-wrap max-w-[120px]">
-                                        {pos.signalHint.conditions?.map((c, i) => {
+                                        {pos.signalHint!.conditions?.map((c, i) => {
                                             const isBuy = pos.signalHint!.type === 'BUY';
                                             const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
                                             const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
