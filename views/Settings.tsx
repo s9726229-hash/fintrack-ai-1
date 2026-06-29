@@ -32,6 +32,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
     setFeeDiscount(getFeeDiscount());
     setTechParams(getTechParameters());
     setFinmindToken(localStorage.getItem('ft_finmind_token') || '');
+    fetchFinMindUsage().then(setApiUsage);
     const storedClientId = getGoogleClientId();
     if (storedClientId) {
         setGoogleClientId(storedClientId);
@@ -537,6 +538,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
     </div>
   );
 };
+
 
 
 
