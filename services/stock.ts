@@ -877,6 +877,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             signalHint = buildTriggerConditions();
         }
 
+        const instFlags = institutionalCache[symbol];
         return {
             ma20: currentMa20,
             ma60: currentMa60,
@@ -889,6 +890,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             institutionalForeign,
             institutionalTrust,
             institutionalDealer,
+            foreignBuy: instFlags?.foreignBuy ?? false,
+            foreignSell: instFlags?.foreignSell ?? false,
+            trustBuy: instFlags?.trustBuy ?? false,
+            trustSell: instFlags?.trustSell ?? false,
             dailyChangeRatio,
             sizeCategory,
             techSignal,

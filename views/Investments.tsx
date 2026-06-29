@@ -194,6 +194,10 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (techData.institutionalForeign !== null && techData.institutionalForeign !== undefined) cleanTechData.institutionalForeign = techData.institutionalForeign;
                         if (techData.institutionalTrust !== null && techData.institutionalTrust !== undefined) cleanTechData.institutionalTrust = techData.institutionalTrust;
                         if (techData.institutionalDealer !== null && techData.institutionalDealer !== undefined) cleanTechData.institutionalDealer = techData.institutionalDealer;
+                        cleanTechData.foreignBuy = techData.foreignBuy;
+                        cleanTechData.foreignSell = techData.foreignSell;
+                        cleanTechData.trustBuy = techData.trustBuy;
+                        cleanTechData.trustSell = techData.trustSell;
                         cleanTechData.signalHint = techData.signalHint ?? undefined;
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
@@ -520,25 +524,41 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             {pos.rsi?.toFixed(1) || '-'}
                             {rsiSubtext}
                         </td>
-                        <td className="p-3 text-right font-mono">
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.foreignBuy ? 'bg-emerald-900/30' : pos.foreignSell ? 'bg-red-900/30' : ''}`}>
                             {pos.institutionalForeign !== undefined && pos.institutionalForeign !== null ? (
-                                <span className={pos.institutionalForeign > 0 ? 'text-red-400' : (pos.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
-                                    {pos.institutionalForeign > 0 ? '+' : ''}{pos.institutionalForeign.toLocaleString()}
-                                </span>
+                                <div>
+                                    <span className={pos.institutionalForeign > 0 ? 'text-red-400' : (pos.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                                        {pos.institutionalForeign > 0 ? '+' : ''}{pos.institutionalForeign.toLocaleString()}
+                                    </span>
+                                    {pos.foreignBuy && <div className="text-[10px] text-emerald-400/80 mt-0.5">連買3日</div>}
+                                    {pos.foreignSell && <div className="text-[10px] text-red-400/80 mt-0.5">連賣3日</div>}
+                                </div>
                             ) : '-'}
                         </td>
-                        <td className="p-3 text-right font-mono">
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.trustBuy ? 'bg-emerald-900/30' : pos.trustSell ? 'bg-red-900/30' : ''}`}>
                             {pos.institutionalTrust !== undefined && pos.institutionalTrust !== null ? (
-                                <span className={pos.institutionalTrust > 0 ? 'text-red-400' : (pos.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
-                                    {pos.institutionalTrust > 0 ? '+' : ''}{pos.institutionalTrust.toLocaleString()}
-                                </span>
+                                <div>
+                                    <span className={pos.institutionalTrust > 0 ? 'text-red-400' : (pos.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                                        {pos.institutionalTrust > 0 ? '+' : ''}{pos.institutionalTrust.toLocaleString()}
+                                    </span>
+                                    {pos.trustBuy && <div className="text-[10px] text-emerald-400/80 mt-0.5">連買3日</div>}
+                                    {pos.trustSell && <div className="text-[10px] text-red-400/80 mt-0.5">連賣3日</div>}
+                                </div>
                             ) : '-'}
                         </td>
-                        <td className="p-3 text-right font-mono">
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio >= 2 ? 'bg-amber-900/30' : ''}`}>
                             {pos.marginChange !== undefined && pos.marginChange !== null ? (
-                                <span className={pos.marginChange > 0 ? 'text-red-400' : (pos.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
-                                    {pos.marginChange > 0 ? '+' : ''}{pos.marginChange.toLocaleString()}
-                                </span>
+                                <div>
+                                    <span className={pos.marginChange > 0 ? 'text-red-400' : (pos.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                                        {pos.marginChange > 0 ? '+' : ''}{pos.marginChange.toLocaleString()}
+                                    </span>
+                                    {pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio >= 2 && (
+                                        <div className="text-[10px] text-amber-400/80 mt-0.5">融資大增 +{pos.marginChangeRatio.toFixed(1)}%</div>
+                                    )}
+                                    {pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio <= -2 && (
+                                        <div className="text-[10px] text-emerald-400/80 mt-0.5">融資大減 {pos.marginChangeRatio.toFixed(1)}%</div>
+                                    )}
+                                </div>
                             ) : '-'}
                         </td>
 

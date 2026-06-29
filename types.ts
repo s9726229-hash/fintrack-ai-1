@@ -77,6 +77,10 @@ export interface Asset {
   institutionalForeign?: number | null; // 外資買賣超(張)
   institutionalTrust?: number | null; // 投信買賣超(張)
   institutionalDealer?: number | null; // 自營商買賣超(張)
+  foreignBuy?: boolean;   // 外資近5日連買≥3日
+  foreignSell?: boolean;  // 外資近5日連賣≥3日
+  trustBuy?: boolean;     // 投信近5日連買≥3日
+  trustSell?: boolean;    // 投信近5日連賣≥3日
   marketRegime?: MarketRegime;
   signalHint?: SignalHint;
   sizeCategory?: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
@@ -179,6 +183,10 @@ export interface TechDataResult {
     institutionalForeign: number | null;
     institutionalTrust: number | null;
     institutionalDealer: number | null;
+    foreignBuy: boolean;
+    foreignSell: boolean;
+    trustBuy: boolean;
+    trustSell: boolean;
     priceChangeSinceLastTick?: number;
     dailyChangeRatio: number | null;
     sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
