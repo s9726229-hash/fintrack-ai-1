@@ -640,10 +640,21 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 marginChangeRatio = ((currentMargin - prevMargin) / prevMargin) * 100;
             }
         } else if (tpexMargin && tpexMargin.CurrentMarginBalance && tpexMargin.PreviousMarginBalance) {
-            const currentMargin = parseFloat(tpexMargin.CurrentMarginBalance.replace(/,/g, ''));
-            const prevMargin = parseFloat(tpexMargin.PreviousMarginBalance.replace(/,/g, ''));
-            if (prevMargin > 0) {
-                marginChangeRatio = ((currentMargin - prevMargin) / prevMargin) * 100;
+            const currentMarginTpex = parseFloat(tpexMargin.CurrentMarginBalance.replace(/,/g, ''));
+            const prevMarginTpex = parseFloat(tpexMargin.PreviousMarginBalance.replace(/,/g, ''));
+            if (prevMarginTpex > 0) {
+                marginChangeRatio = ((currentMarginTpex - prevMarginTpex) / prevMarginTpex) * 100;
+            }
+        }
+
+        // 6b. Fetch Institutional (外資/投信) from FinMind
+        const instData = await fetchInstitutionalData(symbol);
+        if (instData && instData.last5 && instData.last5.length > 0) {
+            const lastDate = instData.last5[instData.last5.length - 1];
+            const lastDay = instData.byDate[lastDate];
+            if (lastDay) {
+                institutionalForeign = lastDay.Foreign_Investor ?? null;
+                institutionalTrust = lastDay.Investment_Trust ?? null;
             }
         }
 
@@ -651,8 +662,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const isETF = symbol.startsWith('00') || symbol.toLowerCase().includes('etf');
         const isLargeCap = !isETF && (largeCaps as string[]).includes(symbol);
         const sizeCategory = isETF ? 'ETF' : (isLargeCap ? 'LARGE_CAP' : 'SMALL_CAP');
-
-        // (TechScore legacy scoring system has been removed)
 
         // 9. V4.0 Signals & Risk Control
         const params = getTechParameters();
