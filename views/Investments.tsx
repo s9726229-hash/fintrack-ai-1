@@ -197,6 +197,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (techData.signalHint !== undefined) cleanTechData.signalHint = techData.signalHint;
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
+                        if (techData.dailyChangeRatio !== null && techData.dailyChangeRatio !== undefined) cleanTechData.dailyChangeRatio = techData.dailyChangeRatio;
+                        if (techData.riskAlerts) cleanTechData.riskAlerts = techData.riskAlerts;
                         
                         updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
                     }

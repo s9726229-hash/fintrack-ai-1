@@ -80,6 +80,8 @@ export interface Asset {
   marketRegime?: MarketRegime;
   signalHint?: SignalHint;
   sizeCategory?: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
+  dailyChangeRatio?: number | null;
+  riskAlerts?: RiskAlerts;
 }
 
 export interface StockPosition {
