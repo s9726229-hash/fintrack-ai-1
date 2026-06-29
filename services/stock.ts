@@ -767,41 +767,50 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         let signalHint: SignalHint | undefined = undefined;
 
-        // ── 為所有正式燈號建立觸發條件小標籤 ──
+        // ── 為所有正式燈號建立觸發條件小標籤（含實際數值）──
         const buildTriggerConditions = (): SignalHint | undefined => {
             const cond = (label: string, satisfied: boolean) => ({ label, satisfied });
-            const biasLabel = `乖離 ${currentBias20.toFixed(1)}%`;
-            const rsiLabel = `RSI ${rsi?.toFixed(1) ?? '-'}`;
-            const slopeLabel = `斜率`;
+            const slope0 = biasSlopes[0] ?? 0;
+            const biasLabel = `乖離 ${currentBias20 > 0 ? '+' : ''}${currentBias20.toFixed(2)}%`;
+            const rsiLabel = `RSI ${rsi !== null ? rsi.toFixed(1) : '-'}`;
+            const slopeLabel = `斜率 ${slope0 > 0 ? '+' : ''}${slope0.toFixed(2)}`;
+            const foreignLabel = institutionalForeign !== null ? `外資 ${institutionalForeign > 0 ? '+' : ''}${institutionalForeign.toLocaleString()}` : '外資';
+            const trustLabel = institutionalTrust !== null ? `投信 ${institutionalTrust > 0 ? '+' : ''}${institutionalTrust.toLocaleString()}` : '投信';
+            const marginLabel = marginChange !== null ? `融資 ${marginChange > 0 ? '+' : ''}${marginChange.toLocaleString()}` : '融資';
+            const marginRatioLabel = marginChangeRatio !== null ? `融資 ${marginChangeRatio > 0 ? '+' : ''}${marginChangeRatio.toFixed(1)}%` : '融資';
+
+            const techConds = [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)];
+            const techSellConds = [cond(biasLabel, true), cond(slopeLabel, true)];
 
             if (sizeCategory === 'ETF') {
-                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: techConds };
+                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: techConds };
                 if (techSignal === 'ADDITIONAL_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true)] };
                 if (techSignal === 'STRONG_ADDITIONAL_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true)] };
-                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'SECOND_PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
-            } else if (sizeCategory === 'LARGE_CAP') {
-                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'TREND_ADD') return { target: '', type: 'BUY', conditions: [cond('持倉', true), cond(biasLabel, true), cond('MA20↑', ma20Slope > 0), cond(rsiLabel, true), cond('冷卻', true)] };
-                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'FORCE_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true)] };
-            } else if (sizeCategory === 'SMALL_CAP') {
-                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
-                if (techSignal === 'TREND_ADD') return { target: '', type: 'BUY', conditions: [cond('持倉', true), cond(biasLabel, true), cond('MA20↑', ma20Slope > 0), cond(rsiLabel, true), cond('冷卻', true)] };
-                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: techSellConds };
+                if (techSignal === 'SECOND_PARTIAL_SELL') return { target: '', type: 'SELL', conditions: techSellConds };
+            } else if (sizeCategory === 'LARGE_CAP' || sizeCategory === 'SMALL_CAP') {
+                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: techConds };
+                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: techConds };
+                if (techSignal === 'TREND_ADD') return { target: '', type: 'BUY', conditions: [cond('持倉中', true), cond(biasLabel, true), cond(`MA20↑ ${ma20Slope > 0 ? '✓' : '✗'}`, ma20Slope > 0), cond(rsiLabel, true)] };
+                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: techSellConds };
                 if (techSignal === 'FORCE_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true)] };
             }
-            if (techSignal === 'STRONG_LAYOUT') return { target: '', type: 'BUY', conditions: [cond('技術面', true), cond('外資買', true), cond('投信買', true)] };
-            if (techSignal === 'WATCH_DIVERGE') return { target: '', type: 'SELL', conditions: [cond('技術面', true), cond('外資賣', true), cond('融資↑', true)] };
-            if (techSignal === 'SELL') return { target: '', type: 'SELL', conditions: [cond('外資賣', true), cond('投信賣', true)] };
+            if (techSignal === 'STRONG_LAYOUT') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(foreignLabel, true), cond(trustLabel, true)] };
+            if (techSignal === 'WATCH_DIVERGE') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(foreignLabel, true), cond(marginRatioLabel, true)] };
+            if (techSignal === 'SELL') return { target: '', type: 'SELL', conditions: [cond(foreignLabel, true), cond(trustLabel, true)] };
             if (techSignal === 'STOP_LOSS_ALERT') {
-                const byPnL = isHeld && heldAsset?.avgCost ? ((currentPrice - heldAsset.avgCost) / heldAsset.avgCost * 100) <= (sizeCategory === 'LARGE_CAP' ? params.largeCapStopLossPnL : params.smallCapStopLossPnL) : false;
-                return { target: '', type: 'SELL', conditions: byPnL ? [cond('損益停損', true)] : [cond('乖離停損', true)] };
+                const unrealPnL = isHeld && heldAsset?.avgCost ? (currentPrice - heldAsset.avgCost) / heldAsset.avgCost * 100 : 0;
+                const stopPnL = sizeCategory === 'LARGE_CAP' ? params.largeCapStopLossPnL : params.smallCapStopLossPnL;
+                const byPnL = unrealPnL <= stopPnL;
+                return { target: '', type: 'SELL', conditions: byPnL
+                    ? [cond(`損益 ${unrealPnL.toFixed(1)}%`, true), cond(`門檻 ${stopPnL}%`, true)]
+                    : [cond(biasLabel, true), cond('乖離停損', true)] };
             }
-            if (techSignal === 'RISK_ALERT') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond('預警區', true)] };
+            if (techSignal === 'RISK_ALERT') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond('進入預警區', true)] };
+            if (techSignal === 'NONE' && institutionalForeign !== null) {
+                return { target: '', type: 'BUY', conditions: [cond(foreignLabel, institutionalForeign > 0), cond(trustLabel, (institutionalTrust ?? 0) > 0), cond(marginLabel, (marginChange ?? 0) < 0)] };
+            }
             return undefined;
         };
 
@@ -812,6 +821,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 buySlopeDays: number, strongBuySlopeDays: number,
                 partialSellBias: number, partialSellSlopeDays: number
             ): import('../types').SignalHint | undefined => {
+                const slope0b = biasSlopes[0] ?? 0;
+                const bLabel = `乖離 ${currentBias20 > 0 ? '+' : ''}${currentBias20.toFixed(2)}%`;
+                const rLabel = (threshold: number) => `RSI ${rsi !== null ? rsi.toFixed(1) : '-'} (<${threshold})`;
+                const sLabel = `斜率 ${slope0b > 0 ? '+' : ''}${slope0b.toFixed(2)}`;
                 if (currentBias20 < 0 && canBuy) {
                     if (currentBias20 <= buyBias) {
                         if (currentBias20 <= strongBuyBias) {
@@ -819,9 +832,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                                 target: '🟢 醞釀強買',
                                 type: 'BUY',
                                 conditions: [
-                                    { label: '乖離', satisfied: true },
-                                    { label: 'RSI', satisfied: rsi < strongBuyRsi },
-                                    { label: '斜率', satisfied: checkSlopeImproved(strongBuySlopeDays) }
+                                    { label: bLabel, satisfied: true },
+                                    { label: rLabel(strongBuyRsi), satisfied: rsi !== null && rsi < strongBuyRsi },
+                                    { label: sLabel, satisfied: checkSlopeImproved(strongBuySlopeDays) }
                                 ]
                             };
                         }
@@ -829,9 +842,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                             target: '🟢 醞釀買進',
                             type: 'BUY',
                             conditions: [
-                                { label: '乖離', satisfied: true },
-                                { label: 'RSI', satisfied: rsi < buyRsi },
-                                { label: '斜率', satisfied: checkSlopeImproved(buySlopeDays) }
+                                { label: bLabel, satisfied: true },
+                                { label: rLabel(buyRsi), satisfied: rsi !== null && rsi < buyRsi },
+                                { label: sLabel, satisfied: checkSlopeImproved(buySlopeDays) }
                             ]
                         };
                     }
@@ -841,8 +854,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                             target: '🟡 醞釀停利',
                             type: 'SELL',
                             conditions: [
-                                { label: '乖離', satisfied: true },
-                                { label: '斜率', satisfied: checkSlopeDeteriorated(partialSellSlopeDays) }
+                                { label: bLabel, satisfied: true },
+                                { label: sLabel, satisfied: checkSlopeDeteriorated(partialSellSlopeDays) }
                             ]
                         };
                     }
