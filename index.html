@@ -72,6 +72,22 @@
         border: 1px solid rgba(51, 65, 85, 0.5);
       }
       
+      @keyframes row-flash-up {
+        0% { background-color: rgba(239, 68, 68, 0.4); }
+        100% { background-color: transparent; }
+      }
+      @keyframes row-flash-down {
+        0% { background-color: rgba(16, 185, 129, 0.4); }
+        100% { background-color: transparent; }
+      }
+      @keyframes row-flash-neutral {
+        0% { background-color: rgba(255, 255, 255, 0.15); }
+        100% { background-color: transparent; }
+      }
+      .flash-row-up { animation: row-flash-up 1.5s ease-out; }
+      .flash-row-down { animation: row-flash-down 1.5s ease-out; }
+      .flash-row-neutral { animation: row-flash-neutral 1.5s ease-out; }
+      
       /* Mobile safe area adjustments */
       @supports (padding-bottom: env(safe-area-inset-bottom)) {
         .pb-safe {

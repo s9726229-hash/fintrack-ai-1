@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
 import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart, Clock } from 'lucide-react';
+import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime } from '../services/stock';
@@ -189,6 +190,10 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         cleanTechData.biasSlopes = techData.biasSlopes;
                         if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
                         if (techData.marginChangeRatio !== null) cleanTechData.marginChangeRatio = techData.marginChangeRatio;
+                        if (techData.marginChange !== null && techData.marginChange !== undefined) cleanTechData.marginChange = techData.marginChange;
+                        if (techData.institutionalForeign !== null && techData.institutionalForeign !== undefined) cleanTechData.institutionalForeign = techData.institutionalForeign;
+                        if (techData.institutionalTrust !== null && techData.institutionalTrust !== undefined) cleanTechData.institutionalTrust = techData.institutionalTrust;
+                        if (techData.institutionalDealer !== null && techData.institutionalDealer !== undefined) cleanTechData.institutionalDealer = techData.institutionalDealer;
                         if (techData.signalHint !== undefined) cleanTechData.signalHint = techData.signalHint;
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
@@ -238,14 +243,12 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     
     return (
-        <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
+        <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                     <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
-                        {marketRegime === MarketRegime.NORMAL && <span className="bg-slate-500/20 text-slate-400 border border-slate-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">平穩模式</span>}
-                        {marketRegime === MarketRegime.CONSERVATIVE && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -5% 或 單日跌幅 >= 3%，或近期個人操作連續3筆虧損">🛡️ 保守模式 (大盤大跌或連虧)</span>}
-                        {marketRegime === MarketRegime.DEFENSIVE && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -10% 或 單日跌幅 >= 5%">🛡️ 防禦模式 (大盤乖離&lt;-10%或跌幅&gt;5%)</span>}
+                        <MarketRegimeBadge regime={marketRegime} />
                     </div>
                     <p className="text-xs text-slate-400 mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
@@ -421,6 +424,28 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     const targetStopPrice = pos.ma20 && stopLossThreshold !== -999 ? (pos.ma20 * (1 + stopLossThreshold / 100)).toFixed(2) : '-';
 
                     const renderSignalBadge = (signal: string) => {
+                        if (pos.signalHint && typeof pos.signalHint === 'object') {
+                            return (
+                                <div className="flex flex-col items-center gap-1.5 mt-1">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                                        {pos.signalHint.target}
+                                    </span>
+                                    <div className="flex items-center justify-center gap-1 flex-wrap max-w-[120px]">
+                                        {pos.signalHint.conditions?.map((c, i) => {
+                                            const isBuy = pos.signalHint!.type === 'BUY';
+                                            const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+                                            const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
+                                            return (
+                                                <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`} title={c.label}>
+                                                    {c.label.split('(')[0]}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        }
+
                         switch (signal) {
                             case 'STRONG_BUY': return <span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進 (&lt;={targetBuyPrice})</span>;
                             case 'BUY': return <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號 (&lt;={targetBuyPrice})</span>;
@@ -434,29 +459,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             case 'STOP_LOSS_ALERT': return <span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>;
                             case 'RISK_ALERT': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>;
                             case 'SECOND_PARTIAL_SELL': return <span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>;
-                            default: 
-                                if (pos.signalHint && typeof pos.signalHint === 'object') {
-                                    return (
-                                        <div className="flex flex-col items-center gap-1.5 mt-1">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'}`}>
-                                                {pos.signalHint.target}
-                                            </span>
-                                            <div className="flex items-center justify-center gap-1 flex-wrap max-w-[120px]">
-                                                {pos.signalHint.conditions?.map((c, i) => {
-                                                    const isBuy = pos.signalHint!.type === 'BUY';
-                                                    const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-                                                    const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
-                                                    return (
-                                                        <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`} title={c.label}>
-                                                            {c.label.split(' ')[0]}
-                                                        </span>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
+                            default: return <span className="text-slate-600 text-xs font-bold">--</span>;
                         }
                     };
                     const signalBadge = renderSignalBadge(pos.techSignal || '');
@@ -498,6 +501,27 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             {pos.rsi?.toFixed(1) || '-'}
                             {rsiSubtext}
                         </td>
+                        <td className="p-3 text-right font-mono">
+                            {pos.institutionalForeign !== undefined && pos.institutionalForeign !== null ? (
+                                <span className={pos.institutionalForeign > 0 ? 'text-red-400' : (pos.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                                    {pos.institutionalForeign > 0 ? '+' : ''}{pos.institutionalForeign.toLocaleString()}
+                                </span>
+                            ) : '-'}
+                        </td>
+                        <td className="p-3 text-right font-mono">
+                            {pos.institutionalTrust !== undefined && pos.institutionalTrust !== null ? (
+                                <span className={pos.institutionalTrust > 0 ? 'text-red-400' : (pos.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                                    {pos.institutionalTrust > 0 ? '+' : ''}{pos.institutionalTrust.toLocaleString()}
+                                </span>
+                            ) : '-'}
+                        </td>
+                        <td className="p-3 text-right font-mono">
+                            {pos.marginChange !== undefined && pos.marginChange !== null ? (
+                                <span className={pos.marginChange > 0 ? 'text-red-400' : (pos.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                                    {pos.marginChange > 0 ? '+' : ''}{pos.marginChange.toLocaleString()}
+                                </span>
+                            ) : '-'}
+                        </td>
 
                         <td className="p-3 text-center">{signalBadge}</td>
                     </tr>);
@@ -514,18 +538,21 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 📊 投資組合技術監控</h3>
                             <span className="text-xs text-slate-500">轉折策略與高乖離預警</span>
                         </div>
-                        <div className="flex-1 overflow-auto"><table className="w-full text-left table-fixed min-w-[800px]">
+                        <div className="flex-1 overflow-auto"><table className="w-full text-left min-w-[1000px]">
                             <thead className="sticky top-0 bg-slate-900 z-10 shadow-md"><tr className="text-xs text-slate-400 uppercase">
-                                <th className="p-3 font-medium w-[18%]">標的</th>
-                                <th className="p-3 font-medium text-right w-[10%]">當前價格</th>
-                                <th className="p-3 font-medium text-right w-[13%]">當前損益</th>
-                                <th className="p-3 font-medium text-right w-[10%]">月線 (20MA)</th>
-                                <th className="p-3 font-medium text-right w-[11%]">月乖離 (BIAS20)</th>
-                                <th className="p-3 font-medium text-right w-[13%]">乖離斜率</th>
-                                <th className="p-3 font-medium text-right w-[10%]">強弱指標 (RSI)</th>
-                                <th className="p-3 font-medium text-center w-[15%]">訊號</th>
+                                <th className="p-3 font-medium w-32">標的</th>
+                                <th className="p-3 font-medium text-right">當前價格</th>
+                                <th className="p-3 font-medium text-right">當前損益</th>
+                                <th className="p-3 font-medium text-right">月線 (20MA)</th>
+                                <th className="p-3 font-medium text-right">月乖離 (BIAS20)</th>
+                                <th className="p-3 font-medium text-right">乖離斜率</th>
+                                <th className="p-3 font-medium text-right">強弱指標 (RSI)</th>
+                                <th className="p-3 font-medium text-right">外資買賣(張)</th>
+                                <th className="p-3 font-medium text-right">投信買賣(張)</th>
+                                <th className="p-3 font-medium text-right">融資增減(張)</th>
+                                <th className="p-3 font-medium text-center">訊號</th>
                             </tr></thead>
-                            <tbody>{inventory.length > 0 ? inventory.map(renderTechRow) : (<tr><td colSpan={8} className="text-center py-6 text-slate-500 text-sm">無庫存資料</td></tr>)}</tbody>
+                            <tbody>{inventory.length > 0 ? inventory.map(renderTechRow) : (<tr><td colSpan={11} className="text-center py-6 text-slate-500 text-sm">無庫存資料</td></tr>)}</tbody>
                         </table></div>
                     </div>
                 </div>
@@ -571,3 +598,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         </div>
     );
 };
+
+
+
+

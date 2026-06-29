@@ -55,6 +55,16 @@ const NavItem = ({
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isEnrichingInBackground = false }) => {
+  const [apiStatus, setApiStatus] = React.useState({ finmind: 'online', twse: 'online' });
+
+  React.useEffect(() => {
+    const handleStatusChange = (e: any) => {
+      setApiStatus(prev => ({ ...prev, [e.detail.api]: e.detail.status }));
+    };
+    window.addEventListener('api-status-change', handleStatusChange);
+    return () => window.removeEventListener('api-status-change', handleStatusChange);
+  }, []);
+
   return (
     <aside className="hidden md:flex flex-col w-64 p-6 border-r border-slate-800 h-screen sticky top-0 bg-[#0f172a] shrink-0">
       <div className="flex items-center gap-3 mb-10 px-2">
@@ -65,8 +75,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
           <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
             FinTrack AI
           </h1>
-          <div className="flex items-center">
+          <div className="flex items-center gap-2 flex-wrap mt-1.5">
             <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">V7.0.2</span>
+            <div className="flex items-center gap-1" title={apiStatus.finmind === 'online' ? "FinMind API 連線正常" : "FinMind API 連線失敗"}>
+                <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.finmind === 'online' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]'}`}></div>
+                <span className={`text-[9px] font-bold ${apiStatus.finmind === 'online' ? 'text-emerald-500/80' : 'text-red-500/80'}`}>FinMind</span>
+            </div>
+            <div className="flex items-center gap-1" title={apiStatus.twse === 'online' ? "TWSE Proxy 連線正常" : "TWSE Proxy 連線失敗"}>
+                <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.twse === 'online' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]'}`}></div>
+                <span className={`text-[9px] font-bold ${apiStatus.twse === 'online' ? 'text-emerald-500/80' : 'text-red-500/80'}`}>TWSE</span>
+            </div>
           </div>
         </div>
       </div>

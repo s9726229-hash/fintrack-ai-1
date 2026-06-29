@@ -1,57 +1,180 @@
 import React from 'react';
-import { BookOpen, LineChart, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { BookOpen, LineChart, ShieldAlert, CheckCircle2, TrendingUp } from 'lucide-react';
 
 export const TechDocs: React.FC = () => {
     return (
-        <div className="space-y-6 max-w-4xl mx-auto animate-fade-in p-2 md:p-6 pb-24 md:pb-6">
+        <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
             <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
                     <BookOpen size={24} className="text-indigo-400" />
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-white">V4.3 核心決策邏輯解析 (門檻制)</h2>
-                    <p className="text-slate-400">了解系統是如何分析標的，並透過「門檻制」做出交易預判</p>
+                    <h2 className="text-2xl font-bold text-white">V5.0 DSS 決策輔助系統 (雙軌制)</h2>
+                    <p className="text-slate-400">基於技術面乖離率與籌碼面共振的雙軌 AI 評估引擎 (非全自動化交易)</p>
                 </div>
             </div>
 
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="text-sky-400" /> 分析處理步驟 (Step-by-Step)
+                    <CheckCircle2 className="text-sky-400" /> 雙軌分析處理步驟 (Step-by-Step)
                 </h3>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {/* Step 1 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <h4 className="font-bold text-emerald-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-emerald-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">1</span> 大盤濾網</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">抓取大盤，&le;-5% 保守模式，&le;-10% 防禦模式（凍結買進）。</p>
+                        <h4 className="font-bold text-emerald-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-emerald-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">1</span> 大盤狀態</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">抓取大盤，&le;-5% 保守模式，&le;-10% 防禦模式（凍結部分燈號）。</p>
                     </div>
 
                     {/* Step 2 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <h4 className="font-bold text-amber-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-amber-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">2</span> 連虧鎖定</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">偵測歷史紀錄，若連 3 筆賣出虧損，強制暫停積極買進。</p>
+                        <h4 className="font-bold text-amber-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-amber-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">2</span> 第一軌: 技術面</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">比對 20MA乖離率、均線斜率連增天數、與 RSI 產生基礎燈號。</p>
                     </div>
 
                     {/* Step 3 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <h4 className="font-bold text-sky-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-sky-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">3</span> 股票分級</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">大型股(&le;-7%) / 小型股(&le;-10%) / ETF(只買不賣)。</p>
+                        <h4 className="font-bold text-sky-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-sky-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">3</span> 第二軌: 籌碼面</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">外資與投信近3-5日累積買賣超、融資餘額增減幅度。</p>
                     </div>
 
                     {/* Step 4 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <h4 className="font-bold text-indigo-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-indigo-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">4</span> 指標比對</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">綜合比對 20MA乖離率、均線斜率連增天數、與 RSI 絕對門檻</p>
+                        <h4 className="font-bold text-indigo-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-indigo-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">4</span> 訊號修正</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">根據籌碼共振(加分)或籌碼背離(扣分)，修正最終 DSS 輔助燈號。</p>
                     </div>
 
                     {/* Step 5 */}
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 lg:col-span-2">
-                        <h4 className="font-bold text-rose-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-rose-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">5</span> 庫存感知</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">對照現有庫存，觸發「順勢加碼」或「防呆停損警示」。</p>
+                        <h4 className="font-bold text-rose-400 mb-1 text-sm flex items-center gap-1.5"><span className="bg-rose-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">5</span> 最終決策 (人類)</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">系統提供一致性評估結果，最終是否執行交易仍由使用者自行判斷。</p>
                     </div>
                 </div>
             </div>
 
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <BookOpen className="text-emerald-400" /> 第一軌：技術面基礎判斷邏輯 (資產分類)
+                </h3>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                            <tr>
+                                <th className="p-2 border border-slate-700 w-24">分類</th>
+                                <th className="p-2 border border-slate-700">🟢 買進 / 🚀 強買</th>
+                                <th className="p-2 border border-slate-700">🔵 加碼 / 左側攤平</th>
+                                <th className="p-2 border border-slate-700">🟡 停利 / 🔴 強制停利</th>
+                                <th className="p-2 border border-slate-700">⚠️ 停損防護</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-slate-300">
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">ETF</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">依賴 20MA 負乖離率、RSI 超賣與斜率反轉。<br/>(系統預設較淺的乖離即可觸發，如 Bias &le; -2%)</td>
+                                <td className="p-2 border border-slate-700 text-xs">無冷卻期限制，越跌越買（左側攤平），依據更深的負乖離觸發。<br/>(預設: Bias &le; -4%, -6%)</td>
+                                <td className="p-2 border border-slate-700 text-xs">正乖離過大且斜率連降時分批減碼。</td>
+                                <td className="p-2 border border-slate-700 text-xs text-slate-500">無停損機制 (視為長線持有)</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">大型股</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">嚴格的負乖離與 RSI 雙重超賣確認，需斜率反轉。<br/>(預設需更深的負乖離如 Bias &le; -8%)</td>
+                                <td className="p-2 border border-slate-700 text-xs">順勢加碼，需滿足冷卻期 (預設 5 個交易日) 且乖離收斂。</td>
+                                <td className="p-2 border border-slate-700 text-xs">分批停利，極端正乖離時 (預設 25%) 觸發強制停利。</td>
+                                <td className="p-2 border border-slate-700 text-xs">雙層停損機制：持倉虧損過大 (預設 -7%) 或 乖離破底 (預設 -20%)。</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-purple-400 font-bold">小型股</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">容許更高波動的負乖離門檻，捕捉主力洗盤反彈。<br/>(預設乖離如 Bias &le; -10%)</td>
+                                <td className="p-2 border border-slate-700 text-xs">順勢加碼，冷卻期較短 (預設 3 個交易日) 且乖離收斂。</td>
+                                <td className="p-2 border border-slate-700 text-xs">分批停利，極端正乖離時 (預設 35%) 觸發強制停利。</td>
+                                <td className="p-2 border border-slate-700 text-xs">雙層停損機制：持倉虧損過大 (預設 -10%) 或 乖離破底 (預設 -25%)。</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <TrendingUp className="text-purple-400" /> 第二軌：籌碼面輔助確認邏輯
+                </h3>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                            <tr>
+                                <th className="p-2 border border-slate-700 w-32">情境</th>
+                                <th className="p-2 border border-slate-700">觸發條件</th>
+                                <th className="p-2 border border-slate-700">系統行為與燈號變化</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-slate-300">
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 籌碼共振 (加分)</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">原訊號偏多 (適合布局/加碼)<br/><b className="text-white">且</b> 外資近3~5日累積買超<br/><b className="text-white">且</b> 投信近3~5日累積買超</td>
+                                <td className="p-2 border border-slate-700 text-xs">燈號升級為 <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded">高信心布局</span></td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-yellow-400 font-bold">🟡 籌碼背離 (扣分)</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">原訊號偏多 (適合布局/高信心)<br/><b className="text-white">但</b> 外資近3~5日累積賣超<br/><b className="text-white">且</b> 融資近5日增幅大於 0%</td>
+                                <td className="p-2 border border-slate-700 text-xs">燈號降級為 <span className="text-yellow-400 font-bold bg-yellow-500/10 px-1 rounded">持續觀察</span> (散戶接盤)</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">🔴 主力棄守 (警報)</span></td>
+                                <td className="p-2 border border-slate-700 text-xs">原訊號偏弱 (觀望/中立/賣出)<br/><b className="text-white">且</b> 外資近3~5日累積賣超<br/><b className="text-white">且</b> 投信近3~5日累積賣超</td>
+                                <td className="p-2 border border-slate-700 text-xs">強制轉為 <span className="text-rose-400 font-bold bg-rose-500/10 px-1 rounded">建議賣出</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+                    <ShieldAlert className="text-amber-400" /> DSS 決策輔助燈號快速對照表
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400">🟢 適合布局 / 高信心布局</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-400/80 font-mono mb-1">Bias20 &le; 參數門檻 &amp;&amp; BiasSlope &gt; 0</p>
+                        <p className="text-xs text-slate-400">乖離率跌深且斜率反轉向上。高信心布局代表籌碼面法人同步買超共振，勝率極高。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-400">🔵 適合加碼</span>
+                        </div>
+                        <p className="text-[11px] text-cyan-400/80 font-mono mb-1">庫存&gt;0 &amp;&amp; Bias20收斂 &amp;&amp; 距上次買進&gt;冷卻期</p>
+                        <p className="text-xs text-slate-400">大盤正常且負乖離再次收斂，提示安全的右側加碼點，或 ETF 的左側攤平點。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400">🟡 分批停利</span>
+                        </div>
+                        <p className="text-[11px] text-amber-400/80 font-mono mb-1">Bias20 &ge; 停利門檻 (預設 20%)</p>
+                        <p className="text-xs text-slate-400">短線正乖離過大且動能衰退，建議獲利了結部分部位以鎖定利潤。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400">🔴 強制停利 / 建議賣出</span>
+                        </div>
+                        <p className="text-[11px] text-red-400/80 font-mono mb-1">Bias20 &ge; 強制門檻 或 主力棄守</p>
+                        <p className="text-xs text-slate-400">股價極端狂飆面臨下殺風險，或法人籌碼全面棄守，建議清倉出局。</p>
+                    </div>
+
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-rose-700/50 md:col-span-2">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-700 text-white shadow-lg">⚠️ 停損預警 / 風險預警</span>
+                        </div>
+                        <p className="text-[11px] text-rose-400/80 font-mono mb-1">未實現損益 &le; 停損門檻 || Bias20 &le; 破線門檻</p>
+                        <p className="text-xs text-slate-400"><b>(防呆停損)</b> 持股虧損過大，或股價無底洞跌破乖離率底線，將觸發最高優先級防護，強制停損防接刀子。</p>
+                    </div>
+                </div>
+            </div>
+            
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
                     <LineChart className="text-sky-400" /> 大盤三段式雙軌制 (大盤狀態)
@@ -90,127 +213,6 @@ export const TechDocs: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                    <ShieldAlert className="text-amber-400" /> 訊號燈號快速對照表
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400">🟢 買進 / 🚀 強力買進</span>
-                        </div>
-                        <p className="text-[11px] text-emerald-400/80 font-mono mb-1">Bias20 &le; 參數門檻 &amp;&amp; BiasSlope &gt; 0</p>
-                        <p className="text-xs text-slate-400">乖離率跌深且斜率反轉向上。強力買進代表 RSI 極低且量能配合，勝率極高。</p>
-                    </div>
-
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-400">💰 加碼 / 🔥 強力加碼</span>
-                        </div>
-                        <p className="text-[11px] text-cyan-400/80 font-mono mb-1">Bias20 &le; 參數門檻 (限ETF)</p>
-                        <p className="text-xs text-slate-400"><b>(ETF 專屬)</b> 不看趨勢轉折，純粹依照左側交易紀律越跌越買、無腦攤平。</p>
-                    </div>
-
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400">🔵 順勢加碼</span>
-                        </div>
-                        <p className="text-[11px] text-blue-400/80 font-mono mb-1">庫存&gt;0 &amp;&amp; Bias20收斂 &amp;&amp; 距上次買進&gt;3天</p>
-                        <p className="text-xs text-slate-400"><b>(庫存專屬)</b> 您已持有此股，大盤正常且負乖離再次收斂，提示安全的右側加碼點。</p>
-                    </div>
-
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400">🟡 部分減碼</span>
-                        </div>
-                        <p className="text-[11px] text-amber-400/80 font-mono mb-1">Bias20 &ge; 停利門檻 (預設 20%)</p>
-                        <p className="text-xs text-slate-400">短線正乖離過大且動能衰退，建議獲利了結 1/3 或 1/2 鎖定利潤。</p>
-                    </div>
-
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400">🔴 強制停利</span>
-                        </div>
-                        <p className="text-[11px] text-red-400/80 font-mono mb-1">Bias20 &ge; 強制停利門檻 (預設 25%)</p>
-                        <p className="text-xs text-slate-400">股價出現極端不合理的狂飆（正乖離過大），面臨均值回歸下殺風險，建議清倉。</p>
-                    </div>
-
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-rose-700/50">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-700 text-white shadow-lg">⚠️ 停損警示</span>
-                        </div>
-                        <p className="text-[11px] text-rose-400/80 font-mono mb-1">庫存&gt;0 &amp;&amp; (未實現損益 &lt; -15% || Bias20 &le; 停損門檻)</p>
-                        <p className="text-xs text-slate-400"><b>(防呆停損)</b> 原本的買點若遇到持股虧損過大，將被強制覆寫為停損，防接刀子。</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-                    <BookOpen className="text-violet-400" /> 各分類訊號觸發條件清單 (包含隱藏條件)
-                </h3>
-                
-                {/* ETF */}
-                <div className="mb-6">
-                    <h4 className="font-bold text-emerald-400 mb-2 border-b border-slate-700 pb-1">🟢 ETF 專屬邏輯 (長期投資、越跌越買)</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm border-collapse">
-                            <thead className="bg-slate-900/50 text-slate-400 text-xs">
-                                <tr><th className="p-2 border border-slate-700 w-28">燈號</th><th className="p-2 border border-slate-700">觸發條件 (需同時滿足)</th><th className="p-2 border border-slate-700">底層邏輯</th></tr>
-                            </thead>
-                            <tbody className="text-slate-300">
-                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 買進</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 買進乖離率<br/>2. RSI &lt; 買進RSI<br/>3. 連續 [1] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">跌深且出現止跌回升第一天。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-10%)<br/>2. RSI &lt; 強買RSI (40)<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">更深跌幅，更嚴格反轉確認。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-cyan-400 font-bold">💰 加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 加碼乖離率 (-15%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">跌破-15%無需等反轉，左側進場。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-cyan-400 font-bold">🔥 強加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強加碼乖離率 (-20%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">系統性崩盤極端值，無腦攤平。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 減碼乖離率 (15%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">漲多趨勢轉弱，獲利入袋。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-orange-400 font-bold">🟠 再次減碼</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 再次減碼乖離率 (20%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">乖離過大且轉弱，再次提示減碼。</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* 大型股 */}
-                <div className="mb-6">
-                    <h4 className="font-bold text-blue-400 mb-2 border-b border-slate-700 pb-1">🔵 大型股專屬邏輯 (順勢加碼、嚴格停損)</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm border-collapse">
-                            <thead className="bg-slate-900/50 text-slate-400 text-xs">
-                                <tr><th className="p-2 border border-slate-700 w-28">燈號</th><th className="p-2 border border-slate-700">觸發條件 (需同時滿足)</th><th className="p-2 border border-slate-700">底層邏輯</th></tr>
-                            </thead>
-                            <tbody className="text-slate-300">
-                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 買進</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 買進乖離率<br/>2. RSI &lt; 買進RSI<br/>3. 連續 [1] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">回檔至均線下方的首日反轉。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-10%)<br/>2. RSI &lt; 強買RSI (40)<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">超跌後連續兩天反轉，確認支撐。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">🔵 順勢加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中 &amp;&amp; 大盤正常<br/>2. 0% &ge; Bias20 &gt; -10%<br/>3. 月線向上 &amp;&amp; 斜率向上<br/>4. RSI(40~65)<br/>5. 距上次買進 &gt; [3] 天 (冷卻期)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">右側動能交易，確認獲利趨勢向上時再放大部位。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 停利乖離率 (20%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">漲勢衰退，了結一半。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">【第一層：持倉損益】<br/>1. 庫存持有中<br/>2. 未實現虧損 &le; 停損門檻 (-20%)<br/><br/>【第二層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 停損門檻 (-20%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">最高優先級防護，防堵溫水煮青蛙與閃崩接刀。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 留意風險</span></td><td className="p-2 border border-slate-700 text-xs">【預警層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 預警門檻 (-15%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">大跌預警，提早做好心理準備或減碼。</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* 小型股 */}
-                <div>
-                    <h4 className="font-bold text-purple-400 mb-2 border-b border-slate-700 pb-1">🟣 小型股專屬邏輯 (極度震盪、最嚴防騙)</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm border-collapse">
-                            <thead className="bg-slate-900/50 text-slate-400 text-xs">
-                                <tr><th className="p-2 border border-slate-700 w-28">燈號</th><th className="p-2 border border-slate-700">觸發條件 (需同時滿足)</th><th className="p-2 border border-slate-700">底層邏輯</th></tr>
-                            </thead>
-                            <tbody className="text-slate-300">
-                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🟢 買進</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 買進乖離率<br/>2. RSI &lt; 買進RSI<br/>3. 連續 [2] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">小型股易假突破，需連兩天上漲。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-emerald-400 font-bold">🚀 強買</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &le; 強買乖離率 (-15%)<br/>2. RSI &lt; 強買RSI (35)<br/>3. 連續 [3] 天斜率向上</td><td className="p-2 border border-slate-700 text-xs text-slate-400">必須連三天上漲確認洗盤結束才重倉。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-blue-400 font-bold">🔵 順勢加碼</span></td><td className="p-2 border border-slate-700 text-xs">1. 庫存持有中 &amp;&amp; 大盤正常<br/>2. 0% &ge; Bias20 &gt; -15%<br/>3. 月線向上 &amp;&amp; 斜率向上<br/>4. RSI(40~60)<br/>5. 距上次買進 &gt; [5] 天 (冷卻期)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">波動大，加碼冷卻期拉長防頻繁洗盤。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 部分停利</span></td><td className="p-2 border border-slate-700 text-xs">1. Bias20 &ge; 停利乖離率 (25%)<br/>2. 連續 2 天斜率向下</td><td className="p-2 border border-slate-700 text-xs text-slate-400">容忍較大漲幅才停利，讓利潤奔跑。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-rose-400 font-bold">⚠️ 停損警示</span></td><td className="p-2 border border-slate-700 text-xs">【第一層：持倉損益】<br/>1. 庫存持有中<br/>2. 未實現虧損 &le; 停損門檻 (-25%)<br/><br/>【第二層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 停損門檻 (-25%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">最高優先級防護，容忍較大跌幅但破線仍斷尾。</td></tr>
-                                <tr><td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 留意風險</span></td><td className="p-2 border border-slate-700 text-xs">【預警層：乖離率】<br/>1. 庫存持有中<br/>2. Bias20 &le; 預警門檻 (-18%)</td><td className="p-2 border border-slate-700 text-xs text-slate-400">妖股洗盤極深，提早預警破線可能。</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <p className="text-xs text-slate-500 mt-4">* 註：表內的 [ ] 天數或數值，皆可至「系統設定 &gt; 技術面參數設定 &gt; 進階設定」中手動修改。</p>
-            </div>
         </div>
     );
 };

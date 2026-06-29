@@ -281,7 +281,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
+    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
       
       {/* Header */}
       <div className="flex justify-between items-center">

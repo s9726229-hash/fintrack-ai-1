@@ -129,7 +129,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export const HistoryView: React.FC = () => {
   return (
-    <div className="space-y-8 animate-fade-in max-w-5xl mx-auto pb-20">
+    <div className="space-y-8 animate-fade-in p-2 md:p-6 pb-24">
       <div className="bg-gradient-to-r from-cyan-500/10 to-slate-800 p-8 rounded-2xl border border-cyan-500/20 shadow-2xl relative overflow-hidden">
          <div className="absolute right-0 top-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
          <h2 className="text-3xl font-bold text-white flex items-center gap-3 relative z-10">

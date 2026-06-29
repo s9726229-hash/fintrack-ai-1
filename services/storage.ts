@@ -140,7 +140,11 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     smallCapBuySlopeDays: 2,
     smallCapStrongBuySlopeDays: 3,
     smallCapPartialSellSlopeDays: 2,
-    smallCapTrendAddCoolDownDays: 5
+    smallCapTrendAddCoolDownDays: 5,
+    
+    // 籌碼面
+    chipInstDays: 3,
+    chipMarginDays: 5
 };
 
 export const getTechParameters = (): import('../types').TechParameters => {
@@ -162,6 +166,14 @@ export const getApiKey = (): string => {
 
 export const saveApiKey = (key: string) => {
     localStorage.setItem('ft_api_key', key);
+};
+
+export const getFinMindToken = (): string => {
+    return localStorage.getItem('ft_finmind_token') || '';
+};
+
+export const saveFinMindToken = (token: string) => {
+    localStorage.setItem('ft_finmind_token', token);
 };
 
 export const getGoogleClientId = (): string => {
@@ -189,6 +201,7 @@ export const getFullDataJson = () => {
         [STORAGE_KEYS.WATCHLISTS]: getWatchlists(),
         [STORAGE_KEYS.TECH_PARAMS]: getTechParameters(),
         'ft_api_key': getApiKey(), 
+        'ft_finmind_token': getFinMindToken(),
         'ft_google_client_id': getGoogleClientId(),
         [STORAGE_KEYS.FEE_DISCOUNT]: getFeeDiscount(),
     };
@@ -246,6 +259,7 @@ export const importData = (jsonData: string) => {
     if (data[STORAGE_KEYS.WATCHLISTS]) saveWatchlists(data[STORAGE_KEYS.WATCHLISTS]);
     if (data[STORAGE_KEYS.TECH_PARAMS]) saveTechParameters(data[STORAGE_KEYS.TECH_PARAMS]);
     if (data['ft_api_key']) saveApiKey(data['ft_api_key']);
+    if (data['ft_finmind_token']) saveFinMindToken(data['ft_finmind_token']);
     if (data['ft_google_client_id']) saveGoogleClientId(data['ft_google_client_id']);
     if (data[STORAGE_KEYS.FEE_DISCOUNT]) saveFeeDiscount(data[STORAGE_KEYS.FEE_DISCOUNT]);
 

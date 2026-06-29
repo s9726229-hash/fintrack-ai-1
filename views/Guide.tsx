@@ -29,7 +29,7 @@ const FeatureItem = ({ icon: Icon, title, description }: { icon: any; title: str
 
 export const GuideView: React.FC = () => {
   return (
-    <div className="animate-fade-in max-w-3xl mx-auto pb-20">
+    <div className="animate-fade-in p-2 md:p-6 pb-24">
       <div className="mb-12">
         <h2 className="text-3xl font-bold text-white flex items-center gap-3">
             <ListTree className="text-sky-400"/> 版本紀錄

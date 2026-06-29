@@ -109,7 +109,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
   const DISPLAY_CATEGORIES = EXPENSE_CATEGORIES.filter(c => c !== '投資');
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
+    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
       
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-4">

@@ -373,7 +373,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   }, [budgets, transactions, currentMonth, currentYear]);
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
+    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
       {/* 1. Daily Reminder / Inline Quick Add */}
       {!hasRecordedToday && (
          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-amber-500/5">

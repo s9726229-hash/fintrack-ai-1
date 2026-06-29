@@ -68,11 +68,15 @@ export interface Asset {
   // --- V7.1.0 Technical Monitor ---
   rsi?: number;
   volumeRatio?: number;
-  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT';
+  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL';
   biasSlopes?: number[]; // Index 0: today's slope, 1: yesterday's, 2: day before yesterday
   ma20Slope?: number;
   ma60?: number;
-  marginChangeRatio?: number;
+  marginChangeRatio?: number | null;
+  marginChange?: number | null; // 融資增減(張)
+  institutionalForeign?: number | null; // 外資買賣超(張)
+  institutionalTrust?: number | null; // 投信買賣超(張)
+  institutionalDealer?: number | null; // 自營商買賣超(張)
   marketRegime?: MarketRegime;
   signalHint?: SignalHint;
   sizeCategory?: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
@@ -133,6 +137,10 @@ export interface TechParameters {
     smallCapStrongBuySlopeDays: number;
     smallCapPartialSellSlopeDays: number; // 新增：停利時需連幾天斜率向下
     smallCapTrendAddCoolDownDays: number;
+
+    // 籌碼面
+    chipInstDays: number;     // 法人累積天數
+    chipMarginDays: number;   // 融資計算天數
 }
 
 export enum MarketRegime {
@@ -165,9 +173,14 @@ export interface TechDataResult {
     biasSlopes: number[];
     ma20Slope: number | null;
     marginChangeRatio: number | null;
+    marginChange: number | null;
+    institutionalForeign: number | null;
+    institutionalTrust: number | null;
+    institutionalDealer: number | null;
+    priceChangeSinceLastTick?: number;
     dailyChangeRatio: number | null;
     sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
-    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT';
+    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL';
     currentPrice?: number;
     marketRegime?: MarketRegime;
     riskAlerts?: RiskAlerts;

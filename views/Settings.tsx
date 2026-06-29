@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
 import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS } from '../services/storage';
@@ -19,6 +19,8 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const [feeDiscount, setFeeDiscount] = useState(0.28);
   const [techParams, setTechParams] = useState(DEFAULT_TECH_PARAMS);
 
+  const [finmindToken, setFinmindToken] = useState('');
+  const [apiUsage, setApiUsage] = useState<{ user_count: number, api_request_limit: number } | null>(null);
   const [googleClientId, setGoogleClientId] = useState('');
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [isDriveLoading, setIsDriveLoading] = useState(false);
@@ -29,6 +31,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   useEffect(() => {
     setFeeDiscount(getFeeDiscount());
     setTechParams(getTechParameters());
+    setFinmindToken(localStorage.getItem('ft_finmind_token') || '');
     const storedClientId = getGoogleClientId();
     if (storedClientId) {
         setGoogleClientId(storedClientId);
@@ -72,6 +75,12 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
           saveTechParameters(DEFAULT_TECH_PARAMS);
           showNotify('success', '已還原預設參數。');
       }
+  };
+
+  const handleSaveFinMindToken = () => {
+      localStorage.setItem('ft_finmind_token', finmindToken.trim());
+      showNotify('success', 'FinMind API Token Saved!');
+        fetchFinMindUsage().then(setApiUsage);
   };
 
   const handleSaveClientId = () => {
@@ -195,7 +204,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in relative pb-20">
+    <div className="space-y-8 animate-fade-in relative pb-20">
       <div>
          <h2 className="text-2xl font-bold mb-2 text-white">系統設定</h2>
          <p className="text-slate-400">管理 API 金鑰、雲端同步與資料安全性。</p>
@@ -210,6 +219,82 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
             <button onClick={() => setNotification(null)}><X size={16}/></button>
         </div>
       )}
+
+      {/* API Settings */}
+      <Card className="border-amber-500/30 bg-gradient-to-br from-slate-800 to-slate-900/50">
+          <h3 className="text-lg font-bold flex items-center gap-2 text-white mb-4">
+            <Key className="text-amber-400"/> API 金鑰設定
+          </h3>
+          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-4">
+              <div>
+                  <label className="text-sm text-slate-300 mb-2 block">FinMind API Token</label>
+                  <div className="flex gap-2">
+                      <Input type="password" value={finmindToken} onChange={(e) => setFinmindToken(e.target.value)} placeholder="輸入 FinMind Token" className="font-mono text-sm bg-black/30" />
+                      <Button onClick={handleSaveFinMindToken} variant="secondary" className="shrink-0">儲存</Button>
+                  </div>
+                                      <p className="text-xs text-slate-500 mt-2">用於取得外資、投信等籌碼資料。若不輸入預設使用免費 Token 額度 (每小時 300 次)</p>
+                    {apiUsage && (
+                        <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700">
+                            <h4 className="text-sm font-bold text-slate-300 mb-2">API 使用量 (每小時重置)</h4>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400">目前用量</span>
+                                <span className={`font-mono ${apiUsage.user_count >= apiUsage.api_request_limit * 0.8 ? "text-red-400" : "text-emerald-400"}`}>
+                                    {apiUsage.user_count} / {apiUsage.api_request_limit}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+              </div>
+          </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white"><History className="text-amber-500"/> 本地資料管理</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button onClick={exportData} variant="secondary" className="w-full text-xs"><Download size={16} className="mr-2"/> 匯出 JSON 備份</Button>
+            <div className="relative">
+                <input type="file" onChange={handleImportFileSelect} accept=".json" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <Button variant="secondary" className="w-full text-xs" as="div"><Upload size={16} className="mr-2"/> 匯入備份還原</Button>
+            </div>
+        </div>
+        <div className="mt-6 pt-6 border-t border-slate-700"><Button onClick={handleReset} variant="danger" className="w-full text-[10px] uppercase font-bold"><Trash2 size={16} className="mr-2"/> 重置並清除所有本地資料</Button></div>
+      </Card>
+
+      {/* Google Drive Sync */}
+      <Card>
+          <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                <Cloud className="text-blue-400"/> Google Drive 雲端同步
+              </h3>
+              {isDriveConnected && (
+                  <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div> 已連線
+                  </span>
+              )}
+          </div>
+          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-4">
+              <div className="text-sm text-slate-400">
+                  <p className="mb-4">將所有帳務資料備份至您的私人雲端 (Google Drive)，解決跨裝置同步需求。</p>
+                  
+                  <div className="space-y-2">
+                      <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">OAuth Client ID</label>
+                      <div className="flex gap-2">
+                          <Input type="text" value={googleClientId} onChange={(e) => setGoogleClientId(e.target.value)} placeholder="輸入 Google Cloud Client ID" className="font-mono text-xs bg-black/30" />
+                          <Button onClick={handleSaveClientId} variant="secondary" className="shrink-0 h-10 px-3">儲存</Button>
+                      </div>
+                      <p className="text-[10px] text-slate-600">* 請在 Google Cloud Console 設定授權來源 (Javascript Origins)。</p>
+                  </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-3 pt-2">
+                  <Button onClick={handleConnectDrive} disabled={isDriveLoading || (isDriveConnected && checkConnection())} className={`flex-1 ${isDriveConnected ? 'bg-emerald-600/50 cursor-default' : 'bg-blue-600'}`}>
+                      {isDriveLoading ? <RefreshCw className="animate-spin" size={18}/> : isDriveConnected ? <CheckCircle2 size={18}/> : <LogIn size={18}/>}
+                      {isDriveConnected ? '雲端服務已就緒' : '連接 Google 帳號'}
+                  </Button>
+                  {isDriveConnected && (<><Button onClick={handleBackupToDrive} disabled={isDriveLoading} variant="secondary" className="flex-1"><Upload size={18} className="mr-2"/> 雲端備份</Button><Button onClick={handleRestoreFromDrive} disabled={isDriveLoading} variant="secondary" className="flex-1"><Cloud size={18} className="mr-2"/> 雲端還原</Button></>)}
+              </div>
+          </div>
+      </Card>
 
       {/* Investment Settings */}
       <Card className="border-cyan-500/30 bg-gradient-to-br from-slate-800 to-slate-900/50">
@@ -253,6 +338,26 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                           <div className="font-bold text-emerald-400 text-center bg-slate-900/50 py-2 rounded-lg border border-emerald-500/20">🟢 ETF</div>
                           <div className="font-bold text-blue-400 text-center bg-slate-900/50 py-2 rounded-lg border border-blue-500/20">🔵 大型股</div>
                           <div className="font-bold text-purple-400 text-center bg-slate-900/50 py-2 rounded-lg border border-purple-500/20">🟣 小型股</div>
+                      </div>
+
+                      {/* Chip Setup Row */}
+                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 p-4 bg-slate-900/30 rounded-xl border border-indigo-500/30 mb-3 hover:bg-slate-900/50 transition-colors">
+                          <div className="font-bold text-indigo-400 flex flex-col justify-center">
+                              <span>📊 籌碼參數</span>
+                              <span className="text-[10px] text-slate-500 font-normal mt-1">DSS 第二軌共振</span>
+                          </div>
+                          
+                          {/* All categories share same chip settings */}
+                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-indigo-500/10 col-span-3 grid grid-cols-2 gap-4">
+                              <div className="flex flex-col gap-1">
+                                  <label className="text-[11px] text-slate-400">法人累積買賣超天數 (預設3天)</label>
+                                  <Input type="number" value={techParams.chipInstDays} onChange={e => setTechParams({...techParams, chipInstDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                  <label className="text-[11px] text-slate-400">融資增減基期天數 (預設5天)</label>
+                                  <Input type="number" value={techParams.chipMarginDays} onChange={e => setTechParams({...techParams, chipMarginDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" />
+                              </div>
+                          </div>
                       </div>
 
                       {/* Row 1: 🟢 買進 */}
@@ -398,53 +503,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
       </Card>
 
 
-      {/* Google Drive Sync */}
-      <Card>
-          <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
-                <Cloud className="text-blue-400"/> Google Drive 雲端同步
-              </h3>
-              {isDriveConnected && (
-                  <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div> 已連線
-                  </span>
-              )}
-          </div>
-          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-4">
-              <div className="text-sm text-slate-400">
-                  <p className="mb-4">將所有帳務資料備份至您的私人雲端 (Google Drive)，解決跨裝置同步需求。</p>
-                  
-                  <div className="space-y-2">
-                      <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">OAuth Client ID</label>
-                      <div className="flex gap-2">
-                          <Input type="text" value={googleClientId} onChange={(e) => setGoogleClientId(e.target.value)} placeholder="輸入 Google Cloud Client ID" className="font-mono text-xs bg-black/30" />
-                          <Button onClick={handleSaveClientId} variant="secondary" className="shrink-0 h-10 px-3">儲存</Button>
-                      </div>
-                      <p className="text-[10px] text-slate-600">* 請在 Google Cloud Console 設定授權來源 (Javascript Origins)。</p>
-                  </div>
-              </div>
 
-              <div className="flex flex-col md:flex-row gap-3 pt-2">
-                  <Button onClick={handleConnectDrive} disabled={isDriveLoading || (isDriveConnected && checkConnection())} className={`flex-1 ${isDriveConnected ? 'bg-emerald-600/50 cursor-default' : 'bg-blue-600'}`}>
-                      {isDriveLoading ? <RefreshCw className="animate-spin" size={18}/> : isDriveConnected ? <CheckCircle2 size={18}/> : <LogIn size={18}/>}
-                      {isDriveConnected ? '雲端服務已就緒' : '連接 Google 帳號'}
-                  </Button>
-                  {isDriveConnected && (<><Button onClick={handleBackupToDrive} disabled={isDriveLoading} variant="secondary" className="flex-1"><Upload size={18} className="mr-2"/> 雲端備份</Button><Button onClick={handleRestoreFromDrive} disabled={isDriveLoading} variant="secondary" className="flex-1"><Cloud size={18} className="mr-2"/> 雲端還原</Button></>)}
-              </div>
-          </div>
-      </Card>
-
-      <Card>
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white"><History className="text-amber-500"/> 本地資料管理</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button onClick={exportData} variant="secondary" className="w-full text-xs"><Download size={16} className="mr-2"/> 匯出 JSON 備份</Button>
-            <div className="relative">
-                <input type="file" onChange={handleImportFileSelect} accept=".json" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <Button variant="secondary" className="w-full text-xs" as="div"><Upload size={16} className="mr-2"/> 匯入備份還原</Button>
-            </div>
-        </div>
-        <div className="mt-6 pt-6 border-t border-slate-700"><Button onClick={handleReset} variant="danger" className="w-full text-[10px] uppercase font-bold"><Trash2 size={16} className="mr-2"/> 重置並清除所有本地資料</Button></div>
-      </Card>
 
       <div className="text-center text-[10px] text-slate-600 pb-4">
           <p>FinTrack AI</p>
@@ -478,3 +537,8 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
     </div>
   );
 };
+
+
+
+
+

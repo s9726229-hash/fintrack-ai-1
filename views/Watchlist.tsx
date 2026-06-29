@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock } from 'lucide-react';
+﻿import React, { useState, useEffect } from 'react';
+import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock, TrendingUp } from 'lucide-react';
+import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { WatchlistGroup, MarketRegime } from '../types';
 import * as storage from '../services/storage';
 import { getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { fetchTechnicalData, fetchMarketRegime } from '../services/stock';
+import { Button } from '../components/ui';
 import twStocks from '../src/data/tw_stocks.json';
 
 // --- Module Level Cache (Preserves data across tab switching) ---
@@ -24,6 +26,7 @@ export const Watchlist: React.FC = () => {
     const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [autoUpdateEnabled, setAutoUpdateEnabledState] = useState(getAutoTechUpdateEnabled());
+    const [flashState, setFlashState] = useState<Record<string, string>>({});
 
     // Sync state to global cache
     useEffect(() => {
@@ -58,7 +61,7 @@ export const Watchlist: React.FC = () => {
         if (symbolsToFetch.length === 0) return;
 
         if (force) {
-            localStorage.setItem('last_tech_update_time', Date.now().toString());
+            localStorage.setItem('last_watchlist_update_time', Date.now().toString());
         }
 
         setIsLoading(true);
@@ -86,6 +89,34 @@ export const Watchlist: React.FC = () => {
                 try {
                     const data = await fetchTechnicalData(symbol, assets, transactions);
                     if (data) {
+                        const oldData = techDataMap[symbol];
+                        if (oldData) {
+                            if (oldData.currentPrice !== data.currentPrice) {
+                                const type = data.currentPrice! > oldData.currentPrice! ? 'up' : 'down';
+                                data.priceChangeSinceLastTick = data.currentPrice! - oldData.currentPrice!;
+                                setFlashState(prev => ({ ...prev, [symbol]: type }));
+                                setTimeout(() => {
+                                    setFlashState(prev => {
+                                        const next = { ...prev };
+                                        delete next[symbol];
+                                        return next;
+                                    });
+                                }, 1500);
+                            } else {
+                                // Preserve the previous tick change if price hasn't moved
+                                data.priceChangeSinceLastTick = oldData.priceChangeSinceLastTick;
+                                if (JSON.stringify(oldData) !== JSON.stringify(data)) {
+                                    setFlashState(prev => ({ ...prev, [symbol]: 'neutral' }));
+                                    setTimeout(() => {
+                                        setFlashState(prev => {
+                                            const next = { ...prev };
+                                            delete next[symbol];
+                                            return next;
+                                        });
+                                    }, 1500);
+                                }
+                            }
+                        }
                         newMap[symbol] = data;
                     } else {
                         newMap[symbol] = { error: true }; // Cache the failure so it doesn't spin forever
@@ -106,9 +137,7 @@ export const Watchlist: React.FC = () => {
         setAnalyzeProgress(null);
     };
 
-    useEffect(() => {
-        refreshData(false); // Do not force fetch on tab switch
-    }, [activeGroupId]);
+    // Removed auto-fetch on tab switch per user request
 
     const refreshDataRef = React.useRef(refreshData);
     useEffect(() => {
@@ -118,7 +147,7 @@ export const Watchlist: React.FC = () => {
     useEffect(() => {
         if (!autoUpdateEnabled) return;
         const interval = setInterval(() => {
-            const lastUpdate = localStorage.getItem('last_tech_update_time') || '0';
+            const lastUpdate = localStorage.getItem('last_watchlist_update_time') || '0';
             if (Date.now() - parseInt(lastUpdate) >= 5 * 60 * 1000) {
                 if (document.visibilityState === 'visible' && !isLoading) {
                     refreshDataRef.current(true);
@@ -202,7 +231,7 @@ export const Watchlist: React.FC = () => {
                     <td className="p-3">
                         <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     </td>
-                    <td className="p-3 text-center" colSpan={8}>
+                    <td className="p-3 text-center" colSpan={10}>
                         <span className="text-slate-500 text-sm flex items-center justify-center gap-2">
                             {isLoading ? <><Loader2 size={14} className="animate-spin"/> 載入中...</> : '等候更新'}
                         </span>
@@ -222,7 +251,7 @@ export const Watchlist: React.FC = () => {
                     <td className="p-3">
                         <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     </td>
-                    <td className="p-3 text-center" colSpan={8}>
+                    <td className="p-3 text-center" colSpan={10}>
                         <span className="text-red-400 text-sm flex items-center justify-center gap-2">
                             抓取失敗 (代號錯誤或無資料)
                         </span>
@@ -347,8 +376,13 @@ export const Watchlist: React.FC = () => {
 
         const categoryLabel = data.sizeCategory === 'LARGE_CAP' ? '大型股' : (data.sizeCategory === 'SMALL_CAP' ? '小型股' : 'ETF');
 
+        const flashType = flashState[symbol];
+        const flashClass = flashType === 'up' ? 'flash-row-up' : (flashType === 'down' ? 'flash-row-down' : (flashType === 'neutral' ? 'flash-row-neutral' : ''));
+
+        const tickChange = data.priceChangeSinceLastTick;
+
         return (
-            <tr key={symbol} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
+            <tr key={symbol} className={`border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors ${flashClass}`}>
                 <td className="p-3">
                     <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -357,7 +391,16 @@ export const Watchlist: React.FC = () => {
                         {data.sizeCategory === 'ETF' && <span className="text-[9px] px-1 bg-violet-500/20 text-violet-400 rounded border border-violet-500/30 font-bold tracking-wider">ETF</span>}
                     </div>
                 </td>
-                <td className="p-3 text-right font-mono font-bold text-white">{data.currentPrice?.toFixed(2) || '-'}</td>
+                <td className="p-3 text-right font-mono font-bold text-white">
+                    <div className="flex flex-col items-end">
+                        <span>{data.currentPrice?.toFixed(2) || '-'}</span>
+                        {tickChange !== undefined && tickChange !== 0 && (
+                            <span className={`text-[10px] ${tickChange > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                {tickChange > 0 ? '▲' : '▼'}{Math.abs(tickChange).toFixed(2)}
+                            </span>
+                        )}
+                    </div>
+                </td>
                 <td className="p-3 text-right font-mono text-slate-400">{data.ma20?.toFixed(2) || '-'}</td>
                 <td className="p-3 text-right font-mono text-slate-500">{data.ma60?.toFixed(2) || '-'}</td>
                 <td className={`p-3 text-right font-mono transition-colors ${biasHighlightClass}`}>
@@ -375,9 +418,23 @@ export const Watchlist: React.FC = () => {
                     {rsiSubtext}
                 </td>
                 <td className="p-3 text-right font-mono">
-                    {data.marginChangeRatio !== undefined && data.marginChangeRatio !== null ? (
-                        <span className={data.marginChangeRatio > 0 ? 'text-red-400' : 'text-emerald-400'}>
-                            {data.marginChangeRatio > 0 ? '+' : ''}{data.marginChangeRatio.toFixed(2)}%
+                    {data.institutionalForeign !== undefined && data.institutionalForeign !== null ? (
+                        <span className={data.institutionalForeign > 0 ? 'text-red-400' : (data.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                            {data.institutionalForeign > 0 ? '+' : ''}{data.institutionalForeign.toLocaleString()}
+                        </span>
+                    ) : '-'}
+                </td>
+                <td className="p-3 text-right font-mono">
+                    {data.institutionalTrust !== undefined && data.institutionalTrust !== null ? (
+                        <span className={data.institutionalTrust > 0 ? 'text-red-400' : (data.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                            {data.institutionalTrust > 0 ? '+' : ''}{data.institutionalTrust.toLocaleString()}
+                        </span>
+                    ) : '-'}
+                </td>
+                <td className="p-3 text-right font-mono">
+                    {data.marginChange !== undefined && data.marginChange !== null ? (
+                        <span className={data.marginChange > 0 ? 'text-red-400' : (data.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
+                            {data.marginChange > 0 ? '+' : ''}{data.marginChange.toLocaleString()}
                         </span>
                     ) : '-'}
                 </td>
@@ -400,47 +457,47 @@ export const Watchlist: React.FC = () => {
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                             <Eye className="text-sky-400" /> 選股掃描與觀察名單
                         </h2>
-                        {marketRegime === 'NORMAL' && <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><ShieldAlert size={14}/> 正常模式</span>}
-                        {marketRegime === 'CONSERVATIVE' && <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -5% 或 單日跌幅 >= 3%，或近期個人操作連續3筆虧損"><ShieldAlert size={14}/> 保守模式 (大盤大跌或連虧)</span>}
-                        {marketRegime === 'DEFENSIVE' && <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" title="大盤乖離率 <= -10% 或 單日跌幅 >= 5%"><ShieldAlert size={14}/> 防禦模式 (大盤乖離&lt;-10%或跌幅&gt;5%)</span>}
+                        <MarketRegimeBadge regime={marketRegime} />
                     </div>
                     <p className="text-slate-400 text-sm mt-1">建立自訂分頁，利用雙引擎自動分析標的強弱勢與買賣點</p>
                 </div>
-                {lastUpdated && (
-                    <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
+                    {lastUpdated && (
                         <span className="text-xs text-slate-500 font-mono">最後更新: {new Date(lastUpdated).toLocaleTimeString()}</span>
-                        <button 
-                            onClick={() => refreshData(true)}
-                            disabled={isLoading}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all duration-300 ease-in-out text-sm font-medium border border-slate-700 relative overflow-hidden min-w-[120px]"
-                        >
-                            <RefreshCw size={16} className={isLoading ? "animate-spin text-sky-400" : ""} />
-                            {isLoading && analyzeProgress ? (
-                                <span className="flex items-center gap-1 z-10 relative">
-                                    更新中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
-                                </span>
-                            ) : '更新數據'}
-                            {isLoading && analyzeProgress && (
-                                <div 
-                                    className="absolute left-0 top-0 bottom-0 bg-sky-500/20 transition-all duration-300"
-                                    style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
-                                />
-                            )}
-                        </button>
-                        <button 
-                            onClick={() => {
-                                const newState = !autoUpdateEnabled;
-                                setAutoUpdateEnabledState(newState);
-                                setAutoTechUpdateEnabled(newState);
-                            }} 
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 text-sm font-medium border ${autoUpdateEnabled ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`}
-                            title="5分鐘自動更新"
-                        >
-                            <Clock size={16} className={autoUpdateEnabled ? "animate-pulse text-red-400" : ""} />
-                            {autoUpdateEnabled ? '自動更新中' : '自動更新'}
-                        </button>
-                    </div>
-                )}
+                    )}
+                    <Button 
+                        onClick={() => refreshData(true)} 
+                        disabled={isLoading} 
+                        loading={isLoading} 
+                        className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20 transition-all duration-300 ease-in-out min-w-[120px] relative overflow-hidden"
+                    >
+                        {!isLoading && <TrendingUp size={14}/>}
+                        {isLoading && analyzeProgress ? (
+                            <span className="flex items-center gap-1 z-10 relative">
+                                處理中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
+                            </span>
+                        ) : '分析技術面'}
+                        {isLoading && analyzeProgress && (
+                            <div 
+                                className="absolute left-0 top-0 bottom-0 bg-sky-500/20 transition-all duration-300"
+                                style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
+                            />
+                        )}
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            const newState = !autoUpdateEnabled;
+                            setAutoUpdateEnabledState(newState);
+                            setAutoTechUpdateEnabled(newState);
+                        }} 
+                        variant="secondary" 
+                        className={`h-8 text-xs border transition-all duration-300 ${autoUpdateEnabled ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:bg-slate-700/50'}`}
+                        title="5分鐘自動更新"
+                    >
+                        <Clock size={14} className={autoUpdateEnabled ? "animate-pulse text-red-400" : ""} />
+                        {autoUpdateEnabled ? '自動更新中' : '自動更新'}
+                    </Button>
+                </div>
             </div>
 
             {/* Tabs */}
@@ -536,7 +593,9 @@ export const Watchlist: React.FC = () => {
                                 <th className="p-3 font-medium text-right">月乖離 (BIAS20)</th>
                                 <th className="p-3 font-medium text-right">乖離斜率</th>
                                 <th className="p-3 font-medium text-right">強弱指標 (RSI)</th>
-                                <th className="p-3 font-medium text-right">融資增減</th>
+                                <th className="p-3 font-medium text-right">外資買賣(張)</th>
+                                <th className="p-3 font-medium text-right">投信買賣(張)</th>
+                                <th className="p-3 font-medium text-right">融資增減(張)</th>
                                 <th className="p-3 font-medium text-center">訊號</th>
                                 <th className="p-3 font-medium text-center w-16">操作</th>
                             </tr></thead>
@@ -545,7 +604,7 @@ export const Watchlist: React.FC = () => {
                                     activeGroup.symbols.map(renderTechRow)
                                 ) : (
                                     <tr>
-                                        <td colSpan={10} className="text-center py-12 text-slate-500">
+                                        <td colSpan={12} className="text-center py-12 text-slate-500">
                                             <div className="flex flex-col items-center gap-2">
                                                 <Target size={32} className="text-slate-600 mb-2" />
                                                 <p className="font-bold text-slate-400">目前清單內尚無標的</p>
@@ -562,3 +621,5 @@ export const Watchlist: React.FC = () => {
         </div>
     );
 };
+
+

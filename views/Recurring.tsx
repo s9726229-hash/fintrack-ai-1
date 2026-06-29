@@ -105,7 +105,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
 
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
+    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
        
        <div className="flex justify-between items-center mb-6">
          <div>

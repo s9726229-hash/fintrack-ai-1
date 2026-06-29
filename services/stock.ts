@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint } from "../types";
-import { getApiKey, getFeeDiscount, getTechParameters } from "./storage";
+import { getApiKey, getFeeDiscount, getTechParameters, getFinMindToken } from "./storage";
 import largeCaps from '../src/data/large_caps.json';
 
 const cleanJsonString = (text: string) => {
@@ -389,6 +389,77 @@ export const checkConsecutiveLossLock = (transactions?: StockTransaction[]): boo
     // 檢查最近 3 筆是否皆為負數
     return sells[0].realizedProfit! < 0 && sells[1].realizedProfit! < 0 && sells[2].realizedProfit! < 0;
 };
+export const fetchFinMindUsage = async (): Promise<{ user_count: number, api_request_limit: number } | null> => {
+    const token = getFinMindToken();
+    if (!token) return null;
+    try {
+        const res = await fetch("https://api.web.finmindtrade.com/v2/user_info", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        if (json.user_count !== undefined && json.api_request_limit !== undefined) {
+            return {
+                user_count: json.user_count,
+                api_request_limit: json.api_request_limit
+            };
+        }
+        return null;
+    } catch {
+        return null;
+    }
+};
+
+let institutionalCache: Record<string, any> = {};
+export const fetchInstitutionalData = async (symbol: string) => {
+    const token = getFinMindToken();
+    if (!token) return null;
+    if (institutionalCache[symbol]) return institutionalCache[symbol];
+    
+    const now = new Date();
+    const startDate = new Date(now.setDate(now.getDate() - 15)).toISOString().split('T')[0];
+    try {
+        const res = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestorsBuySell&data_id=${symbol}&start_date=${startDate}&token=${token}`);
+        if (!res.ok) return null;
+        const json = await res.json();
+        if (json.data && Array.isArray(json.data)) {
+            const byDate: Record<string, any> = {};
+            json.data.forEach((item: any) => {
+                if (!byDate[item.date]) byDate[item.date] = { Foreign_Investor: 0, Investment_Trust: 0 };
+                if (item.name.includes("外資")) byDate[item.date].Foreign_Investor += item.buy - item.sell;
+                if (item.name.includes("投信")) byDate[item.date].Investment_Trust += item.buy - item.sell;
+            });
+            const dates = Object.keys(byDate).sort();
+            const last5 = dates.slice(-5);
+            
+            let foreignBuyDays = 0, trustBuyDays = 0;
+            let foreignSellDays = 0, trustSellDays = 0;
+            
+            last5.forEach(date => {
+                if (byDate[date].Foreign_Investor > 0) foreignBuyDays++;
+                else if (byDate[date].Foreign_Investor < 0) foreignSellDays++;
+                
+                if (byDate[date].Investment_Trust > 0) trustBuyDays++;
+                else if (byDate[date].Investment_Trust < 0) trustSellDays++;
+            });
+            
+            const result = {
+                foreignBuy: foreignBuyDays >= 3,
+                foreignSell: foreignSellDays >= 3,
+                trustBuy: trustBuyDays >= 3,
+                trustSell: trustSellDays >= 3,
+                last5,
+                byDate
+            };
+            institutionalCache[symbol] = result;
+            return result;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+};
+
 // ===== 新增：TWSE 即時現價 =====
 const fetchTWSEPrice = async (symbol: string): Promise<number | null> => {
     try {
@@ -554,6 +625,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         // 6. Fetch Margin Data
         const marginData = await fetchAllMarginData();
         let marginChangeRatio: number | null = null;
+        let marginChange: number | null = null;
+        let institutionalForeign: number | null = null;
+        let institutionalTrust: number | null = null;
+        let institutionalDealer: number | null = null;
         
         let twseMargin = marginData.twse[symbol];
         let tpexMargin = marginData.tpex[symbol];
@@ -774,6 +849,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             biasSlopes,
             ma20Slope,
             marginChangeRatio,
+            marginChange,
+            institutionalForeign,
+            institutionalTrust,
+            institutionalDealer,
             dailyChangeRatio,
             sizeCategory,
             techSignal,
@@ -787,3 +866,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         return null;
     }
 };
+
+
+
+
+
+
+
+

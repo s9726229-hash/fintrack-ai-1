@@ -313,11 +313,15 @@ export default function App() {
       />}
       {view === 'ASSETS' && <Assets assets={assets} onAdd={addAsset} onUpdate={updateAsset} onDelete={deleteAsset} />}
       {/* FIX: Pass the correct props to the Investments component as per its definition in types.ts. */}
-      {view === 'INVESTMENTS' && <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} />}
+      <div className={view === 'INVESTMENTS' ? 'block' : 'hidden'}>
+        <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} />
+      </div>
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}
       {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}
-      {view === 'WATCHLIST' && <Watchlist />}
+      <div className={view === 'WATCHLIST' ? 'block' : 'hidden'}>
+        <Watchlist />
+      </div>
       {view === 'GUIDE' && <GuideView />}
       {view === 'TECH_DOCS' && <TechDocs />}
       {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}
