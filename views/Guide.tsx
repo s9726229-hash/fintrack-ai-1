@@ -1,7 +1,7 @@
 import React from 'react';
-import { 
-  ListTree, GitMerge, Sparkles, Activity, ShieldCheck, Cpu, 
-  Settings2, Eye, LayoutTemplate
+import {
+  ListTree, GitMerge, Sparkles, Activity, ShieldCheck, Cpu,
+  Settings2, Eye, LayoutTemplate, TrendingUp, Zap, RefreshCw, BarChart2
 } from 'lucide-react';
 
 const FeatureSection = ({ title, date, color, children }: { title: string; date?: string; color: string; children?: React.ReactNode }) => (
@@ -38,8 +38,36 @@ export const GuideView: React.FC = () => {
       </div>
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
-        
-        <FeatureSection title="V7.5.0 財務儀表板全面升級" date="Latest" color="text-amber-400">
+
+        <FeatureSection title="V7.6.0 DSS 決策引擎強化 & 系統穩定" date="Latest" color="text-violet-400">
+            <FeatureItem
+                icon={Zap}
+                title="DSS V5.0 籌碼共振完整實作"
+                description="全面實作 Track 2 籌碼共振/背離邏輯：技術偏多 + 外資投信連買≥3日 → 升級 STRONG_LAYOUT；技術偏多 + 外資連賣 + 融資大增 → 降級 WATCH_DIVERGE；技術偏弱 + 外資投信雙賣超 → 強制 SELL。"
+            />
+            <FeatureItem
+                icon={TrendingUp}
+                title="乖離斜率視窗擴展 & 計算修正"
+                description="乖離斜率計算從固定 4 天擴展至 10 天視窗，連增/連降天數最多可顯示 9 棒。修正 hardcoded index 問題，改用動態 lastIdx，並為 checkSlopeDeteriorated 加入邊界保護。"
+            />
+            <FeatureItem
+                icon={BarChart2}
+                title="選股掃描燈號語意重新對應"
+                description="選股掃描（無持倉）的燈號標籤全面調整：停利類訊號改為「高位過熱 勿追」、「嚴重過熱 切勿追高」；加碼類改為「積極進場」、「超跌布局」；籌碼背離改為「籌碼疑慮 暫緩進場」。"
+            />
+            <FeatureItem
+                icon={RefreshCw}
+                title="自動更新計時器架構修正"
+                description="修正兩頁面（投資組合/選股掃描）同時 always-mounted 造成雙重 API 呼叫的問題，透過 isActiveView prop 確保只有當前顯示的頁面觸發更新。新增 storage 事件監聽實現跨頁開關即時同步。更新時間戳改為分析完成後才寫入。"
+            />
+            <FeatureItem
+                icon={Sparkles}
+                title="FORCE_SELL 籌碼共振提示 & 程式碼精簡"
+                description="強制停利訊號遇到籌碼共振（外資投信同時連買≥3日）時，維持原訊號但在條件小框附加「⚡ 籌碼共振 可考慮布局」提示。同時消除 institutionalCache 冗餘讀取，移除無效的 WATCH 死碼。"
+            />
+        </FeatureSection>
+
+        <FeatureSection title="V7.5.0 財務儀表板全面升級" date="Previous" color="text-amber-400">
             <FeatureItem 
                 icon={LayoutTemplate}
                 title="版面精簡與資訊整合" 
