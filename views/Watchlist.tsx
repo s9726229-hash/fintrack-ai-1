@@ -12,7 +12,11 @@ import twStocks from '../src/data/tw_stocks.json';
 let globalTechDataCache: Record<string, any> = {};
 let globalLastUpdatedCache: number | null = null;
 
-export const Watchlist: React.FC = () => {
+interface WatchlistProps {
+    isActiveView?: boolean;
+}
+
+export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => {
     const [groups, setGroups] = useState<WatchlistGroup[]>(storage.getWatchlists());
     const [activeGroupId, setActiveGroupId] = useState<string>(groups[0]?.id || '');
     const [isAddingGroup, setIsAddingGroup] = useState(false);
@@ -59,10 +63,6 @@ export const Watchlist: React.FC = () => {
             : activeGroup.symbols.filter(sym => !techDataMap[sym]);
             
         if (symbolsToFetch.length === 0) return;
-
-        if (force) {
-            localStorage.setItem('last_watchlist_update_time', Date.now().toString());
-        }
 
         setIsLoading(true);
         const newMap = { ...techDataMap };
@@ -133,6 +133,9 @@ export const Watchlist: React.FC = () => {
 
         setTechDataMap(newMap);
         setLastUpdated(Date.now());
+        if (force) {
+            localStorage.setItem('last_watchlist_update_time', Date.now().toString());
+        }
         setIsLoading(false);
         setAnalyzeProgress(null);
     };
@@ -144,18 +147,30 @@ export const Watchlist: React.FC = () => {
         refreshDataRef.current = refreshData;
     });
 
+    // 同步 Investments 頁面的開關狀態
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === 'auto_tech_update_enabled') {
+                setAutoUpdateEnabledState(e.newValue === 'true');
+            }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
+
     useEffect(() => {
         if (!autoUpdateEnabled) return;
         const interval = setInterval(() => {
+            if (!isActiveView) return; // 非當前頁面時，讓 Investments 頁負責更新
             const lastUpdate = localStorage.getItem('last_watchlist_update_time') || '0';
             if (Date.now() - parseInt(lastUpdate) >= 5 * 60 * 1000) {
                 if (document.visibilityState === 'visible' && !isLoading) {
                     refreshDataRef.current(true);
                 }
             }
-        }, 15000); // Check every 15 seconds
+        }, 15000);
         return () => clearInterval(interval);
-    }, [autoUpdateEnabled, isLoading]);
+    }, [autoUpdateEnabled, isLoading, isActiveView]);
 
     const handleAddGroup = () => {
         if (!newGroupName.trim()) return;

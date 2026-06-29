@@ -28,6 +28,7 @@ interface InvestmentsProps {
     
     onImportTransactions: (transactions: StockTransaction[]) => void;
     onImportInventory: (assets: Partial<Asset>[]) => void;
+    isActiveView?: boolean;
 }
 
 type ActiveTab = 'INVENTORY' | 'HISTORY' | 'DIVIDEND' | 'MONITOR';
@@ -56,11 +57,11 @@ const translateFrequency = (freq: string | undefined): string => {
     return freq; // Fallback to original
 };
 
-export const Investments: React.FC<InvestmentsProps> = ({ 
-    assets, stockHistory, stockTransactions, transactions, 
-    onAdd, onUpdate, onUpdateMultiple, onDelete, 
+export const Investments: React.FC<InvestmentsProps> = ({
+    assets, stockHistory, stockTransactions, transactions,
+    onAdd, onUpdate, onUpdateMultiple, onDelete,
     enrichStatus, onUpdatePrices, onUpdateDividends,
-    onImportTransactions, onImportInventory 
+    onImportTransactions, onImportInventory, isActiveView = true
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
@@ -161,7 +162,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const handleSaveAsset = (asset: Asset) => { if (editingAsset) onUpdate(asset); else onAdd(asset); setIsModalOpen(false); setEditingAsset(null); };
 
     const handleUpdateBias = async () => {
-        localStorage.setItem('last_tech_update_time', Date.now().toString());
         setIsUpdatingBias(true);
         const validStocks = inventory.filter(s => s.symbol);
         setAnalyzeProgress({ current: 0, total: validStocks.length, symbol: '' });
@@ -218,6 +218,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         if (updatedAssets.length > 0 && onUpdateMultiple) {
             onUpdateMultiple(updatedAssets);
         }
+        localStorage.setItem('last_tech_update_time', Date.now().toString());
         setIsUpdatingBias(false);
         setAnalyzeProgress(null);
     };
@@ -237,18 +238,30 @@ export const Investments: React.FC<InvestmentsProps> = ({
         handleUpdateBiasRef.current = handleUpdateBias;
     });
 
+    // 同步其他頁面的開關狀態（Watchlist 切換也會影響 localStorage）
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === 'auto_tech_update_enabled') {
+                setAutoUpdateEnabledState(e.newValue === 'true');
+            }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
+
     useEffect(() => {
         if (!autoUpdateEnabled) return;
         const interval = setInterval(() => {
+            if (!isActiveView) return; // 非當前頁面，跳過（避免與 Watchlist 同時打 API）
             const lastUpdate = localStorage.getItem('last_tech_update_time') || '0';
             if (Date.now() - parseInt(lastUpdate) >= 5 * 60 * 1000) {
                 if (document.visibilityState === 'visible' && !isUpdatingBias && !isEnriching) {
                     handleUpdateBiasRef.current();
                 }
             }
-        }, 15000); // Check every 15 seconds
+        }, 15000);
         return () => clearInterval(interval);
-    }, [autoUpdateEnabled, isUpdatingBias, isEnriching]);
+    }, [autoUpdateEnabled, isUpdatingBias, isEnriching, isActiveView]);
     const handleTransactionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { transactions: p, error } = parseStockTransactionCSV(t); if (error) { alert(`CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportTransactions(p); else alert('CSV 中找不到有效交易。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     
