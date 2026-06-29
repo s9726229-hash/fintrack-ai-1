@@ -16,71 +16,86 @@ const getAI = () => {
     return new GoogleGenAI({ apiKey: key });
 };
 
-// --- Margin Data Cache ---
-let twseMarginCache: Record<string, any> | null = null;
-let tpexMarginCache: Record<string, any> | null = null;
-let marginCacheTimestamp = 0;
+// ============================================================
+// FinMind Session-Level Cache (一個 Session 只打一次 FinMind)
+// ============================================================
+const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
+const CF_WORKER = 'https://gentle-voice-bcca.s9726229.workers.dev';
 
-export const fetchAllMarginData = async () => {
-    const now = Date.now();
-    // Cache for 1 hour
-    if (twseMarginCache && tpexMarginCache && (now - marginCacheTimestamp < 3600000)) {
-        return { twse: twseMarginCache, tpex: tpexMarginCache };
-    }
-    
-    const fetchOpenApi = async (url: string) => {
-        try {
-            // 1. 嘗試直接呼叫 (通常會被 CORS 擋)
-            let res = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
-            if (res) return res;
-            
-            // 2. 嘗試 corsproxy
-            res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`).then(r => r.ok ? r.json() : null).catch(() => null);
-            if (res) return res;
-            
-            // 3. 嘗試 allorigins
-            res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`).then(r => r.ok ? r.json() : null).catch(() => null);
-            return res || [];
-        } catch {
-            return [];
-        }
-    };
+// K線歷史快取 (symbol → close陣列，TTL 6小時)
+const klineCache: Record<string, { closes: number[], timestamp: number }> = {};
+const KLINE_TTL = 6 * 60 * 60 * 1000;
 
+// 融資快取 (symbol → {today, prev}，TTL 6小時)
+const marginCache: Record<string, { today: number, prev: number, timestamp: number }> = {};
+const MARGIN_TTL = 6 * 60 * 60 * 1000;
+
+// TAIEX 大盤快取 (TTL 1小時)
+let taixCache: { closes: number[], timestamp: number } | null = null;
+const TAIX_TTL = 60 * 60 * 1000;
+
+/** 通用 FinMind fetch，自動帶 token（若有）*/
+const finmindFetch = async (params: Record<string, string>): Promise<any[] | null> => {
+    const token = getFinMindToken();
+    const url = new URL(FINMIND_BASE);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    if (token) url.searchParams.set('token', token);
     try {
-        const [twseRes, tpexRes] = await Promise.all([
-            fetchOpenApi('https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN'),
-            fetchOpenApi('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_margin_trading')
-        ]);
-
-        const twseMap: Record<string, any> = {};
-        if (Array.isArray(twseRes)) {
-            twseRes.forEach((item: any) => {
-                // TWSE format: "股票代號", "融資前日餘額", "融資今日餘額"
-                if (item['股票代號']) {
-                    twseMap[item['股票代號']] = item;
-                }
-            });
-        }
-
-        const tpexMap: Record<string, any> = {};
-        if (Array.isArray(tpexRes)) {
-            tpexRes.forEach((item: any) => {
-                // TPEx format: "SecuritiesCompanyCode", "PreviousMarginBalance", "CurrentMarginBalance"
-                if (item.SecuritiesCompanyCode) {
-                    tpexMap[item.SecuritiesCompanyCode] = item;
-                }
-            });
-        }
-
-        twseMarginCache = twseMap;
-        tpexMarginCache = tpexMap;
-        marginCacheTimestamp = now;
-
-        return { twse: twseMap, tpex: tpexMap };
-    } catch (error) {
-        console.error("Failed to fetch margin data", error);
-        return { twse: twseMarginCache || {}, tpex: tpexMarginCache || {} };
+        const res = await fetch(url.toString());
+        if (!res.ok) return null;
+        const json = await res.json();
+        return Array.isArray(json.data) && json.data.length > 0 ? json.data : null;
+    } catch {
+        return null;
     }
+};
+
+/** 抓個股近90日K線（Session快取，一天只打一次 FinMind）*/
+export const fetchFinMindHistory = async (symbol: string): Promise<number[] | null> => {
+    const now = Date.now();
+    if (klineCache[symbol] && (now - klineCache[symbol].timestamp < KLINE_TTL)) {
+        return klineCache[symbol].closes;
+    }
+    const startDate = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const data = await finmindFetch({ dataset: 'TaiwanStockPrice', data_id: symbol, start_date: startDate });
+    if (!data) return null;
+    const closes = data.map((d: any) => Number(d.close)).filter((v: number) => v > 0);
+    if (closes.length === 0) return null;
+    klineCache[symbol] = { closes, timestamp: now };
+    return closes;
+};
+
+/** 抓 TAIEX 大盤近60日（Session快取，1小時TTL）*/
+const fetchTAIEXHistory = async (): Promise<number[] | null> => {
+    const now = Date.now();
+    if (taixCache && (now - taixCache.timestamp < TAIX_TTL)) return taixCache.closes;
+    const startDate = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const data = await finmindFetch({ dataset: 'TaiwanStockPrice', data_id: 'TAIEX', start_date: startDate });
+    if (!data) return null;
+    const closes = data.map((d: any) => Number(d.close)).filter((v: number) => v > 0);
+    if (closes.length === 0) return null;
+    taixCache = { closes, timestamp: now };
+    return closes;
+};
+
+/** 抓個股融資餘額 via FinMind（Session快取，6小時TTL）*/
+const fetchFinMindMargin = async (symbol: string): Promise<{ today: number, prev: number } | null> => {
+    const now = Date.now();
+    if (marginCache[symbol] && (now - marginCache[symbol].timestamp < MARGIN_TTL)) {
+        return { today: marginCache[symbol].today, prev: marginCache[symbol].prev };
+    }
+    const startDate = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const data = await finmindFetch({
+        dataset: 'TaiwanStockMarginPurchaseShortSale',
+        data_id: symbol,
+        start_date: startDate
+    });
+    if (!data || data.length < 2) return null;
+    const sorted = data.sort((a: any, b: any) => a.date.localeCompare(b.date));
+    const todayVal = Number(sorted[sorted.length - 1].MarginPurchaseToday) || 0;
+    const prevVal = Number(sorted[sorted.length - 2].MarginPurchaseToday) || 0;
+    marginCache[symbol] = { today: todayVal, prev: prevVal, timestamp: now };
+    return { today: todayVal, prev: prevVal };
 };
 
 /**
@@ -336,42 +351,34 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
 };
 
 /**
- * Fetches Technical Data for a stock symbol from Yahoo Finance API via CORS proxy.
+ * 取得目前大盤狀態（FinMind TAIEX），快取 1 小時
  */
-let cachedMarketRegime: { regime: MarketRegime, bias20: number, timestamp: number } | null = null;
+let cachedMarketRegime: { regime: MarketRegime, bias20: number, dailyChange: number, timestamp: number } | null = null;
 
-/**
- * 取得目前大盤狀態，並快取 60 秒以避免 N+1 Query 問題
- */
 export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<{ regime: MarketRegime, bias20: number }> => {
-    if (!forceRefresh && cachedMarketRegime && (Date.now() - cachedMarketRegime.timestamp < 60000)) {
+    if (!forceRefresh && cachedMarketRegime && (Date.now() - cachedMarketRegime.timestamp < TAIX_TTL)) {
         return { regime: cachedMarketRegime.regime, bias20: cachedMarketRegime.bias20 };
     }
-
     try {
-        const twiiData = await fetchTechnicalData('^TWII');
-        if (twiiData && twiiData.ma20 && twiiData.currentPrice !== undefined) {
-            const bias20 = ((twiiData.currentPrice - twiiData.ma20) / twiiData.ma20) * 100;
-            const dailyChange = twiiData.dailyChangeRatio || 0;
+        const closes = await fetchTAIEXHistory();
+        if (closes && closes.length >= 21) {
+            const last20 = closes.slice(-20);
+            const ma20 = last20.reduce((a, b) => a + b, 0) / 20;
+            const lastClose = closes[closes.length - 1];
+            const prevClose = closes[closes.length - 2];
+            const bias20 = ((lastClose - ma20) / ma20) * 100;
+            const dailyChange = ((lastClose - prevClose) / prevClose) * 100;
             let regime = MarketRegime.NORMAL;
-            
-            if (bias20 <= -10 || dailyChange <= -5) {
-                regime = MarketRegime.DEFENSIVE;
-            } else if (bias20 <= -5 || dailyChange <= -3) {
-                regime = MarketRegime.CONSERVATIVE;
-            } else {
-                regime = MarketRegime.NORMAL;
-            }
-            
-            cachedMarketRegime = { regime, bias20, timestamp: Date.now() };
+            if (bias20 <= -10 || dailyChange <= -5) regime = MarketRegime.DEFENSIVE;
+            else if (bias20 <= -5 || dailyChange <= -3) regime = MarketRegime.CONSERVATIVE;
+            cachedMarketRegime = { regime, bias20, dailyChange, timestamp: Date.now() };
             return { regime, bias20 };
         }
     } catch (error) {
-        console.error("Error fetching market regime:", error);
+        console.error('Error fetching market regime:', error);
     }
-    // 預設或發生錯誤時的回退
-    return cachedMarketRegime 
-        ? { regime: cachedMarketRegime.regime, bias20: cachedMarketRegime.bias20 } 
+    return cachedMarketRegime
+        ? { regime: cachedMarketRegime.regime, bias20: cachedMarketRegime.bias20 }
         : { regime: MarketRegime.NORMAL, bias20: 0 };
 };
 
@@ -460,124 +467,68 @@ export const fetchInstitutionalData = async (symbol: string) => {
     }
 };
 
-// ===== 新增：TWSE 即時現價 =====
+// ===== 即時現價：Cloudflare Worker → TWSE 備援 =====
 const fetchTWSEPrice = async (symbol: string): Promise<number | null> => {
-    try {
-        for (const prefix of ['tse', 'otc']) {
-            const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${symbol}.tw&json=1&delay=0`;
-            const res = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+    for (const prefix of ['tse', 'otc']) {
+        const path = `/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${symbol}.tw&json=1&delay=0`;
+        try {
+            const res = await Promise.any([
+                fetch(`${CF_WORKER}${path}`).then(r => r.ok ? r.json() : Promise.reject()),
+                fetch(`https://mis.twse.com.tw${path}`).then(r => r.ok ? r.json() : Promise.reject())
+            ]);
             const price = res?.msgArray?.[0]?.z;
             if (price && price !== '-') return parseFloat(price);
-        }
-        return null;
-    } catch {
-        return null;
+        } catch { /* try next prefix */ }
     }
+    return null;
 };
-// ===== 新增結束 =====
+
 export const fetchTechnicalData = async (symbol: string, assets?: Asset[], transactions?: StockTransaction[]): Promise<TechDataResult | null> => {
     try {
         if (!symbol) return null;
-        
-        const fetchYahoo = async (suffix: string) => {
-            const timestamp = Date.now();
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?range=4mo&interval=1d&_t=${timestamp}`;
-            
-            const fetchWithTimeout = async (targetUrl: string, timeoutMs: number = 5000, isAllOrigins: boolean = false) => {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-                try {
-                    const response = await fetch(targetUrl, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`);
-                    const json = await response.json();
-                    if (isAllOrigins) {
-                        if (!json || !json.contents) throw new Error('Invalid AllOrigins format');
-                        return JSON.parse(json.contents);
-                    }
-                    return json;
-                } catch (e) {
-                    clearTimeout(timeoutId);
-                    throw e; // Throw so Promise.any can catch it
-                }
-            };
+        const isTAIEX = symbol === '^TWII';
 
-            try {
-                const data = await Promise.any([
-                    fetchWithTimeout(url, 8000),
-                    fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 8000),
-                    fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 10000, true)
-                ]);
-
-                const result = data?.chart?.result?.[0];
-                const quote = result?.indicators?.quote?.[0];
-                const meta = result?.meta;
-                if (!quote) return null;
-                return { closes: quote.close, volumes: quote.volume, metaPrice: meta?.regularMarketPrice };
-            } catch (error) {
-                // All requests failed
-                console.error(`Failed to fetch Yahoo data for ${symbol}${suffix}:`, error);
-                return null;
+        // ── 1. K線（FinMind Session快取）──
+        const closes = isTAIEX ? await fetchTAIEXHistory() : await fetchFinMindHistory(symbol);
+        if (!closes || closes.length < 21) {
+            if (!isTAIEX) {
+                const twsePrice = await fetchTWSEPrice(symbol);
+                if (twsePrice) return { currentPrice: twsePrice, ma20: null, ma60: null, bias20: null, bias20List: [], rsi: null, dailyChangeRatio: null, marginRatio: null, signal: null } as any;
             }
-        };
-
-        let rawData = await fetchYahoo('.TW');
-        if (!rawData?.closes) rawData = await fetchYahoo('.TWO');
-        if (!rawData?.closes) rawData = await fetchYahoo('');
-
-        if (!rawData?.closes || !Array.isArray(rawData.closes)) {
-    // Yahoo 完全失敗時，仍嘗試從 TWSE 取得現價回傳基本資料
-    const cleanSymbol = symbol.replace('.TW', '').replace('.TWO', '');
-    const twsePrice = symbol !== '^TWII' ? await fetchTWSEPrice(cleanSymbol) : null;
-    if (twsePrice) {
-        return { currentPrice: twsePrice, ma20: null, ma60: null, bias20: null, bias20List: [], rsi: null, dailyChangeRatio: null, marginRatio: null, signal: null } as any;
-    }
-    return null;
-}
-
-        // Clean nulls
-        const validData: { close: number, volume: number }[] = [];
-        for (let i = 0; i < rawData.closes.length; i++) {
-            if (rawData.closes[i] !== null && rawData.volumes?.[i] !== null) {
-                validData.push({ close: rawData.closes[i], volume: rawData.volumes[i] });
-            }
+            return null;
         }
 
-        if (validData.length < 23) return null; // Need at least 23 days for 20MA and 3 slope points
+        // ── 2. 建立 validData ──
+        const validData: { close: number, volume: number }[] = closes.map(c => ({ close: c, volume: 0 }));
 
-        // 1. Calculate 20MAs and Bias20 for the last 4 days (to get 3 slopes)
+        if (validData.length < 23) return null;
+
+        // ── 3. MA20 / Bias20 (最近4天，計算斜率用) ──
         const bias20List: number[] = [];
         const ma20List: number[] = [];
         for (let i = 0; i < 4; i++) {
             const targetIdx = validData.length - 1 - i;
             if (targetIdx - 19 < 0) break;
             const slice = validData.slice(targetIdx - 19, targetIdx + 1);
-            const sum = slice.reduce((a, b) => a + b.close, 0);
-            const ma20 = sum / 20;
-            const close = slice[19].close;
-            ma20List.unshift(ma20); // [T-3, T-2, T-1, T-0]
-            bias20List.unshift(((close - ma20) / ma20) * 100);
+            const ma20 = slice.reduce((a, b) => a + b.close, 0) / 20;
+            ma20List.unshift(ma20);
+            bias20List.unshift(((slice[19].close - ma20) / ma20) * 100);
         }
-
         if (bias20List.length < 4) return null;
 
-        // 2. Calculate 60MA
+        // ── 4. MA60 ──
         let currentMa60: number | null = null;
         if (validData.length >= 60) {
-            const slice60 = validData.slice(validData.length - 60, validData.length);
-            const sum60 = slice60.reduce((a, b) => a + b.close, 0);
-            currentMa60 = sum60 / 60;
+            currentMa60 = validData.slice(-60).reduce((a, b) => a + b.close, 0) / 60;
         }
 
-        const cleanSymbol = symbol.replace('.TW', '').replace('.TWO', '');
-        const twsePrice = symbol !== '^TWII' ? await fetchTWSEPrice(cleanSymbol) : null;
-        const currentPrice = twsePrice || rawData.metaPrice || validData[validData.length - 1].close;
-        
+        // ── 5. 即時現價（Cloudflare Worker → TWSE，僅個股）──
+        const twsePrice = !isTAIEX ? await fetchTWSEPrice(symbol) : null;
+        const currentPrice = twsePrice || validData[validData.length - 1].close;
+
         let dailyChangeRatio: number | null = null;
         if (validData.length >= 2) {
-            const todayClose = validData[validData.length - 1].close;
-            const yesterdayClose = validData[validData.length - 2].close;
-            dailyChangeRatio = ((todayClose - yesterdayClose) / yesterdayClose) * 100;
+            dailyChangeRatio = ((validData[validData.length - 1].close - validData[validData.length - 2].close) / validData[validData.length - 2].close) * 100;
         }
         const currentMa20 = ma20List[3];
         const currentBias20 = ((currentPrice - currentMa20) / currentMa20) * 100;
@@ -622,39 +573,29 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const avgVol = last20Vols.reduce((a, b) => a + b, 0) / 20;
         const volumeRatio = avgVol === 0 ? 0 : validData[validData.length - 1].volume / avgVol;
 
-        // 6. Fetch Margin Data
-        const marginData = await fetchAllMarginData();
+        // ── 9. 籌碼面（FinMind Session快取）──
         let marginChangeRatio: number | null = null;
         let marginChange: number | null = null;
         let institutionalForeign: number | null = null;
         let institutionalTrust: number | null = null;
         let institutionalDealer: number | null = null;
-        
-        let twseMargin = marginData.twse[symbol];
-        let tpexMargin = marginData.tpex[symbol];
-        
-        if (twseMargin && twseMargin['融資今日餘額'] && twseMargin['融資前日餘額']) {
-            const currentMargin = parseFloat(twseMargin['融資今日餘額'].replace(/,/g, ''));
-            const prevMargin = parseFloat(twseMargin['融資前日餘額'].replace(/,/g, ''));
-            if (prevMargin > 0) {
-                marginChangeRatio = ((currentMargin - prevMargin) / prevMargin) * 100;
-            }
-        } else if (tpexMargin && tpexMargin.CurrentMarginBalance && tpexMargin.PreviousMarginBalance) {
-            const currentMarginTpex = parseFloat(tpexMargin.CurrentMarginBalance.replace(/,/g, ''));
-            const prevMarginTpex = parseFloat(tpexMargin.PreviousMarginBalance.replace(/,/g, ''));
-            if (prevMarginTpex > 0) {
-                marginChangeRatio = ((currentMarginTpex - prevMarginTpex) / prevMarginTpex) * 100;
-            }
-        }
 
-        // 6b. Fetch Institutional (外資/投信) from FinMind
-        const instData = await fetchInstitutionalData(symbol);
-        if (instData && instData.last5 && instData.last5.length > 0) {
-            const lastDate = instData.last5[instData.last5.length - 1];
-            const lastDay = instData.byDate[lastDate];
-            if (lastDay) {
-                institutionalForeign = lastDay.Foreign_Investor ?? null;
-                institutionalTrust = lastDay.Investment_Trust ?? null;
+        if (!isTAIEX) {
+            // 融資（FinMind TaiwanStockMarginPurchaseShortSale）
+            const marginResult = await fetchFinMindMargin(symbol);
+            if (marginResult && marginResult.prev > 0) {
+                marginChangeRatio = ((marginResult.today - marginResult.prev) / marginResult.prev) * 100;
+                marginChange = marginResult.today - marginResult.prev;
+            }
+            // 外資/投信（FinMind，現有 Session 快取）
+            const instData = await fetchInstitutionalData(symbol);
+            if (instData && instData.last5 && instData.last5.length > 0) {
+                const lastDate = instData.last5[instData.last5.length - 1];
+                const lastDay = instData.byDate[lastDate];
+                if (lastDay) {
+                    institutionalForeign = lastDay.Foreign_Investor ?? null;
+                    institutionalTrust = lastDay.Investment_Trust ?? null;
+                }
             }
         }
 
