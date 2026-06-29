@@ -16,7 +16,7 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
     dividend: { isUpdating: false, progress: { current: 0, total: 0 } },
   });
 
-  const BATCH_SIZE = 15; // Number of parallel requests
+  const BATCH_SIZE = 3; // Number of parallel requests
 
   const enrichData = async (
     type: EnrichStatusType,
