@@ -92,8 +92,8 @@ const fetchFinMindMargin = async (symbol: string): Promise<{ today: number, prev
     });
     if (!data || data.length < 2) return null;
     const sorted = data.sort((a: any, b: any) => a.date.localeCompare(b.date));
-    const todayVal = Number(sorted[sorted.length - 1].MarginPurchaseToday) || 0;
-    const prevVal = Number(sorted[sorted.length - 2].MarginPurchaseToday) || 0;
+    const todayVal = Number(sorted[sorted.length - 1].MarginPurchaseTodayBalance) || 0;
+    const prevVal = Number(sorted[sorted.length - 2].MarginPurchaseTodayBalance) || 0;
     marginCache[symbol] = { today: todayVal, prev: prevVal, timestamp: now };
     return { today: todayVal, prev: prevVal };
 };
@@ -422,19 +422,29 @@ export const fetchInstitutionalData = async (symbol: string) => {
     const token = getFinMindToken();
     if (!token) return null;
     if (institutionalCache[symbol]) return institutionalCache[symbol];
-    
-    const now = new Date();
-    const startDate = new Date(now.setDate(now.getDate() - 15)).toISOString().split('T')[0];
+
+    const startDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     try {
         const res = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestorsBuySell&data_id=${symbol}&start_date=${startDate}&token=${token}`);
-        if (!res.ok) return null;
+        if (!res.ok) {
+            console.warn(`[外資投信] ${symbol} API失敗 status=${res.status}`);
+            return null;
+        }
         const json = await res.json();
+        if (json.status !== undefined && json.status !== 200) {
+            console.warn(`[外資投信] ${symbol} API回傳錯誤:`, json.msg || json.status);
+            return null;
+        }
         if (json.data && Array.isArray(json.data)) {
+            if (json.data.length === 0) {
+                console.warn(`[外資投信] ${symbol} 回傳空資料，可能超過配額或該股無資料`);
+            }
             const byDate: Record<string, any> = {};
             json.data.forEach((item: any) => {
                 if (!byDate[item.date]) byDate[item.date] = { Foreign_Investor: 0, Investment_Trust: 0 };
-                if (item.name.includes("外資")) byDate[item.date].Foreign_Investor += item.buy - item.sell;
-                if (item.name.includes("投信")) byDate[item.date].Investment_Trust += item.buy - item.sell;
+                const n = item.name || '';
+                if (n.includes("外資") || n === 'Foreign_Investor') byDate[item.date].Foreign_Investor += Math.round((item.buy - item.sell) / 1000);
+                if (n.includes("投信") || n === 'Investment_Trust') byDate[item.date].Investment_Trust += Math.round((item.buy - item.sell) / 1000);
             });
             const dates = Object.keys(byDate).sort();
             const last5 = dates.slice(-5);
@@ -707,6 +717,26 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
         }
         
+        // ── 第二軌：籌碼面共振 / 背離修正 ──
+        const instData = institutionalCache[symbol];
+        if (instData) {
+            const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
+            const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL', 'WATCH'].includes(techSignal);
+
+            // 籌碼共振：原訊號偏多 && 外資+投信 近5日各≥3日買超 → 升級強力布局
+            if (isBullishSignal && instData.foreignBuy && instData.trustBuy) {
+                techSignal = 'STRONG_LAYOUT';
+            }
+            // 籌碼背離：原訊號偏多 && 外資連賣 && 融資增幅≥+2% → 降級持續觀察
+            else if (isBullishSignal && instData.foreignSell && marginChangeRatio !== null && marginChangeRatio >= 2) {
+                techSignal = 'WATCH_DIVERGE';
+            }
+            // 主力棄守：原訊號偏弱/中性 && 外資+投信 近5日各≥3日賣超 → 強制建議賣出
+            else if (isWeakOrNeutral && instData.foreignSell && instData.trustSell) {
+                techSignal = 'SELL';
+            }
+        }
+
         const riskAlerts: RiskAlerts = {
             stopLossAlert: false, // 將由下方雙層停損邏輯動態判斷
             conservativeLock: isConsecutiveLossLock
