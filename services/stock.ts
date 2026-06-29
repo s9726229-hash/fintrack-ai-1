@@ -419,9 +419,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
             try {
                 const data = await Promise.any([
-                    fetchWithTimeout(url, 4000),
-                    fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 4000),
-                    fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 5000, true)
+                    fetchWithTimeout(url, 8000),
+                    fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(url)}`, 8000),
+                    fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, 10000, true)
                 ]);
 
                 const result = data?.chart?.result?.[0];
