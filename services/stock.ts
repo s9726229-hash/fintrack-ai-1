@@ -389,7 +389,21 @@ export const checkConsecutiveLossLock = (transactions?: StockTransaction[]): boo
     // 檢查最近 3 筆是否皆為負數
     return sells[0].realizedProfit! < 0 && sells[1].realizedProfit! < 0 && sells[2].realizedProfit! < 0;
 };
-
+// ===== 新增：TWSE 即時現價 =====
+const fetchTWSEPrice = async (symbol: string): Promise<number | null> => {
+    try {
+        for (const prefix of ['tse', 'otc']) {
+            const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${symbol}.tw&json=1&delay=0`;
+            const res = await fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+            const price = res?.msgArray?.[0]?.z;
+            if (price && price !== '-') return parseFloat(price);
+        }
+        return null;
+    } catch {
+        return null;
+    }
+};
+// ===== 新增結束 =====
 export const fetchTechnicalData = async (symbol: string, assets?: Asset[], transactions?: StockTransaction[]): Promise<TechDataResult | null> => {
     try {
         if (!symbol) return null;
@@ -440,7 +454,15 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         if (!rawData?.closes) rawData = await fetchYahoo('.TWO');
         if (!rawData?.closes) rawData = await fetchYahoo('');
 
-        if (!rawData?.closes || !Array.isArray(rawData.closes)) return null;
+        if (!rawData?.closes || !Array.isArray(rawData.closes)) {
+    // Yahoo 完全失敗時，仍嘗試從 TWSE 取得現價回傳基本資料
+    const cleanSymbol = symbol.replace('.TW', '').replace('.TWO', '');
+    const twsePrice = symbol !== '^TWII' ? await fetchTWSEPrice(cleanSymbol) : null;
+    if (twsePrice) {
+        return { currentPrice: twsePrice, ma20: null, ma60: null, bias20: null, bias20List: [], rsi: null, dailyChangeRatio: null, marginRatio: null, signal: null } as any;
+    }
+    return null;
+}
 
         // Clean nulls
         const validData: { close: number, volume: number }[] = [];
@@ -476,7 +498,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             currentMa60 = sum60 / 60;
         }
 
-        const currentPrice = rawData.metaPrice || validData[validData.length - 1].close;
+        const cleanSymbol = symbol.replace('.TW', '').replace('.TWO', '');
+        const twsePrice = symbol !== '^TWII' ? await fetchTWSEPrice(cleanSymbol) : null;
+        const currentPrice = twsePrice || rawData.metaPrice || validData[validData.length - 1].close;
         
         let dailyChangeRatio: number | null = null;
         if (validData.length >= 2) {
