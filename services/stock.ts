@@ -601,6 +601,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         let institutionalTrust: number | null = null;
         let institutionalDealer: number | null = null;
 
+        // 外資/投信（FinMind，Session 快取）— 先抓，供下方 Track 2 和 return 使用
+        const instData = isTAIEX ? null : await fetchInstitutionalData(symbol);
+
         if (!isTAIEX) {
             // 融資（FinMind TaiwanStockMarginPurchaseShortSale）
             const marginResult = await fetchFinMindMargin(symbol);
@@ -608,8 +611,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 marginChangeRatio = ((marginResult.today - marginResult.prev) / marginResult.prev) * 100;
                 marginChange = marginResult.today - marginResult.prev;
             }
-            // 外資/投信（FinMind，現有 Session 快取）
-            const instData = await fetchInstitutionalData(symbol);
             if (instData && instData.last5 && instData.last5.length > 0) {
                 const lastDate = instData.last5[instData.last5.length - 1];
                 const lastDay = instData.byDate[lastDate];
@@ -729,10 +730,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         }
         
         // ── 第二軌：籌碼面共振 / 背離修正 ──
-        const instData = institutionalCache[symbol];
         if (instData) {
             const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
-            const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL', 'WATCH'].includes(techSignal);
+            const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL'].includes(techSignal);
 
             // 籌碼共振：原訊號偏多 && 外資+投信 近5日各≥3日買超 → 升級強力布局
             if (isBullishSignal && instData.foreignBuy && instData.trustBuy) {
@@ -746,6 +746,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             else if (isWeakOrNeutral && instData.foreignSell && instData.trustSell) {
                 techSignal = 'SELL';
             }
+            // FORCE_SELL + 籌碼共振：維持強制停利，但在 signalHint 加提示（見 buildTriggerConditions）
         }
 
         const riskAlerts: RiskAlerts = {
@@ -805,7 +806,13 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: techConds };
                 if (techSignal === 'TREND_ADD') return { target: '', type: 'BUY', conditions: [cond('持倉中', true), cond(biasLabel, true), cond(`MA20↑ ${ma20Slope > 0 ? '✓' : '✗'}`, ma20Slope > 0), cond(rsiLabel, true)] };
                 if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: techSellConds };
-                if (techSignal === 'FORCE_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true)] };
+                if (techSignal === 'FORCE_SELL') {
+                    const forceConds = [cond(biasLabel, true)];
+                    if (instData?.foreignBuy && instData?.trustBuy) {
+                        forceConds.push(cond('⚡ 籌碼共振 可考慮布局', true));
+                    }
+                    return { target: '', type: 'SELL', conditions: forceConds };
+                }
             }
             if (techSignal === 'STRONG_LAYOUT') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(foreignLabel, true), cond(trustLabel, true)] };
             if (techSignal === 'WATCH_DIVERGE') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(foreignLabel, true), cond(marginRatioLabel, true)] };
@@ -888,7 +895,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             signalHint = buildTriggerConditions();
         }
 
-        const instFlags = institutionalCache[symbol];
         return {
             ma20: currentMa20,
             ma60: currentMa60,
@@ -901,14 +907,14 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             institutionalForeign,
             institutionalTrust,
             institutionalDealer,
-            foreignBuy: instFlags?.foreignBuy ?? false,
-            foreignSell: instFlags?.foreignSell ?? false,
-            trustBuy: instFlags?.trustBuy ?? false,
-            trustSell: instFlags?.trustSell ?? false,
-            foreignConsecBuy: instFlags?.foreignConsecBuy ?? 0,
-            foreignConsecSell: instFlags?.foreignConsecSell ?? 0,
-            trustConsecBuy: instFlags?.trustConsecBuy ?? 0,
-            trustConsecSell: instFlags?.trustConsecSell ?? 0,
+            foreignBuy: instData?.foreignBuy ?? false,
+            foreignSell: instData?.foreignSell ?? false,
+            trustBuy: instData?.trustBuy ?? false,
+            trustSell: instData?.trustSell ?? false,
+            foreignConsecBuy: instData?.foreignConsecBuy ?? 0,
+            foreignConsecSell: instData?.foreignConsecSell ?? 0,
+            trustConsecBuy: instData?.trustConsecBuy ?? 0,
+            trustConsecSell: instData?.trustConsecSell ?? 0,
             dailyChangeRatio,
             sizeCategory,
             techSignal,
