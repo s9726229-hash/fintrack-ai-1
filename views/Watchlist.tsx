@@ -309,7 +309,7 @@ export const Watchlist: React.FC = () => {
             biasSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
         } else if (bias20 !== null && bias20 >= partialSellThreshold) {
             biasHighlightClass = 'bg-orange-900/30';
-            biasSubtext = <div className="text-[10px] text-orange-400/80 mt-0.5 leading-tight">達停利門檻 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
+            biasSubtext = <div className="text-[10px] text-orange-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
         }
 
         let slopeHighlightClass = '';
@@ -368,21 +368,25 @@ export const Watchlist: React.FC = () => {
             );
 
             switch (signal) {
-                case 'STRONG_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進 (&lt;={targetBuyPrice})</span>);
-                case 'BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號 (&lt;={targetBuyPrice})</span>);
-                case 'PARTIAL_SELL': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利 (&gt;={targetSellPrice})</span>);
-                case 'FORCE_SELL': return withChips(<span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利 (&gt;={targetSellPrice})</span>);
-                case 'STOP_LOSS': return withChips(<span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示 (&lt;={targetStopPrice})</span>);
-                case 'STOP_LOSS_ALERT': return withChips(<span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>);
-                case 'RISK_ALERT': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>);
-                case 'ADDITIONAL_BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號 (&lt;={targetBuyPrice})</span>);
-                case 'STRONG_ADDITIONAL_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼 (&lt;={targetBuyPrice})</span>);
-                case 'TREND_ADD': return withChips(<span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>);
-                case 'FINAL_ADD': return withChips(<span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>);
-                case 'SECOND_PARTIAL_SELL': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 再次減碼 (&gt;={targetSellPrice})</span>);
+                // ── 進場訊號 ──
+                case 'STRONG_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力進場 (&lt;={targetBuyPrice})</span>);
+                case 'BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 進場訊號 (&lt;={targetBuyPrice})</span>);
+                case 'ADDITIONAL_BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 積極進場 (&lt;={targetBuyPrice})</span>);
+                case 'STRONG_ADDITIONAL_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 超跌布局 (&lt;={targetBuyPrice})</span>);
                 case 'STRONG_LAYOUT': return withChips(<span className="bg-emerald-600/40 text-emerald-300 border border-emerald-400/60 px-2 py-1 rounded text-xs font-bold">🚀 強力布局（籌碼共振）</span>);
-                case 'WATCH_DIVERGE': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 持續觀察（籌碼背離）</span>);
-                case 'SELL': return withChips(<span className="bg-red-600/30 text-red-400 border border-red-500/50 px-2 py-1 rounded text-xs font-bold">🔴 建議賣出（主力棄守）</span>);
+                case 'TREND_ADD': return withChips(<span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢進場</span>);
+                case 'FINAL_ADD': return withChips(<span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後進場</span>);
+                // ── 過熱警示（無持股，勿追高）──
+                case 'PARTIAL_SELL': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 高位過熱 (勿追 &gt;={targetSellPrice})</span>);
+                case 'FORCE_SELL': return withChips(<span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 嚴重過熱 (切勿追高)</span>);
+                case 'SECOND_PARTIAL_SELL': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 極度過熱 (嚴禁進場)</span>);
+                // ── 籌碼警示 ──
+                case 'WATCH_DIVERGE': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 籌碼疑慮 (暫緩進場)</span>);
+                case 'SELL': return withChips(<span className="bg-red-600/30 text-red-400 border border-red-500/50 px-2 py-1 rounded text-xs font-bold">⛔ 法人棄守 (避免進場)</span>);
+                // ── 以下理論上不會出現（需 isHeld）──
+                case 'STOP_LOSS': return withChips(<span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
+                case 'STOP_LOSS_ALERT': return withChips(<span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
+                case 'RISK_ALERT': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意支撐</span>);
                 default:
                     return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
             }

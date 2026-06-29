@@ -522,10 +522,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         if (validData.length < 23) return null;
 
-        // ── 3. MA20 / Bias20 (最近4天，計算斜率用) ──
+        // ── 3. MA20 / Bias20（最近10天，支援連增/連降最多9棒）──
+        const SLOPE_WINDOW = 10;
         const bias20List: number[] = [];
         const ma20List: number[] = [];
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < SLOPE_WINDOW; i++) {
             const targetIdx = validData.length - 1 - i;
             if (targetIdx - 19 < 0) break;
             const slice = validData.slice(targetIdx - 19, targetIdx + 1);
@@ -549,19 +550,20 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         if (validData.length >= 2) {
             dailyChangeRatio = ((validData[validData.length - 1].close - validData[validData.length - 2].close) / validData[validData.length - 2].close) * 100;
         }
-        const currentMa20 = ma20List[3];
+        const lastIdx = ma20List.length - 1;
+        const currentMa20 = ma20List[lastIdx];
         const currentBias20 = ((currentPrice - currentMa20) / currentMa20) * 100;
-        
-        // Ensure the last element of bias20List uses the most accurate currentPrice
-        bias20List[3] = currentBias20;
 
-        // 3. Calculate Bias Slopes (T-0, T-1, T-2)
-        const biasSlopes = [
-            bias20List[3] - bias20List[2], // Today's slope
-            bias20List[2] - bias20List[1], // Yesterday's slope
-            bias20List[1] - bias20List[0]  // Day before yesterday's slope
-        ];
-        const ma20Slope = ma20List[3] - ma20List[2];
+        // Override last element with live-price bias for accuracy
+        bias20List[lastIdx] = currentBias20;
+
+        // Build slope array: index 0 = today (newest), index N = oldest
+        // Length = bias20List.length - 1 (up to 9 with SLOPE_WINDOW=10)
+        const biasSlopes: number[] = [];
+        for (let i = lastIdx; i >= 1; i--) {
+            biasSlopes.push(bias20List[i] - bias20List[i - 1]);
+        }
+        const ma20Slope = ma20List[lastIdx] - ma20List[lastIdx - 1];
 
         // 4. Calculate 14-day RSI
         let avgGain = 0;
@@ -638,7 +640,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         
         const checkSlopeDeteriorated = (days: number) => {
             if (days <= 0) return true;
-            for (let i = 0; i < days; i++) {
+            for (let i = 0; i < Math.min(days, biasSlopes.length); i++) {
                 if (biasSlopes[i] >= 0) return false;
             }
             return true;
