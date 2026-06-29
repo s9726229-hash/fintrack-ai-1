@@ -120,12 +120,12 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     largeCapPartialSellBias: 20,
     largeCapForceSellBias: 25,
     largeCapStopLossBias: -20,
-    largeCapStopLossPnL: -20,
+    largeCapStopLossPnL: -8,
     largeCapRiskAlertBias: -15,
     largeCapBuySlopeDays: 1,
     largeCapStrongBuySlopeDays: 2,
     largeCapPartialSellSlopeDays: 2,
-    largeCapTrendAddCoolDownDays: 3,
+    largeCapTrendAddCoolDownDays: 5,
     
     // 小型股預設
     smallCapBuyBias: -10,
@@ -135,7 +135,7 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     smallCapPartialSellBias: 25,
     smallCapForceSellBias: 30,
     smallCapStopLossBias: -25,
-    smallCapStopLossPnL: -25,
+    smallCapStopLossPnL: -10,
     smallCapRiskAlertBias: -18,
     smallCapBuySlopeDays: 2,
     smallCapStrongBuySlopeDays: 3,
