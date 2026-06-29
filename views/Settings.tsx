@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
 import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS } from '../services/storage';
@@ -6,6 +6,7 @@ import { initGapi, initGis, handleAuthClick, uploadToDrive, downloadFromDrive, g
 import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
 import { ApiKeyStatus, Asset, AssetType } from '../types';
 import { STORAGE_KEYS } from '../constants';
+import { fetchFinMindUsage } from '../services/stock';
 
 interface SettingsProps {
   onDataChange: () => void;
