@@ -198,6 +198,10 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         cleanTechData.foreignSell = techData.foreignSell;
                         cleanTechData.trustBuy = techData.trustBuy;
                         cleanTechData.trustSell = techData.trustSell;
+                        cleanTechData.foreignConsecBuy = techData.foreignConsecBuy;
+                        cleanTechData.foreignConsecSell = techData.foreignConsecSell;
+                        cleanTechData.trustConsecBuy = techData.trustConsecBuy;
+                        cleanTechData.trustConsecSell = techData.trustConsecSell;
                         cleanTechData.signalHint = techData.signalHint ?? undefined;
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
@@ -524,25 +528,39 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             {pos.rsi?.toFixed(1) || '-'}
                             {rsiSubtext}
                         </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.foreignBuy ? 'bg-emerald-900/30' : pos.foreignSell ? 'bg-red-900/30' : ''}`}>
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.foreignConsecBuy && pos.foreignConsecBuy >= 3 ? 'bg-emerald-900/30' : pos.foreignConsecSell && pos.foreignConsecSell >= 3 ? 'bg-red-900/30' : ''}`}>
                             {pos.institutionalForeign !== undefined && pos.institutionalForeign !== null ? (
                                 <div>
                                     <span className={pos.institutionalForeign > 0 ? 'text-red-400' : (pos.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
                                         {pos.institutionalForeign > 0 ? '+' : ''}{pos.institutionalForeign.toLocaleString()}
                                     </span>
-                                    {pos.foreignBuy && <div className="text-[10px] text-emerald-400/80 mt-0.5">連買3日</div>}
-                                    {pos.foreignSell && <div className="text-[10px] text-red-400/80 mt-0.5">連賣3日</div>}
+                                    {pos.foreignConsecBuy && pos.foreignConsecBuy > 0 ? (
+                                        <div className={`text-[10px] mt-0.5 ${pos.foreignConsecBuy >= 3 ? 'text-emerald-400' : 'text-emerald-400/50'}`}>
+                                            連買{pos.foreignConsecBuy}日
+                                        </div>
+                                    ) : pos.foreignConsecSell && pos.foreignConsecSell > 0 ? (
+                                        <div className={`text-[10px] mt-0.5 ${pos.foreignConsecSell >= 3 ? 'text-red-400' : 'text-red-400/50'}`}>
+                                            連賣{pos.foreignConsecSell}日
+                                        </div>
+                                    ) : null}
                                 </div>
                             ) : '-'}
                         </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.trustBuy ? 'bg-emerald-900/30' : pos.trustSell ? 'bg-red-900/30' : ''}`}>
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.trustConsecBuy && pos.trustConsecBuy >= 3 ? 'bg-emerald-900/30' : pos.trustConsecSell && pos.trustConsecSell >= 3 ? 'bg-red-900/30' : ''}`}>
                             {pos.institutionalTrust !== undefined && pos.institutionalTrust !== null ? (
                                 <div>
                                     <span className={pos.institutionalTrust > 0 ? 'text-red-400' : (pos.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
                                         {pos.institutionalTrust > 0 ? '+' : ''}{pos.institutionalTrust.toLocaleString()}
                                     </span>
-                                    {pos.trustBuy && <div className="text-[10px] text-emerald-400/80 mt-0.5">連買3日</div>}
-                                    {pos.trustSell && <div className="text-[10px] text-red-400/80 mt-0.5">連賣3日</div>}
+                                    {pos.trustConsecBuy && pos.trustConsecBuy > 0 ? (
+                                        <div className={`text-[10px] mt-0.5 ${pos.trustConsecBuy >= 3 ? 'text-emerald-400' : 'text-emerald-400/50'}`}>
+                                            連買{pos.trustConsecBuy}日
+                                        </div>
+                                    ) : pos.trustConsecSell && pos.trustConsecSell > 0 ? (
+                                        <div className={`text-[10px] mt-0.5 ${pos.trustConsecSell >= 3 ? 'text-red-400' : 'text-red-400/50'}`}>
+                                            連賣{pos.trustConsecSell}日
+                                        </div>
+                                    ) : null}
                                 </div>
                             ) : '-'}
                         </td>

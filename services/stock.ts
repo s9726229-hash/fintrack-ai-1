@@ -448,23 +448,32 @@ export const fetchInstitutionalData = async (symbol: string) => {
             });
             const dates = Object.keys(byDate).sort();
             const last5 = dates.slice(-5);
-            
-            let foreignBuyDays = 0, trustBuyDays = 0;
-            let foreignSellDays = 0, trustSellDays = 0;
-            
-            last5.forEach(date => {
-                if (byDate[date].Foreign_Investor > 0) foreignBuyDays++;
-                else if (byDate[date].Foreign_Investor < 0) foreignSellDays++;
-                
-                if (byDate[date].Investment_Trust > 0) trustBuyDays++;
-                else if (byDate[date].Investment_Trust < 0) trustSellDays++;
-            });
-            
+
+            // 從最新日往回數連續買超/賣超天數
+            const countConsecutive = (field: 'Foreign_Investor' | 'Investment_Trust', direction: 'buy' | 'sell') => {
+                let count = 0;
+                for (let i = dates.length - 1; i >= 0; i--) {
+                    const val = byDate[dates[i]][field];
+                    if (direction === 'buy' ? val > 0 : val < 0) count++;
+                    else break;
+                }
+                return count;
+            };
+
+            const foreignConsecBuy = countConsecutive('Foreign_Investor', 'buy');
+            const foreignConsecSell = countConsecutive('Foreign_Investor', 'sell');
+            const trustConsecBuy = countConsecutive('Investment_Trust', 'buy');
+            const trustConsecSell = countConsecutive('Investment_Trust', 'sell');
+
             const result = {
-                foreignBuy: foreignBuyDays >= 3,
-                foreignSell: foreignSellDays >= 3,
-                trustBuy: trustBuyDays >= 3,
-                trustSell: trustSellDays >= 3,
+                foreignBuy: foreignConsecBuy >= 3,
+                foreignSell: foreignConsecSell >= 3,
+                trustBuy: trustConsecBuy >= 3,
+                trustSell: trustConsecSell >= 3,
+                foreignConsecBuy,
+                foreignConsecSell,
+                trustConsecBuy,
+                trustConsecSell,
                 last5,
                 byDate
             };
@@ -894,6 +903,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             foreignSell: instFlags?.foreignSell ?? false,
             trustBuy: instFlags?.trustBuy ?? false,
             trustSell: instFlags?.trustSell ?? false,
+            foreignConsecBuy: instFlags?.foreignConsecBuy ?? 0,
+            foreignConsecSell: instFlags?.foreignConsecSell ?? 0,
+            trustConsecBuy: instFlags?.trustConsecBuy ?? 0,
+            trustConsecSell: instFlags?.trustConsecSell ?? 0,
             dailyChangeRatio,
             sizeCategory,
             techSignal,
