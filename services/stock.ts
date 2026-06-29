@@ -767,6 +767,44 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         let signalHint: SignalHint | undefined = undefined;
 
+        // ── 為所有正式燈號建立觸發條件小標籤 ──
+        const buildTriggerConditions = (): SignalHint | undefined => {
+            const cond = (label: string, satisfied: boolean) => ({ label, satisfied });
+            const biasLabel = `乖離 ${currentBias20.toFixed(1)}%`;
+            const rsiLabel = `RSI ${rsi?.toFixed(1) ?? '-'}`;
+            const slopeLabel = `斜率`;
+
+            if (sizeCategory === 'ETF') {
+                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'ADDITIONAL_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true)] };
+                if (techSignal === 'STRONG_ADDITIONAL_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true)] };
+                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'SECOND_PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
+            } else if (sizeCategory === 'LARGE_CAP') {
+                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'TREND_ADD') return { target: '', type: 'BUY', conditions: [cond('持倉', true), cond(biasLabel, true), cond('MA20↑', ma20Slope > 0), cond(rsiLabel, true), cond('冷卻', true)] };
+                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'FORCE_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true)] };
+            } else if (sizeCategory === 'SMALL_CAP') {
+                if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'BUY') return { target: '', type: 'BUY', conditions: [cond(biasLabel, true), cond(rsiLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'TREND_ADD') return { target: '', type: 'BUY', conditions: [cond('持倉', true), cond(biasLabel, true), cond('MA20↑', ma20Slope > 0), cond(rsiLabel, true), cond('冷卻', true)] };
+                if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond(slopeLabel, true)] };
+                if (techSignal === 'FORCE_SELL') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true)] };
+            }
+            if (techSignal === 'STRONG_LAYOUT') return { target: '', type: 'BUY', conditions: [cond('技術面', true), cond('外資買', true), cond('投信買', true)] };
+            if (techSignal === 'WATCH_DIVERGE') return { target: '', type: 'SELL', conditions: [cond('技術面', true), cond('外資賣', true), cond('融資↑', true)] };
+            if (techSignal === 'SELL') return { target: '', type: 'SELL', conditions: [cond('外資賣', true), cond('投信賣', true)] };
+            if (techSignal === 'STOP_LOSS_ALERT') {
+                const byPnL = isHeld && heldAsset?.avgCost ? ((currentPrice - heldAsset.avgCost) / heldAsset.avgCost * 100) <= (sizeCategory === 'LARGE_CAP' ? params.largeCapStopLossPnL : params.smallCapStopLossPnL) : false;
+                return { target: '', type: 'SELL', conditions: byPnL ? [cond('損益停損', true)] : [cond('乖離停損', true)] };
+            }
+            if (techSignal === 'RISK_ALERT') return { target: '', type: 'SELL', conditions: [cond(biasLabel, true), cond('預警區', true)] };
+            return undefined;
+        };
+
         if (techSignal === 'NONE' || techSignal === 'RISK_ALERT') {
             const analyzeBrewing = (
                 buyBias: number, strongBuyBias: number, 
@@ -819,6 +857,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             } else if (sizeCategory === 'SMALL_CAP') {
                  signalHint = analyzeBrewing(params.smallCapBuyBias, params.smallCapStrongBuyBias, params.smallCapBuyRsi, params.smallCapStrongBuyRsi, params.smallCapBuySlopeDays, params.smallCapStrongBuySlopeDays, params.smallCapPartialSellBias, params.smallCapPartialSellSlopeDays);
             }
+        }
+
+        // 正式燈號補上觸發條件
+        if (!signalHint && techSignal !== 'NONE') {
+            signalHint = buildTriggerConditions();
         }
 
         return {
