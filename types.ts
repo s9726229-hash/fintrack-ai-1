@@ -87,6 +87,7 @@ export interface Asset {
   trustConsecSell?: number;   // 投信連續賣超天數
   marketRegime?: MarketRegime;
   signalHint?: SignalHint;
+  chipHint?: SignalHint;
   sizeCategory?: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
   dailyChangeRatio?: number | null;
   dailyChange?: number | null;
@@ -213,6 +214,7 @@ export interface TechDataResult {
     marketRegime?: MarketRegime;
     riskAlerts?: RiskAlerts;
     signalHint?: SignalHint;
+    chipHint?: SignalHint;
 }
 
 export interface Transaction {

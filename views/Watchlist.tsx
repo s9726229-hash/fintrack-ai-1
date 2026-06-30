@@ -374,24 +374,34 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         };
 
         const renderSignalBadge = (signal: string) => {
-            // 醞釀訊號：NONE / RISK_ALERT 時顯示 target + conditions
-            const isBrewingSignal = (signal === 'NONE' || signal === 'RISK_ALERT') && data.signalHint?.target;
-            if (isBrewingSignal) {
-                const hint = data.signalHint!;
-                const target = hint.target;
-                const style = hint.type === 'BUY'
-                    ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
-                    : target.includes('法人')
-                        ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
-                        : target.includes('籌碼')
-                            ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
-                            : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
+            const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
+            if (isBrewingState && (data.signalHint || data.chipHint)) {
+                const renderHintBlock = (hint: typeof data.signalHint, sectionLabel: string) => {
+                    if (!hint) return null;
+                    const target = hint.target;
+                    const badgeStyle = hint.type === 'BUY'
+                        ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                        : target.includes('法人')
+                            ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
+                            : target.includes('籌碼')
+                                ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
+                                : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
+                    return (
+                        <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-[9px] text-slate-500 font-medium">{sectionLabel}</span>
+                            {target && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>
+                                    {target}
+                                </span>
+                            )}
+                            {renderConditionChips(hint)}
+                        </div>
+                    );
+                };
                 return (
-                    <div className="flex flex-col items-center gap-1 mt-1">
-                        <span className={`px-2 py-1 rounded text-xs font-bold border ${style}`}>
-                            {target}
-                        </span>
-                        {renderConditionChips(hint)}
+                    <div className="flex flex-col items-center gap-2 mt-1">
+                        {renderHintBlock(data.signalHint, '技術面')}
+                        {renderHintBlock(data.chipHint, '籌碼面')}
                     </div>
                 );
             }
