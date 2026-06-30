@@ -28,6 +28,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
     const [techDataMap, setTechDataMap] = useState<Record<string, any>>(globalTechDataCache);
     const [lastUpdated, setLastUpdated] = useState<number | null>(globalLastUpdatedCache);
     const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null);
+    const [taiexInfo, setTaiexInfo] = useState<{ lastClose: number, dailyChange: number, changeAmount: number } | null>(null);
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [autoUpdateEnabled, setAutoUpdateEnabledState] = useState(getAutoTechUpdateEnabled());
     const [flashState, setFlashState] = useState<Record<string, string>>({});
@@ -71,6 +72,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const mRegimeData = await fetchMarketRegime();
         const regime = mRegimeData.regime;
         setMarketRegime(regime);
+        setTaiexInfo({ lastClose: mRegimeData.lastClose, dailyChange: mRegimeData.dailyChange, changeAmount: mRegimeData.changeAmount });
 
         // 確保上市/上櫃分類表已就緒，避免掃描第一批時表還沒載完導致前綴猜錯（被 TWSE 限流回 520）
         await loadStockInfoMap();
@@ -296,10 +298,18 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const bias20 = data.ma20 && data.currentPrice ? ((data.currentPrice - data.ma20) / data.ma20) * 100 : null;
         
         let consecutivePositiveSlopes = 0;
+        let consecutiveNegativeSlopes = 0;
         if (data.biasSlopes) {
             for (let i = 0; i < data.biasSlopes.length; i++) {
                 if (data.biasSlopes[i] !== undefined && data.biasSlopes[i] > 0) {
                     consecutivePositiveSlopes++;
+                } else {
+                    break;
+                }
+            }
+            for (let i = 0; i < data.biasSlopes.length; i++) {
+                if (data.biasSlopes[i] !== undefined && data.biasSlopes[i] < 0) {
+                    consecutiveNegativeSlopes++;
                 } else {
                     break;
                 }
@@ -310,19 +320,22 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         let rsiThreshold = techParams.largeCapBuyRsi;
         let slopeDaysThreshold = techParams.largeCapBuySlopeDays;
         let partialSellThreshold = techParams.largeCapPartialSellBias;
+        let partialSellSlopeDaysThreshold = techParams.largeCapPartialSellSlopeDays;
         let stopLossThreshold = techParams.largeCapStopLossBias;
-        
+
         if (data.sizeCategory === 'ETF') {
             buyBiasThreshold = techParams.etfBuyBias;
             rsiThreshold = techParams.etfBuyRsi;
             slopeDaysThreshold = techParams.etfBuySlopeDays;
             partialSellThreshold = techParams.etfPartialSellBias;
+            partialSellSlopeDaysThreshold = techParams.etfPartialSellSlopeDays;
             stopLossThreshold = -999;
         } else if (data.sizeCategory === 'SMALL_CAP') {
             buyBiasThreshold = techParams.smallCapBuyBias;
             rsiThreshold = techParams.smallCapBuyRsi;
             slopeDaysThreshold = techParams.smallCapBuySlopeDays;
             partialSellThreshold = techParams.smallCapPartialSellBias;
+            partialSellSlopeDaysThreshold = techParams.smallCapPartialSellSlopeDays;
             stopLossThreshold = techParams.smallCapStopLossBias;
         }
 
@@ -335,8 +348,8 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             biasHighlightClass = 'bg-emerald-900/30';
             biasSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
         } else if (bias20 !== null && bias20 >= partialSellThreshold) {
-            biasHighlightClass = 'bg-orange-900/30';
-            biasSubtext = <div className="text-[10px] text-orange-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
+            biasHighlightClass = 'bg-rose-900/30';
+            biasSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
         }
 
         let slopeHighlightClass = '';
@@ -344,6 +357,9 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         if (consecutivePositiveSlopes >= slopeDaysThreshold) {
             slopeHighlightClass = 'bg-emerald-900/30';
             slopeSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(連{slopeDaysThreshold}增)</span></div>;
+        } else if (consecutiveNegativeSlopes >= partialSellSlopeDaysThreshold) {
+            slopeHighlightClass = 'bg-rose-900/30';
+            slopeSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(連{partialSellSlopeDaysThreshold}跌)</span></div>;
         }
 
         let rsiHighlightClass = '';
@@ -438,6 +454,15 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const techBadge = renderTechBadge(data.techSignal || '');
         const chipBadge = renderChipBadge(data.techSignal || '');
 
+        const sig = data.techSignal || '';
+        const techTdBg = sig === 'STOP_LOSS_ALERT' ? 'bg-rose-500/10'
+            : sig === 'FORCE_SELL' ? 'bg-red-500/10'
+            : sig === 'PARTIAL_SELL' || sig === 'SECOND_PARTIAL_SELL' ? 'bg-amber-500/10'
+            : sig === 'RISK_ALERT' ? 'bg-orange-500/10'
+            : sig === 'STRONG_BUY' || sig === 'BUY' ? 'bg-emerald-500/10'
+            : sig === 'TREND_ADD' || sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
+            : '';
+
         const currentSlope = data.biasSlopes && data.biasSlopes[0] !== undefined ? data.biasSlopes[0] : null;
         const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
 
@@ -485,7 +510,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     {data.rsi?.toFixed(1) || '-'}
                     {rsiSubtext}
                 </td>
-                <td className={`p-3 text-right font-mono transition-colors ${data.foreignConsecBuy >= 3 ? 'bg-emerald-900/30' : data.foreignConsecSell >= 3 ? 'bg-red-900/30' : ''}`}>
+                <td className={`p-3 text-right font-mono transition-colors ${data.foreignConsecBuy >= 3 ? 'bg-emerald-900/30' : data.foreignConsecSell >= 3 ? 'bg-rose-900/30' : ''}`}>
                     {data.institutionalForeign !== undefined && data.institutionalForeign !== null ? (
                         <div>
                             <span className={data.institutionalForeign > 0 ? 'text-red-400' : (data.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -499,7 +524,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                         </div>
                     ) : '-'}
                 </td>
-                <td className={`p-3 text-right font-mono transition-colors ${data.trustConsecBuy >= 3 ? 'bg-emerald-900/30' : data.trustConsecSell >= 3 ? 'bg-red-900/30' : ''}`}>
+                <td className={`p-3 text-right font-mono transition-colors ${data.trustConsecBuy >= 3 ? 'bg-emerald-900/30' : data.trustConsecSell >= 3 ? 'bg-rose-900/30' : ''}`}>
                     {data.institutionalTrust !== undefined && data.institutionalTrust !== null ? (
                         <div>
                             <span className={data.institutionalTrust > 0 ? 'text-red-400' : (data.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -513,7 +538,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                         </div>
                     ) : '-'}
                 </td>
-                <td className={`p-3 text-right font-mono transition-colors ${data.marginChangeRatio !== null && data.marginChangeRatio !== undefined && data.marginChangeRatio >= 2 ? 'bg-amber-900/30' : ''}`}>
+                <td className={`p-3 text-right font-mono transition-colors ${data.marginChangeRatio !== null && data.marginChangeRatio !== undefined && data.marginChangeRatio >= 2 ? 'bg-rose-900/30' : data.marginChange !== null && data.marginChange !== undefined && data.marginChange < 0 ? 'bg-emerald-900/30' : ''}`}>
                     {data.marginChange !== undefined && data.marginChange !== null ? (
                         <div>
                             <span className={data.marginChange > 0 ? 'text-red-400' : (data.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -529,7 +554,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     ) : '-'}
                 </td>
 
-                <td className="p-3 text-center">{techBadge}</td>
+                <td className={`p-3 text-center ${techTdBg}`}>{techBadge}</td>
                 <td className="p-3 text-center">{chipBadge}</td>
                 <td className="p-3 text-center">
                     <button onClick={() => handleDeleteSymbol(symbol)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
@@ -549,6 +574,14 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                             <Eye className="text-sky-400" /> 選股掃描與觀察名單
                         </h2>
                         <MarketRegimeBadge regime={marketRegime} />
+                        {taiexInfo && taiexInfo.lastClose > 0 && (
+                            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
+                                加權指數 <span className="text-slate-200 font-bold">{taiexInfo.lastClose.toFixed(2)}</span>
+                                <span className={taiexInfo.changeAmount > 0 ? 'text-red-400' : taiexInfo.changeAmount < 0 ? 'text-emerald-400' : 'text-slate-400'}>
+                                    {taiexInfo.changeAmount > 0 ? '▲' : taiexInfo.changeAmount < 0 ? '▼' : ''} {Math.abs(taiexInfo.changeAmount).toFixed(2)} ({taiexInfo.dailyChange > 0 ? '+' : ''}{taiexInfo.dailyChange.toFixed(2)}%)
+                                </span>
+                            </span>
+                        )}
                     </div>
                     <p className="text-slate-400 text-sm mt-1">建立自訂分頁，利用雙引擎自動分析標的強弱勢與買賣點</p>
                 </div>

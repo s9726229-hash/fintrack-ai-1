@@ -69,9 +69,13 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [isUpdatingBias, setIsUpdatingBias] = useState(false);
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
+    const [taiexInfo, setTaiexInfo] = useState<{ lastClose: number, dailyChange: number, changeAmount: number } | null>(null);
 
     React.useEffect(() => {
-        fetchMarketRegime().then(r => setMarketRegime(r.regime));
+        fetchMarketRegime().then(r => {
+            setMarketRegime(r.regime);
+            setTaiexInfo({ lastClose: r.lastClose, dailyChange: r.dailyChange, changeAmount: r.changeAmount });
+        });
     }, []);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -174,7 +178,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
             Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
 
         // Pre-warm market regime cache before parallel execution to prevent duplicate TWII requests
-        await fetchMarketRegime(true);
+        const refreshedRegime = await fetchMarketRegime(true);
+        setMarketRegime(refreshedRegime.regime);
+        setTaiexInfo({ lastClose: refreshedRegime.lastClose, dailyChange: refreshedRegime.dailyChange, changeAmount: refreshedRegime.changeAmount });
         const chunks = chunkArray(validStocks, 15);
         for (const chunk of chunks) {
             await Promise.all(chunk.map(async (stock) => {
@@ -278,6 +284,14 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
                         <MarketRegimeBadge regime={marketRegime} />
+                        {taiexInfo && taiexInfo.lastClose > 0 && (
+                            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
+                                加權指數 <span className="text-slate-200 font-bold">{taiexInfo.lastClose.toFixed(2)}</span>
+                                <span className={taiexInfo.changeAmount > 0 ? 'text-red-400' : taiexInfo.changeAmount < 0 ? 'text-emerald-400' : 'text-slate-400'}>
+                                    {taiexInfo.changeAmount > 0 ? '▲' : taiexInfo.changeAmount < 0 ? '▼' : ''} {Math.abs(taiexInfo.changeAmount).toFixed(2)} ({taiexInfo.dailyChange > 0 ? '+' : ''}{taiexInfo.dailyChange.toFixed(2)}%)
+                                </span>
+                            </span>
+                        )}
                     </div>
                     <p className="text-xs text-slate-400 mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
@@ -388,10 +402,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     const bias20 = pos.ma20 && pos.currentPrice ? ((pos.currentPrice - pos.ma20) / pos.ma20) * 100 : null;
                     
                     let consecutivePositiveSlopes = 0;
+                    let consecutiveNegativeSlopes = 0;
                     if (pos.biasSlopes) {
                         for (let i = 0; i < pos.biasSlopes.length; i++) {
                             if (pos.biasSlopes[i] !== undefined && pos.biasSlopes[i] > 0) {
                                 consecutivePositiveSlopes++;
+                            } else {
+                                break;
+                            }
+                        }
+                        for (let i = 0; i < pos.biasSlopes.length; i++) {
+                            if (pos.biasSlopes[i] !== undefined && pos.biasSlopes[i] < 0) {
+                                consecutiveNegativeSlopes++;
                             } else {
                                 break;
                             }
@@ -402,19 +424,22 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     let rsiThreshold = techParams.largeCapBuyRsi;
                     let slopeDaysThreshold = techParams.largeCapBuySlopeDays;
                     let partialSellThreshold = techParams.largeCapPartialSellBias;
+                    let partialSellSlopeDaysThreshold = techParams.largeCapPartialSellSlopeDays;
                     let stopLossThreshold = techParams.largeCapStopLossBias;
-                    
+
                     if (pos.sizeCategory === 'ETF') {
                         buyBiasThreshold = techParams.etfBuyBias;
                         rsiThreshold = techParams.etfBuyRsi;
                         slopeDaysThreshold = techParams.etfBuySlopeDays;
                         partialSellThreshold = techParams.etfPartialSellBias;
+                        partialSellSlopeDaysThreshold = techParams.etfPartialSellSlopeDays;
                         stopLossThreshold = -999;
                     } else if (pos.sizeCategory === 'SMALL_CAP') {
                         buyBiasThreshold = techParams.smallCapBuyBias;
                         rsiThreshold = techParams.smallCapBuyRsi;
                         slopeDaysThreshold = techParams.smallCapBuySlopeDays;
                         partialSellThreshold = techParams.smallCapPartialSellBias;
+                        partialSellSlopeDaysThreshold = techParams.smallCapPartialSellSlopeDays;
                         stopLossThreshold = techParams.smallCapStopLossBias;
                     }
 
@@ -430,8 +455,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         biasHighlightClass = 'bg-emerald-900/30';
                         biasSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
                     } else if (bias20 !== null && bias20 >= partialSellThreshold) {
-                        biasHighlightClass = 'bg-orange-900/30';
-                        biasSubtext = <div className="text-[10px] text-orange-400/80 mt-0.5 leading-tight">達停利門檻 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
+                        biasHighlightClass = 'bg-rose-900/30';
+                        biasSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">達停利門檻 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
                     }
 
                     let slopeHighlightClass = '';
@@ -439,6 +464,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     if (consecutivePositiveSlopes >= slopeDaysThreshold) {
                         slopeHighlightClass = 'bg-emerald-900/30';
                         slopeSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(連{slopeDaysThreshold}增)</span></div>;
+                    } else if (consecutiveNegativeSlopes >= partialSellSlopeDaysThreshold) {
+                        slopeHighlightClass = 'bg-rose-900/30';
+                        slopeSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(連{partialSellSlopeDaysThreshold}跌)</span></div>;
                     }
 
                     let rsiHighlightClass = '';
@@ -532,7 +560,15 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
                     const techBadge = renderTechBadge(pos.techSignal || '');
                     const chipBadge = renderChipBadge(pos.techSignal || '');
-                    
+
+                    const sig = pos.techSignal || '';
+                    const techTdBg = sig === 'STOP_LOSS_ALERT' ? 'bg-rose-500/10'
+                        : sig === 'FORCE_SELL' ? 'bg-red-500/10'
+                        : sig === 'PARTIAL_SELL' || sig === 'SECOND_PARTIAL_SELL' ? 'bg-amber-500/10'
+                        : sig === 'RISK_ALERT' ? 'bg-orange-500/10'
+                        : sig === 'STRONG_BUY' || sig === 'BUY' ? 'bg-emerald-500/10'
+                        : sig === 'TREND_ADD' || sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
+                        : '';
                     const currentSlope = pos.biasSlopes && pos.biasSlopes[0] !== undefined ? pos.biasSlopes[0] : null;
                     const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
 
@@ -579,7 +615,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             {pos.rsi?.toFixed(1) || '-'}
                             {rsiSubtext}
                         </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.foreignConsecBuy && pos.foreignConsecBuy >= 3 ? 'bg-emerald-900/30' : pos.foreignConsecSell && pos.foreignConsecSell >= 3 ? 'bg-red-900/30' : ''}`}>
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.foreignConsecBuy && pos.foreignConsecBuy >= 3 ? 'bg-emerald-900/30' : pos.foreignConsecSell && pos.foreignConsecSell >= 3 ? 'bg-rose-900/30' : ''}`}>
                             {pos.institutionalForeign !== undefined && pos.institutionalForeign !== null ? (
                                 <div>
                                     <span className={pos.institutionalForeign > 0 ? 'text-red-400' : (pos.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -597,7 +633,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 </div>
                             ) : '-'}
                         </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.trustConsecBuy && pos.trustConsecBuy >= 3 ? 'bg-emerald-900/30' : pos.trustConsecSell && pos.trustConsecSell >= 3 ? 'bg-red-900/30' : ''}`}>
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.trustConsecBuy && pos.trustConsecBuy >= 3 ? 'bg-emerald-900/30' : pos.trustConsecSell && pos.trustConsecSell >= 3 ? 'bg-rose-900/30' : ''}`}>
                             {pos.institutionalTrust !== undefined && pos.institutionalTrust !== null ? (
                                 <div>
                                     <span className={pos.institutionalTrust > 0 ? 'text-red-400' : (pos.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -615,7 +651,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 </div>
                             ) : '-'}
                         </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio >= 2 ? 'bg-amber-900/30' : ''}`}>
+                        <td className={`p-3 text-right font-mono transition-colors ${pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio >= 2 ? 'bg-rose-900/30' : pos.marginChange !== null && pos.marginChange !== undefined && pos.marginChange < 0 ? 'bg-emerald-900/30' : ''}`}>
                             {pos.marginChange !== undefined && pos.marginChange !== null ? (
                                 <div>
                                     <span className={pos.marginChange > 0 ? 'text-red-400' : (pos.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -631,7 +667,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             ) : '-'}
                         </td>
 
-                        <td className="p-3 text-center">{techBadge}</td>
+                        <td className={`p-3 text-center ${techTdBg}`}>{techBadge}</td>
                         <td className="p-3 text-center">{chipBadge}</td>
                     </tr>);
                 };

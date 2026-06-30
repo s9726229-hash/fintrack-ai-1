@@ -25,71 +25,44 @@ export const TechDocs: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
                     {/* 買進類 */}
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-emerald-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400">🚀 強力布局</span>
-                            <span className="text-[10px] text-slate-500">技術面 × 籌碼共振</span>
-                        </div>
-                        <p className="text-[11px] text-emerald-400/80 font-mono mb-1">Bias20 ≤ 強買門檻 &amp;&amp; RSI達標 &amp;&amp; 斜率↑ &amp;&amp; 外資+投信同買</p>
-                        <p className="text-xs text-slate-400">乖離深、斜率反轉、法人雙向共振。系統最高優先度的做多訊號。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-emerald-500/30">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400">🚀 強力布局</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">Bias≤強買門檻＋RSI＋斜率↑＋外資投信同買，最高優先做多訊號。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-emerald-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400">🟢 適合布局</span>
-                        </div>
-                        <p className="text-[11px] text-emerald-400/80 font-mono mb-1">Bias20 ≤ 買進門檻 &amp;&amp; BiasSlope↑ &amp;&amp; RSI&lt;門檻</p>
-                        <p className="text-xs text-slate-400">乖離率跌深且斜率反轉向上，滿足技術面基礎布局條件。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-emerald-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400">🟢 適合布局</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">Bias≤買進門檻＋斜率反轉＋RSI達標，技術面基礎布局條件成立。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-cyan-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-400">🔵 適合加碼</span>
-                        </div>
-                        <p className="text-[11px] text-cyan-400/80 font-mono mb-1">持倉中 &amp;&amp; MA20↑ &amp;&amp; Bias收斂 &amp;&amp; RSI 40~65 &amp;&amp; 冷卻期滿</p>
-                        <p className="text-xs text-slate-400">大盤平穩、均線走揚、乖離收斂，順勢右側加碼點。ETF 則採左側攤平（不受大盤限制）。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-cyan-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-400">🔵 適合加碼</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">持倉中＋大盤平穩＋均線走揚＋乖離收斂的順勢右側加碼點（ETF 為不限大盤的左側攤平）。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-violet-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-violet-500/20 text-violet-400">🟣 醞釀中</span>
-                            <span className="text-[10px] text-slate-500">尚未完全觸發</span>
-                        </div>
-                        <p className="text-[11px] text-violet-400/80 font-mono mb-1">乖離達門檻，但 RSI 或斜率條件未完全滿足</p>
-                        <p className="text-xs text-slate-400">「醞釀強買」/ 「醞釀買進」/ 「醞釀停利」。條件標籤顯示哪些達標（綠）哪些未達（灰）。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-violet-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-violet-500/20 text-violet-400">🟣 醞釀中</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">乖離 / RSI / 斜率任一項已達門檻（不需乖離優先），條件小標逐項標示已達標（綠）／未達（灰）。持股顯示「醞釀停利」、未持股顯示「高位勿追」。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-amber-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400">🟡 分批停利</span>
-                        </div>
-                        <p className="text-[11px] text-amber-400/80 font-mono mb-1">Bias20 ≥ 停利門檻 &amp;&amp; 斜率連降</p>
-                        <p className="text-xs text-slate-400">短線正乖離過大且動能衰退，建議分批獲利了結部分部位。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-amber-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400">🟡 分批停利</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">Bias≥停利門檻且斜率連降，正乖離過大、動能衰退，建議分批獲利。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-orange-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-500/20 text-orange-400">🟠 持續觀察</span>
-                            <span className="text-[10px] text-slate-500">籌碼背離降級</span>
-                        </div>
-                        <p className="text-[11px] text-orange-400/80 font-mono mb-1">原訊號偏多，但外資連賣 &amp;&amp; 融資大增≥+2%</p>
-                        <p className="text-xs text-slate-400">技術面看多，但法人出、散戶接盤，籌碼背離，降級保守觀察。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-orange-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-500/20 text-orange-400">🟠 持續觀察</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">原訊號偏多但外資連賣＋融資大增≥+2%，籌碼背離降級觀察。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-red-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400">🔴 強制停利 / 建議賣出</span>
-                        </div>
-                        <p className="text-[11px] text-red-400/80 font-mono mb-1">Bias20 ≥ 強制門檻 或 主力棄守（外資+投信同步連賣）</p>
-                        <p className="text-xs text-slate-400">股價極端狂飆，或法人籌碼全面棄守，建議清倉出局。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-red-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400">🔴 強制停利 / 建議賣出</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">Bias≥強制門檻或法人雙向棄守，建議清倉出局。</p>
                     </div>
 
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-rose-700/50">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-700 text-white">⚠️ 停損預警 / 風險預警</span>
-                        </div>
-                        <p className="text-[11px] text-rose-400/80 font-mono mb-1">未實現損益 ≤ 停損門檻（大型-8% / 小型-10%）或 Bias20 ≤ 破底門檻</p>
-                        <p className="text-xs text-slate-400"><b>三層防護（ETF免除）：</b>① 損益停損 → ② 乖離破底 → ③ 乖離進入預警區（提示但不強制）。</p>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-rose-700/50">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-700 text-white">⚠️ 停損預警 / 風險預警</span>
+                        <p className="text-[11px] text-slate-400 mt-1.5">三層防護（ETF免除）：損益停損→乖離破底→乖離預警區（提示不強制）。</p>
                     </div>
                 </div>
             </div>
@@ -105,7 +78,7 @@ export const TechDocs: React.FC = () => {
                         { step: '2', color: 'amber', title: '第一軌 技術面', desc: '依資產類別比對乖離率 / 斜率 / RSI，產生基礎燈號' },
                         { step: '3', color: 'sky', title: '第二軌 籌碼面', desc: 'FinMind API：外資投信近5日買賣超 + 融資增減幅' },
                         { step: '4', color: 'indigo', title: '共振 / 背離修正', desc: '法人共振→升級；外資賣+融資大增→降級觀察' },
-                        { step: '5', color: 'violet', title: '醞釀訊號分析', desc: 'NONE/RISK_ALERT 時顯示條件缺口標籤' },
+                        { step: '5', color: 'violet', title: '醞釀訊號分析', desc: '無訊號時，乖離/RSI/斜率任一項達標即提示醞釀方向' },
                         { step: '6', color: 'rose', title: '最終決策（人類）', desc: '系統輔助，買賣操作仍由使用者自行判斷' },
                     ].map(({ step, color, title, desc }) => (
                         <div key={step} className={`flex-1 bg-slate-900/50 p-3 rounded-xl border border-${color}-500/20 flex flex-col gap-1`}>
@@ -210,19 +183,19 @@ export const TechDocs: React.FC = () => {
                 <h3 className="text-lg font-bold text-slate-200 mb-3 flex items-center gap-2">
                     <Lightbulb className="text-violet-400" /> 醞釀訊號（SignalHint）：觀望期間的條件追蹤
                 </h3>
-                <p className="text-xs text-slate-400 mb-4">當燈號為「中性 (NONE)」或「風險預警」時，系統自動分析距各門檻的距離，並顯示條件達標標籤（綠色 = 達標 / 灰色 = 未達）。</p>
+                <p className="text-xs text-slate-400 mb-3">燈號為「中性」或「風險預警」時，乖離 / RSI / 斜率任一項先達標即提示醞釀方向（不需乖離優先達標），條件小標逐項標示達標(綠)／未達(灰)，左側對應欄位同步亮底色，方便互相對照。</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-emerald-500/20">
-                        <div className="text-emerald-400 font-bold text-sm mb-1">🟢 醞釀強買</div>
-                        <p className="text-xs text-slate-400">乖離已達強買門檻，等待 RSI 超賣或斜率確認中。</p>
-                    </div>
-                    <div className="bg-slate-900/50 p-3 rounded-xl border border-emerald-500/20">
-                        <div className="text-emerald-400 font-bold text-sm mb-1">🟢 醞釀買進</div>
-                        <p className="text-xs text-slate-400">乖離達普通買進門檻，尚缺 RSI 或斜率條件。</p>
+                        <div className="text-emerald-400 font-bold text-sm mb-1">🟢 醞釀強買 / 醞釀買進</div>
+                        <p className="text-xs text-slate-400">乖離 / RSI / 斜率任一達標，依乖離深度自動分強買或一般買進等級。</p>
                     </div>
                     <div className="bg-slate-900/50 p-3 rounded-xl border border-amber-500/20">
-                        <div className="text-amber-400 font-bold text-sm mb-1">🟡 醞釀停利</div>
-                        <p className="text-xs text-slate-400">正乖離進入停利觀察區，等待斜率連降確認轉弱。</p>
+                        <div className="text-amber-400 font-bold text-sm mb-1">🟡 醞釀停利（持股）</div>
+                        <p className="text-xs text-slate-400">有持股時，乖離或斜率任一達停利門檻即提示。</p>
+                    </div>
+                    <div className="bg-slate-900/50 p-3 rounded-xl border border-amber-500/20">
+                        <div className="text-amber-400 font-bold text-sm mb-1">🟡 高位勿追（無持股）</div>
+                        <p className="text-xs text-slate-400">選股掃描無持股情境下的同一邏輯，語意改為提醒勿追高。</p>
                     </div>
                 </div>
             </div>
@@ -232,7 +205,7 @@ export const TechDocs: React.FC = () => {
                 <h3 className="text-lg font-bold text-slate-200 mb-3 flex items-center gap-2">
                     <TrendingUp className="text-purple-400" /> 第二軌：籌碼面輔助確認邏輯
                 </h3>
-                <p className="text-xs text-slate-400 mb-4">資料來源：FinMind API（需 Token，每小時300次）。追蹤近 5 個交易日外資與投信買賣超（連續 3 日以上才視為表態），以及當日融資增減幅 (%)。</p>
+                <p className="text-xs text-slate-400 mb-4">資料來源：FinMind API。追蹤外資/投信連續買賣超天數（≥3日視為表態）與當日融資增減幅。</p>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-slate-900/50 text-slate-400 text-xs">
@@ -286,7 +259,7 @@ export const TechDocs: React.FC = () => {
                 <h3 className="text-lg font-bold text-slate-200 mb-3 flex items-center gap-2">
                     <Zap className="text-amber-400" /> 選股掃描燈號（無持倉語意）
                 </h3>
-                <p className="text-xs text-slate-400 mb-4">選股掃描以「無持倉」計算，停利類燈號語意轉換為「過熱勿追」，門檻與設定頁停利參數共用。</p>
+                <p className="text-xs text-slate-400 mb-4">無持倉情境，停利類燈號語意轉為「過熱勿追」，門檻與設定頁停利參數共用。</p>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-slate-900/50 text-slate-400 text-xs">
@@ -302,8 +275,8 @@ export const TechDocs: React.FC = () => {
                                 <td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 高位勿追</span><br/><span className="text-slate-500 text-[10px]">醞釀過熱</span></td>
                                 <td className="p-2 border border-slate-700">Bias20 ≥ 停利門檻<br/><b className="text-white">但</b> 斜率尚未連降（動能未止）</td>
                                 <td className="p-2 border border-slate-700 font-mono text-[10px]">
-                                    TSE ≥ +{p.largeCapPartialSellBias}%<br/>
-                                    OTC ≥ +{p.smallCapPartialSellBias}%<br/>
+                                    上市 ≥ +{p.largeCapPartialSellBias}%<br/>
+                                    上櫃 ≥ +{p.smallCapPartialSellBias}%<br/>
                                     ETF ≥ +{p.etfPartialSellBias}%
                                 </td>
                                 <td className="p-2 border border-slate-700 text-slate-400">不受籌碼覆寫影響</td>
@@ -312,8 +285,8 @@ export const TechDocs: React.FC = () => {
                                 <td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 高位過熱</span><br/><span className="text-slate-500 text-[10px]">過熱確認</span></td>
                                 <td className="p-2 border border-slate-700">Bias20 ≥ 停利門檻<br/><b className="text-white">且</b> 斜率連降 N 天（動能衰退）</td>
                                 <td className="p-2 border border-slate-700 font-mono text-[10px]">
-                                    TSE ≥ +{p.largeCapPartialSellBias}% + 連降{p.largeCapPartialSellSlopeDays}天<br/>
-                                    OTC ≥ +{p.smallCapPartialSellBias}% + 連降{p.smallCapPartialSellSlopeDays}天<br/>
+                                    上市 ≥ +{p.largeCapPartialSellBias}% + 連降{p.largeCapPartialSellSlopeDays}天<br/>
+                                    上櫃 ≥ +{p.smallCapPartialSellBias}% + 連降{p.smallCapPartialSellSlopeDays}天<br/>
                                     ETF ≥ +{p.etfPartialSellBias}% + 連降{p.etfPartialSellSlopeDays}天
                                 </td>
                                 <td className="p-2 border border-slate-700 text-slate-400">不受籌碼覆寫影響</td>
@@ -328,8 +301,8 @@ export const TechDocs: React.FC = () => {
                                 <td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">🔴 嚴重過熱</span><br/><span className="text-slate-500 text-[10px]">切勿追高</span></td>
                                 <td className="p-2 border border-slate-700">Bias20 ≥ 強制停利門檻（無需斜率）</td>
                                 <td className="p-2 border border-slate-700 font-mono text-[10px]">
-                                    TSE ≥ +{p.largeCapForceSellBias}%<br/>
-                                    OTC ≥ +{p.smallCapForceSellBias}%
+                                    上市 ≥ +{p.largeCapForceSellBias}%<br/>
+                                    上櫃 ≥ +{p.smallCapForceSellBias}%
                                 </td>
                                 <td className="p-2 border border-slate-700">外資投信同步連買時附註<br/><span className="text-emerald-400/70 text-[10px]">⚡ 籌碼共振（機構承接，仍屬高位）</span></td>
                             </tr>

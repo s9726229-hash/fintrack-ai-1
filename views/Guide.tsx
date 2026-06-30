@@ -39,7 +39,18 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.6.4 籌碼疑慮暗化醞釀燈號" date="Latest" color="text-violet-400">
+        <FeatureSection title="V7.6.6 醞釀邏輯修正 & 大盤指數顯示" date="Latest" color="text-violet-400">
+            <FeatureItem icon={Zap} title="醞釀訊號改為任一條件達標即觸發" description="醞釀買進/醞釀停利不再要求乖離率優先進入門檻區，乖離、RSI、斜率任一項先達標即提示醞釀方向，並修正左側欄位背景燈色與醞釀條件小標的對齊問題。SELL 方向文字依是否持股分流：持股顯示「醞釀停利」，未持股（選股掃描）顯示「高位勿追」。" />
+            <FeatureItem icon={BarChart2} title="欄位底色統一綠/紅二色" description="月乖離、乖離斜率、外資/投信買賣、融資增減六欄背景色統一為「正向(偏多)綠底、負向(偏空)紅底」，移除多餘的橙/琥珀色階；融資增減的背景判斷改用與籌碼燈號相同的「有無減少」條件，不再用 ±2% 門檻。訊號(籌碼)欄移除背景色，維持原本無底色。" />
+            <FeatureItem icon={TrendingUp} title="大盤加權指數即時顯示" description="股票投資與選股掃描頁面的大盤模式燈號旁，新增顯示加權指數收盤點位、漲跌點數與百分比，跟個股「當前價格」同樣排版，分析/自動更新時同步刷新。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.5 訊號條件語意 & 欄位背景燈色" date="Recent" color="text-violet-400">
+            <FeatureItem icon={Zap} title="觸發條件改顯示門檻值" description="技術訊號（強買/買進/停利/強制停利/停損/風險預警/順勢加碼）的條件小字從顯示當前數值改為對應參數門檻（如「乖離 ≥ +25%」），語意一致，方便對照設定頁。TREND_ADD 加碼條件依大/小型股分別取 biasMin～biasMax 與 RSI 範圍。" />
+            <FeatureItem icon={BarChart2} title="訊號欄位背景燈色" description="投資組合與選股掃描的「訊號(技術)」與「訊號(籌碼)」欄位新增背景燈色：技術面依訊號嚴重度上色（停損→玫紅、強制停利→紅、停利/預警→琥珀/橙、買進→翠綠、加碼/籌碼共振→天藍）；籌碼面依 chipHint 標的語意上色，與右側訊號燈號視覺統一。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.4 籌碼疑慮暗化醞釀燈號" color="text-violet-400">
             <FeatureItem icon={Zap} title="NONE 訊號下籌碼疑慮提前顯示" description="技術面未到門檻但籌碼面有異常時，選股掃描與技術監控會顯示暗化版的接近訊號徽章（如 🟠 籌碼疑慮、🔴 法人棄守），並附上條件小標（已成立亮燈、未成立暗燈），取代原本的「無訊號觀察中」。觸發條件：外資連賣≥3日＋融資增幅≥2%（籌碼疑慮）；外資連賣≥3日＋投信連賣≥3日（法人棄守）。" />
             <FeatureItem icon={BarChart2} title="醞釀停利標籤語意更正" description="analyzeBrewing 的 SELL 類型 hint target 從「醞釀停利」改為「高位勿追」，選股掃描不再需要複寫標籤，前後語意一致。" />
         </FeatureSection>
