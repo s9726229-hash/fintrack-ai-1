@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock, TrendingUp } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { WatchlistGroup, MarketRegime } from '../types';
 import * as storage from '../services/storage';
 import { getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
-import { fetchTechnicalData, fetchMarketRegime } from '../services/stock';
+import { fetchTechnicalData, fetchMarketRegime, loadStockInfoMap } from '../services/stock';
 import { Button } from '../components/ui';
 import twStocks from '../src/data/tw_stocks.json';
 
@@ -71,6 +71,9 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const regime = mRegimeData.regime;
         setMarketRegime(regime);
 
+        // 確保上市/上櫃分類表已就緒，避免掃描第一批時表還沒載完導致前綴猜錯（被 TWSE 限流回 520）
+        await loadStockInfoMap();
+
         const assets = storage.getAssets();
         const transactions = storage.getStockTransactions();
         
@@ -83,12 +86,12 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
 
         // Pre-warm market regime cache before parallel execution to prevent duplicate TWII requests
         await fetchMarketRegime(true);
-        const chunks = chunkArray(symbolsToFetch, 15);
+        // 每批降為 3 檔，搭配 1.7 秒間隔，貼近 TWSE「5 秒 3 次請求」限制，避免被限流回傳 520
+        const chunks = chunkArray(symbolsToFetch, 3);
         for (const chunk of chunks) {
             await Promise.all(chunk.map(async (symbol, idxInChunk) => {
-                // 批內錯開請求時間，避免同時 15 個請求瞬間打 TWSE 觸發限流
-                // 導致 fetchTWSEPrice 失敗、誤 fallback 回 K 線昨收價
-                await new Promise(r => setTimeout(r, idxInChunk * 150));
+                // 批內錯開請求時間，進一步降低瞬間併發
+                await new Promise(r => setTimeout(r, idxInChunk * 600));
                 try {
                     const data = await fetchTechnicalData(symbol, assets, transactions);
                     if (data) {
@@ -132,6 +135,8 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     setAnalyzeProgress({ current: completed, total: symbolsToFetch.length, symbol: symbol });
                 }
             }));
+            // 批與批之間額外間隔，確保不會在批次交界處瞬間連續發送
+            await new Promise(r => setTimeout(r, 1500));
         }
 
         setTechDataMap(newMap);
@@ -683,5 +688,6 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         </div>
     );
 };
+
 
 
