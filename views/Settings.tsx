@@ -186,13 +186,13 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
     if (!previewContent) return;
     const success = importData(previewContent.raw);
     if (success) {
-      onDataChange();
-      showNotify('success', '匯入成功！資料已還原。');
+      showNotify('success', '匯入成功！即將重新整理頁面...');
+      setTimeout(() => window.location.reload(), 1000);
     } else {
       showNotify('error', '匯入失敗，請檢查檔案。');
+      setIsPreviewModalOpen(false);
+      setPreviewContent(null);
     }
-    setIsPreviewModalOpen(false);
-    setPreviewContent(null);
   };
 
   const handleReset = () => {
