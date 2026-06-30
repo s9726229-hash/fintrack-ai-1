@@ -140,7 +140,7 @@ export const calculateStockPerformance = (stock: Asset, transactions: Transactio
     if (shares === 0 || avgCost === 0) {
         return { totalCost: 0, marketValue: 0, estimatedReturn: 0, netProfit: 0, roi: 0, buyFee: 0, sellFee: 0, tax: 0, totalDividends };
     }
-   
+    
     const feeDiscount = getFeeDiscount();
     const feeRate = 0.001425;
     const minFee = 20;
@@ -166,7 +166,7 @@ export const calculateStockPerformance = (stock: Asset, transactions: Transactio
     const estimatedReturn = marketValue - sellFee - tax;
     const netProfit = estimatedReturn - totalCost;
     const roi = totalCost > 0 ? (netProfit / totalCost) * 100 : 0;
-   
+    
     return {
         totalCost,
         marketValue,
@@ -197,7 +197,7 @@ export const enrichStockBasicInfo = async (stock: Asset): Promise<Partial<Asset>
         const text = response.text || '';
         const priceMatch = text.match(/PRICE:([\d.,]+)/);
         const nameMatch = text.match(/NAME:([^,]+)/);
-       
+        
         const priceStr = priceMatch ? priceMatch[1].replace(/,/g, '') : '0';
         const price = parseFloat(priceStr);
         const name = nameMatch ? nameMatch[1].trim() : (stock.name || stock.symbol);
@@ -231,7 +231,7 @@ export const enrichStockDividendInfo = async (stock: Asset): Promise<Partial<Ass
         });
 
         const text = response.text || '';
-       
+        
         const freqMatch = text.match(/FREQUENCY:([^,]+)/);
         const dpsMatch = text.match(/TTM_DPS:([\d.]+)/);
         const exDateMatch = text.match(/EX_DATE:(\d{4}-\d{2}-\d{2})/);
@@ -256,7 +256,7 @@ export const enrichStockDividendInfo = async (stock: Asset): Promise<Partial<Ass
                 exDate,
             };
         }
-       
+        
         console.warn(`Could not parse TTM dividend info for symbol ${stock.symbol} from response: "${text}"`);
         return null;
 
@@ -280,7 +280,7 @@ export const parseStockInput = async (input: string): Promise<Partial<Asset>[] |
                 Parse the following stock inventory text into a JSON array.
                 Each line represents a stock position.
                 Extract: symbol (string), shares (number, convert '張' to 1000 shares), avgCost (number).
-               
+                
                 Input Text:
                 "${input}"
             `,
@@ -303,7 +303,7 @@ export const parseStockInput = async (input: string): Promise<Partial<Asset>[] |
 
         let text = cleanJsonString(response.text ?? "");
         if (text === "{}") text = "[]"; // Handle empty default
-       
+        
         return JSON.parse(text);
     } catch (error) {
         console.error("Gemini parseStockInput error:", error);
@@ -406,14 +406,14 @@ export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<
 // 判斷是否連續 3 筆交易虧損
 export const checkConsecutiveLossLock = (transactions?: StockTransaction[]): boolean => {
     if (!transactions || transactions.length === 0) return false;
-   
+    
     // 找出所有賣出且有已實現損益的紀錄，依日期反向排序 (最新的在前)
     const sells = transactions
         .filter(t => t.side === 'SELL' && t.realizedProfit !== undefined)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-       
+        
     if (sells.length < 3) return false;
-   
+    
     // 檢查最近 3 筆是否皆為負數
     return sells[0].realizedProfit! < 0 && sells[1].realizedProfit! < 0 && sells[2].realizedProfit! < 0;
 };
@@ -594,7 +594,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         // ── 5. 即時現價（Cloudflare Worker → TWSE，僅個股）──
         const twsePrice = !isTAIEX ? await fetchTWSEPrice(symbol) : null;
-        const currentPrice = twsePrice || validData[validData.length - 1].close;
+        const currentPrice = (twsePrice !== null && twsePrice > 0) ? twsePrice : validData[validData.length - 1].close;
 
         let dailyChangeRatio: number | null = null;
         if (validData.length >= 2) {
@@ -688,7 +688,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         };
 
         let techSignal: TechDataResult['techSignal'] = 'NONE';
-       
+        
         const checkSlopeDeteriorated = (days: number) => {
             if (days <= 0) return true;
             for (let i = 0; i < Math.min(days, biasSlopes.length); i++) {
@@ -696,7 +696,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
             return true;
         };
-       
+        
         let marketRegime = MarketRegime.NORMAL;
         let twiiBias20 = 0;
         if (symbol !== '^TWII') {
@@ -704,12 +704,12 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             marketRegime = mRegimeData.regime;
             twiiBias20 = mRegimeData.bias20;
         }
-       
+        
         const isConsecutiveLossLock = checkConsecutiveLossLock(transactions);
         if (isConsecutiveLossLock) {
             marketRegime = MarketRegime.CONSERVATIVE; // 強制進入保守模式
         }
-       
+        
         if (marketRegime === MarketRegime.CONSERVATIVE) {
             // 保守模式不再扣分，僅作為加碼限制
         }
@@ -778,7 +778,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'BUY';
             }
         }
-       
+        
         // ── 第二軌：籌碼面共振 / 背離修正 ──
         if (instData) {
             const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
@@ -815,7 +815,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             if (unrealizedProfit <= stopLossPnL) {
                 techSignal = 'STOP_LOSS_ALERT';
                 riskAlerts.stopLossAlert = true;
-            }
+            } 
             // 第二層：乖離率停損
             else if (currentBias20 <= stopLossBias) {
                 techSignal = 'STOP_LOSS_ALERT';
@@ -884,8 +884,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         if (techSignal === 'NONE' || techSignal === 'RISK_ALERT') {
             const analyzeBrewing = (
-                buyBias: number, strongBuyBias: number,
-                buyRsi: number, strongBuyRsi: number,
+                buyBias: number, strongBuyBias: number, 
+                buyRsi: number, strongBuyRsi: number, 
                 buySlopeDays: number, strongBuySlopeDays: number,
                 partialSellBias: number, partialSellSlopeDays: number
             ): import('../types').SignalHint | undefined => {
@@ -978,10 +978,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         return null;
     }
 };
-
-
-
-
 
 
 
