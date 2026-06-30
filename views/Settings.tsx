@@ -64,18 +64,26 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
       showNotify('success', '手續費折扣已儲存！');
   };
 
-  const handleSaveTechParams = () => {
-      saveTechParameters(techParams);
+  const triggerRescan = () => {
       localStorage.setItem('needs_rescan_inventory', 'true');
       localStorage.setItem('needs_rescan_watchlist', 'true');
-      showNotify('success', '技術面參數已儲存！切換頁面時將自動重新掃描。');
+      // 同 window 的 localStorage.setItem 不觸發 storage 事件，需手動 dispatch
+      window.dispatchEvent(new StorageEvent('storage', { key: 'needs_rescan_inventory', newValue: 'true' }));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'needs_rescan_watchlist', newValue: 'true' }));
+  };
+
+  const handleSaveTechParams = () => {
+      saveTechParameters(techParams);
+      triggerRescan();
+      showNotify('success', '技術面參數已儲存！正在重新分析...');
   };
 
   const handleResetTechParams = () => {
       if(confirm('確定要還原為系統預設的技術面參數嗎？')) {
           setTechParams(DEFAULT_TECH_PARAMS);
           saveTechParameters(DEFAULT_TECH_PARAMS);
-          showNotify('success', '已還原預設參數。');
+          triggerRescan();
+          showNotify('success', '已還原預設參數！正在重新分析...');
       }
   };
 

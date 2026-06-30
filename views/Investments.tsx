@@ -245,6 +245,10 @@ export const Investments: React.FC<InvestmentsProps> = ({
             if (e.key === 'auto_tech_update_enabled') {
                 setAutoUpdateEnabledState(e.newValue === 'true');
             }
+            if (e.key === 'needs_rescan_inventory' && e.newValue === 'true') {
+                localStorage.removeItem('needs_rescan_inventory');
+                setTimeout(() => handleUpdateBiasRef.current(), 100);
+            }
         };
         window.addEventListener('storage', onStorage);
         return () => window.removeEventListener('storage', onStorage);

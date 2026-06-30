@@ -161,6 +161,10 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             if (e.key === 'auto_tech_update_enabled') {
                 setAutoUpdateEnabledState(e.newValue === 'true');
             }
+            if (e.key === 'needs_rescan_watchlist' && e.newValue === 'true') {
+                localStorage.removeItem('needs_rescan_watchlist');
+                setTimeout(() => refreshDataRef.current(true), 100);
+            }
         };
         window.addEventListener('storage', onStorage);
         return () => window.removeEventListener('storage', onStorage);

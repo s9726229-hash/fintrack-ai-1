@@ -54,16 +54,44 @@ export const Button = ({
   );
 };
 
-export const Input = ({ onChange, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // For number inputs, skip update when value is empty (user is mid-typing a negative number like "-7")
-    if (props.type === 'number' && e.target.value === '') return;
-    onChange?.(e);
-  };
+export const Input = ({ onChange, value, type, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => {
+  const isNumeric = type === 'number';
+  const [localValue, setLocalValue] = React.useState(value !== undefined ? String(value) : '');
+
+  // Sync when external value changes (e.g. reset button)
+  React.useEffect(() => {
+    if (value !== undefined) setLocalValue(String(value));
+  }, [value]);
+
+  if (isNumeric) {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      setLocalValue(raw);
+      // Only propagate when it's a complete valid number (not mid-typing "-" or empty)
+      const num = parseFloat(raw);
+      if (!isNaN(num)) {
+        const synth = { ...e, target: { ...e.target, value: String(num), valueAsNumber: num } };
+        onChange?.(synth as React.ChangeEvent<HTMLInputElement>);
+      }
+    };
+    return (
+      <input
+        {...props}
+        type="text"
+        inputMode="decimal"
+        value={localValue}
+        onChange={handleChange}
+        className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${props.className}`}
+      />
+    );
+  }
+
   return (
     <input
       {...props}
-      onChange={handleChange}
+      type={type}
+      value={value}
+      onChange={onChange}
       className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${props.className}`}
     />
   );
