@@ -54,21 +54,33 @@ const finmindFetch = async (params: Record<string, string>): Promise<any[] | nul
     }
 };
 
-/** 載入上市/上櫃分類表（symbol → otc 判斷），一個 Session 只打一次 FinMind */
-const loadStockInfoMap = async (): Promise<void> => {
+/** 上市/上櫃分類表載入中的 Promise（避免多檔股票同時觸發多次重複 FinMind 請求） */
+let stockInfoLoadingPromise: Promise<void> | null = null;
+
+/** 載入上市/上櫃分類表（symbol → otc 判斷），一個 Session 只成功打一次 FinMind；失敗則下次呼叫會重試 */
+export const loadStockInfoMap = async (): Promise<void> => {
     if (stockInfoLoaded) return;
-    stockInfoLoaded = true; // 不論成功失敗都標記，避免重複嘗試拖慢效能
-    try {
-        const data = await finmindFetch({ dataset: 'TaiwanStockInfo' });
-        if (!data) return;
-        const otcSet = new Set<string>();
-        data.forEach((d: any) => {
-            // FinMind type 欄位常見值：twse（上市）、tpex/otc（上櫃）
-            const t = (d.type || '').toLowerCase();
-            if (t.includes('otc') || t.includes('tpex')) otcSet.add(d.stock_id);
-        });
-        otcSymbolSet = otcSet;
-    } catch { /* 查詢失敗則維持空集合，沿用 tse→otc 預設順序 fallback */ }
+    if (stockInfoLoadingPromise) return stockInfoLoadingPromise; // 已有請求進行中，直接等它
+
+    stockInfoLoadingPromise = (async () => {
+        try {
+            const data = await finmindFetch({ dataset: 'TaiwanStockInfo' });
+            if (!data) return; // 不標記 loaded，下次呼叫會重試
+            const otcSet = new Set<string>();
+            data.forEach((d: any) => {
+                // FinMind type 欄位實際值為 'twse'（上市）或 'tpex'（上櫃）
+                const t = (d.type || '').toLowerCase();
+                if (t.includes('otc') || t.includes('tpex')) otcSet.add(d.stock_id);
+            });
+            otcSymbolSet = otcSet;
+            stockInfoLoaded = true; // 確認真的拿到資料才標記完成
+        } catch { /* 失敗則不標記，下次呼叫會重試 */ }
+        finally {
+            stockInfoLoadingPromise = null; // 不論成敗都釋放鎖，允許之後重試
+        }
+    })();
+
+    return stockInfoLoadingPromise;
 };
 
 /** 抓個股近90日K線（Session快取，一天只打一次 FinMind）*/
@@ -533,8 +545,9 @@ const extractPrice = (info: any): number | null => {
 };
 
 const fetchTWSEPrice = async (symbol: string): Promise<number | null> => {
-    await loadStockInfoMap(); // 確保上市/上櫃分類表已載入（session 只查一次）
-    const prefixOrder = otcSymbolSet.has(symbol) ? ['otc', 'tse'] : ['tse', 'otc'];
+    await loadStockInfoMap(); // 確保上市/上櫃分類表已載入完成才決定前綴順序
+    const isOtc = otcSymbolSet.has(symbol);
+    const prefixOrder = isOtc ? ['otc', 'tse'] : ['tse', 'otc'];
     for (const prefix of prefixOrder) {
         const path = `/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${symbol}.tw&json=1&delay=0`;
         try {
