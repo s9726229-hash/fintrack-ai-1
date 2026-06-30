@@ -442,12 +442,20 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                           </div>
                           
                           {/* Large Cap Trend Add */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg flex flex-col justify-center border border-blue-500/10">
+                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-blue-500/10">
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離下限 (&gt; %)</label><Input type="number" value={techParams.largeCapTrendAddBiasMin} onChange={e => setTechParams({...techParams, largeCapTrendAddBiasMin: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離上限 (&lt;= %)</label><Input type="number" value={techParams.largeCapTrendAddBiasMax} onChange={e => setTechParams({...techParams, largeCapTrendAddBiasMax: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI 下限 (&gt;=)</label><Input type="number" value={techParams.largeCapTrendAddRsiMin} onChange={e => setTechParams({...techParams, largeCapTrendAddRsiMin: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI 上限 (&lt;=)</label><Input type="number" value={techParams.largeCapTrendAddRsiMax} onChange={e => setTechParams({...techParams, largeCapTrendAddRsiMax: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
                               <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">冷卻期 (交易日)</label><Input type="number" value={techParams.largeCapTrendAddCoolDownDays} onChange={e => setTechParams({...techParams, largeCapTrendAddCoolDownDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
                           </div>
 
                           {/* Small Cap Trend Add */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg flex flex-col justify-center border border-blue-500/10">
+                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-blue-500/10">
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離下限 (&gt; %)</label><Input type="number" value={techParams.smallCapTrendAddBiasMin} onChange={e => setTechParams({...techParams, smallCapTrendAddBiasMin: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離上限 (&lt;= %)</label><Input type="number" value={techParams.smallCapTrendAddBiasMax} onChange={e => setTechParams({...techParams, smallCapTrendAddBiasMax: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI 下限 (&gt;=)</label><Input type="number" value={techParams.smallCapTrendAddRsiMin} onChange={e => setTechParams({...techParams, smallCapTrendAddRsiMin: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
+                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI 上限 (&lt;=)</label><Input type="number" value={techParams.smallCapTrendAddRsiMax} onChange={e => setTechParams({...techParams, smallCapTrendAddRsiMax: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
                               <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">冷卻期 (交易日)</label><Input type="number" value={techParams.smallCapTrendAddCoolDownDays} onChange={e => setTechParams({...techParams, smallCapTrendAddCoolDownDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
                           </div>
                       </div>

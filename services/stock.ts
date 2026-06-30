@@ -779,7 +779,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.largeCapPartialSellBias && checkSlopeDeteriorated(params.largeCapPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -10 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 65 && daysSinceLastBuy >= params.largeCapTrendAddCoolDownDays) {
+            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > params.largeCapTrendAddBiasMin && currentBias20 <= params.largeCapTrendAddBiasMax && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= params.largeCapTrendAddRsiMin && rsi <= params.largeCapTrendAddRsiMax && daysSinceLastBuy >= params.largeCapTrendAddCoolDownDays) {
                 techSignal = 'TREND_ADD';
             } else if (canBuy && currentBias20 <= params.largeCapStrongBuyBias && checkSlopeImproved(params.largeCapStrongBuySlopeDays) && rsi < params.largeCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
@@ -792,7 +792,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.smallCapPartialSellBias && checkSlopeDeteriorated(params.smallCapPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > -15 && currentBias20 <= 0 && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= 40 && rsi <= 60 && daysSinceLastBuy >= params.smallCapTrendAddCoolDownDays) {
+            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > params.smallCapTrendAddBiasMin && currentBias20 <= params.smallCapTrendAddBiasMax && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= params.smallCapTrendAddRsiMin && rsi <= params.smallCapTrendAddRsiMax && daysSinceLastBuy >= params.smallCapTrendAddCoolDownDays) {
                 techSignal = 'TREND_ADD';
             } else if (canBuy && currentBias20 <= params.smallCapStrongBuyBias && checkSlopeImproved(params.smallCapStrongBuySlopeDays) && rsi < params.smallCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';

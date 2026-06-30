@@ -133,6 +133,10 @@ export interface TechParameters {
     largeCapStrongBuySlopeDays: number;       // 新增：強買時需連幾天斜率向上
     largeCapPartialSellSlopeDays: number;     // 新增：停利時需連幾天斜率向下
     largeCapTrendAddCoolDownDays: number;     // 新增：加碼冷卻天數
+    largeCapTrendAddBiasMin: number;          // 順勢加碼乖離下限
+    largeCapTrendAddBiasMax: number;          // 順勢加碼乖離上限
+    largeCapTrendAddRsiMin: number;           // 順勢加碼 RSI 下限
+    largeCapTrendAddRsiMax: number;           // 順勢加碼 RSI 上限
 
     // 小型股
     smallCapBuyBias: number;
@@ -148,6 +152,10 @@ export interface TechParameters {
     smallCapStrongBuySlopeDays: number;
     smallCapPartialSellSlopeDays: number; // 新增：停利時需連幾天斜率向下
     smallCapTrendAddCoolDownDays: number;
+    smallCapTrendAddBiasMin: number;          // 順勢加碼乖離下限
+    smallCapTrendAddBiasMax: number;          // 順勢加碼乖離上限
+    smallCapTrendAddRsiMin: number;           // 順勢加碼 RSI 下限
+    smallCapTrendAddRsiMax: number;           // 順勢加碼 RSI 上限
 
     // 籌碼面
     chipInstDays: number;     // 法人累積天數

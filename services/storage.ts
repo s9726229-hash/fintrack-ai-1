@@ -126,7 +126,11 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     largeCapStrongBuySlopeDays: 2,
     largeCapPartialSellSlopeDays: 2,
     largeCapTrendAddCoolDownDays: 5,
-    
+    largeCapTrendAddBiasMin: -10,
+    largeCapTrendAddBiasMax: 0,
+    largeCapTrendAddRsiMin: 40,
+    largeCapTrendAddRsiMax: 65,
+
     // 小型股預設
     smallCapBuyBias: -10,
     smallCapStrongBuyBias: -15,
@@ -141,7 +145,11 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     smallCapStrongBuySlopeDays: 3,
     smallCapPartialSellSlopeDays: 2,
     smallCapTrendAddCoolDownDays: 5,
-    
+    smallCapTrendAddBiasMin: -15,
+    smallCapTrendAddBiasMax: 0,
+    smallCapTrendAddRsiMin: 40,
+    smallCapTrendAddRsiMax: 60,
+
     // 籌碼面
     chipInstDays: 3,
     chipMarginDays: 5
@@ -188,7 +196,7 @@ export const getFullDataJson = () => {
     const data = {
         ft_metadata: {
             backupDate: new Date().toISOString(),
-            appVersion: '7.6.0',
+            appVersion: '7.6.1',
         },
         [STORAGE_KEYS.ASSETS]: getAssets(),
         [STORAGE_KEYS.TRANSACTIONS]: getTransactions(),

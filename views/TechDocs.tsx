@@ -164,8 +164,8 @@ export const TechDocs: React.FC = () => {
                                 </td>
                                 <td className="p-2 border border-slate-700">
                                     <b className="text-cyan-400">順勢加碼（需大盤平穩）</b><br/>
-                                    持倉中 &amp;&amp; Bias 0 ~ {p.largeCapStrongBuyBias}%<br/>
-                                    MA20↑ &amp;&amp; RSI 40~65<br/>
+                                    持倉中 &amp;&amp; Bias {p.largeCapTrendAddBiasMin}% ~ {p.largeCapTrendAddBiasMax}%<br/>
+                                    MA20↑ &amp;&amp; RSI {p.largeCapTrendAddRsiMin}~{p.largeCapTrendAddRsiMax}<br/>
                                     距上次買進 ≥ <b className="text-white">{p.largeCapTrendAddCoolDownDays} 日</b>
                                 </td>
                                 <td className="p-2 border border-slate-700">
@@ -186,8 +186,8 @@ export const TechDocs: React.FC = () => {
                                 </td>
                                 <td className="p-2 border border-slate-700">
                                     <b className="text-cyan-400">順勢加碼（需大盤平穩）</b><br/>
-                                    持倉中 &amp;&amp; Bias 0 ~ {p.smallCapStrongBuyBias}%<br/>
-                                    MA20↑ &amp;&amp; RSI 40~60<br/>
+                                    持倉中 &amp;&amp; Bias {p.smallCapTrendAddBiasMin}% ~ {p.smallCapTrendAddBiasMax}%<br/>
+                                    MA20↑ &amp;&amp; RSI {p.smallCapTrendAddRsiMin}~{p.smallCapTrendAddRsiMax}<br/>
                                     距上次買進 ≥ <b className="text-white">{p.smallCapTrendAddCoolDownDays} 日</b>
                                 </td>
                                 <td className="p-2 border border-slate-700">
