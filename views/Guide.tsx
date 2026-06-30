@@ -39,7 +39,12 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.6.3 選股過熱語意 & 技術說明補完" date="Latest" color="text-violet-400">
+        <FeatureSection title="V7.6.4 籌碼疑慮暗化醞釀燈號" date="Latest" color="text-violet-400">
+            <FeatureItem icon={Zap} title="NONE 訊號下籌碼疑慮提前顯示" description="技術面未到門檻但籌碼面有異常時，選股掃描與技術監控會顯示暗化版的接近訊號徽章（如 🟠 籌碼疑慮、🔴 法人棄守），並附上條件小標（已成立亮燈、未成立暗燈），取代原本的「無訊號觀察中」。觸發條件：外資連賣≥3日＋融資增幅≥2%（籌碼疑慮）；外資連賣≥3日＋投信連賣≥3日（法人棄守）。" />
+            <FeatureItem icon={BarChart2} title="醞釀停利標籤語意更正" description="analyzeBrewing 的 SELL 類型 hint target 從「醞釀停利」改為「高位勿追」，選股掃描不再需要複寫標籤，前後語意一致。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.3 選股過熱語意 & 技術說明補完" date="Recent" color="text-violet-400">
             <FeatureItem icon={Zap} title="選股「高位勿追」燈號" description="乖離達停利門檻但斜率未轉跌時，選股掃描改顯示「高位勿追」取代「醞釀停利」，語意更直覺。停利門檻同時作為過熱判斷基準，可在設定頁調整。" />
             <FeatureItem icon={BarChart2} title="技術說明新增選股燈號章節" description="技術說明頁新增「選股掃描燈號」完整對照表，涵蓋高位勿追、高位過熱、極度過熱、嚴重過熱、籌碼疑慮、法人棄守等六種訊號的觸發條件、對應參數與籌碼規則。" />
             <FeatureItem icon={Sparkles} title="無訊號統一顯示「無訊號觀察中」" description="選股掃描與技術監控在無訊號時統一顯示「無訊號觀察中」，取代原本不一致的「👀 觀察中」與「--」。" />

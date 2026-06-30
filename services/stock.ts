@@ -951,7 +951,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 } else if (currentBias20 > 0) {
                     if (currentBias20 >= partialSellBias) {
                         return {
-                            target: '🟡 醞釀停利',
+                            target: '🟡 高位勿追',
                             type: 'SELL',
                             conditions: [
                                 { label: bLabel, satisfied: true },
@@ -969,6 +969,27 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 signalHint = analyzeBrewing(params.largeCapBuyBias, params.largeCapStrongBuyBias, params.largeCapBuyRsi, params.largeCapStrongBuyRsi, params.largeCapBuySlopeDays, params.largeCapStrongBuySlopeDays, params.largeCapPartialSellBias, params.largeCapPartialSellSlopeDays);
             } else if (sizeCategory === 'SMALL_CAP') {
                  signalHint = analyzeBrewing(params.smallCapBuyBias, params.smallCapStrongBuyBias, params.smallCapBuyRsi, params.smallCapStrongBuyRsi, params.smallCapBuySlopeDays, params.smallCapStrongBuySlopeDays, params.smallCapPartialSellBias, params.smallCapPartialSellSlopeDays);
+            }
+
+            // 若 analyzeBrewing 未觸發，檢查籌碼面是否有疑慮（外資連賣 or 法人雙賣）
+            if (!signalHint && techSignal === 'NONE' && instData) {
+                const fCS = instData.foreignConsecSell;
+                const tCS = instData.trustConsecSell;
+                const bLabel = `乖離 ${currentBias20 > 0 ? '+' : ''}${currentBias20.toFixed(2)}%`;
+                const mRLabel = marginChangeRatio !== null ? `融資 ${marginChangeRatio > 0 ? '+' : ''}${marginChangeRatio.toFixed(1)}%` : '融資';
+                if (fCS >= 3 && tCS >= 3) {
+                    signalHint = { target: '🔴 法人棄守', type: 'SELL', conditions: [
+                        { label: `外資連賣 ${fCS}日`, satisfied: true },
+                        { label: `投信連賣 ${tCS}日`, satisfied: true },
+                        { label: bLabel, satisfied: false }
+                    ]};
+                } else if (fCS >= 3 && marginChangeRatio !== null && marginChangeRatio >= 2) {
+                    signalHint = { target: '🟠 籌碼疑慮', type: 'SELL', conditions: [
+                        { label: `外資連賣 ${fCS}日`, satisfied: true },
+                        { label: mRLabel, satisfied: true },
+                        { label: bLabel, satisfied: false }
+                    ]};
+                }
             }
         }
 

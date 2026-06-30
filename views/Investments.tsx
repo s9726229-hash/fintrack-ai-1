@@ -471,12 +471,21 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         // 醞釀訊號：NONE / RISK_ALERT 時顯示 target 文字 + conditions
                         const isBrewingSignal = (signal === 'NONE' || signal === 'RISK_ALERT') && pos.signalHint?.target;
                         if (isBrewingSignal) {
+                            const hint = pos.signalHint!;
+                            const target = hint.target;
+                            const brewStyle = hint.type === 'BUY'
+                                ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                                : target.includes('法人')
+                                    ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
+                                    : target.includes('籌碼')
+                                        ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
+                                        : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
                             return (
                                 <div className="flex flex-col items-center gap-1 mt-1">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold border ${pos.signalHint!.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                                        {pos.signalHint!.target}
+                                    <span className={`px-2 py-1 rounded text-xs font-bold border ${brewStyle}`}>
+                                        {target}
                                     </span>
-                                    {renderConditionChips(pos.signalHint)}
+                                    {renderConditionChips(hint)}
                                 </div>
                             );
                         }

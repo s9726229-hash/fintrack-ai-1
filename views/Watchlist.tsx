@@ -377,17 +377,21 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             // 醞釀訊號：NONE / RISK_ALERT 時顯示 target + conditions
             const isBrewingSignal = (signal === 'NONE' || signal === 'RISK_ALERT') && data.signalHint?.target;
             if (isBrewingSignal) {
-                const isSellHint = data.signalHint!.type === 'SELL';
-                const label = isSellHint ? '🟡 高位勿追' : data.signalHint!.target;
-                const style = isSellHint
-                    ? 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'
-                    : 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20';
+                const hint = data.signalHint!;
+                const target = hint.target;
+                const style = hint.type === 'BUY'
+                    ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                    : target.includes('法人')
+                        ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
+                        : target.includes('籌碼')
+                            ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
+                            : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
                 return (
                     <div className="flex flex-col items-center gap-1 mt-1">
                         <span className={`px-2 py-1 rounded text-xs font-bold border ${style}`}>
-                            {label}
+                            {target}
                         </span>
-                        {renderConditionChips(data.signalHint)}
+                        {renderConditionChips(hint)}
                     </div>
                 );
             }
