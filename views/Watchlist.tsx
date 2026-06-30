@@ -414,8 +414,9 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 case 'STOP_LOSS': return withChips(<span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
                 case 'STOP_LOSS_ALERT': return withChips(<span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
                 case 'RISK_ALERT': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意支撐</span>);
+                case 'NONE': return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
                 default:
-                    return <span className="text-slate-600 text-xs font-bold">👀 觀察中</span>;
+                    return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
             }
         };
         const signalBadge = renderSignalBadge(data.techSignal || '');

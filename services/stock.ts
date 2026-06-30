@@ -36,6 +36,7 @@ const TAIX_TTL = 60 * 60 * 1000;
 // 上市/上櫃分類快取，一個 Session 只打一次 FinMind
 let otcSymbolSet: Set<string> = new Set();
 let etfSymbolSet: Set<string> = new Set();
+let stockNameMap: Map<string, string> = new Map();
 let stockInfoLoaded = false;
 
 /** 通用 FinMind fetch，自動帶 token（若有）*/
@@ -68,14 +69,17 @@ export const loadStockInfoMap = async (): Promise<void> => {
             if (!data) return; // 不標記 loaded，下次呼叫會重試
             const otcSet = new Set<string>();
             const etfSet = new Set<string>();
+            const nameMap = new Map<string, string>();
             data.forEach((d: any) => {
                 const t = (d.type || '').toLowerCase();
                 const cat = (d.industry_category || '').toLowerCase();
                 if (t.includes('otc') || t.includes('tpex')) otcSet.add(d.stock_id);
                 if (cat.includes('etf')) etfSet.add(d.stock_id);
+                if (d.stock_id && d.stock_name) nameMap.set(d.stock_id, d.stock_name);
             });
             otcSymbolSet = otcSet;
             etfSymbolSet = etfSet;
+            stockNameMap = nameMap;
             stockInfoLoaded = true; // 確認真的拿到資料才標記完成
         } catch { /* 失敗則不標記，下次呼叫會重試 */ }
         finally {
@@ -84,6 +88,12 @@ export const loadStockInfoMap = async (): Promise<void> => {
     })();
 
     return stockInfoLoadingPromise;
+};
+
+/** 查詢股票中文名稱（需先載入 stockInfoMap） */
+export const lookupStockName = async (symbol: string): Promise<string | null> => {
+    await loadStockInfoMap();
+    return stockNameMap.get(symbol) ?? null;
 };
 
 /** 抓個股近90日K線（Session快取，一天只打一次 FinMind）*/

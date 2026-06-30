@@ -504,7 +504,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             case 'STRONG_LAYOUT': return withChips(<span className="bg-emerald-600/40 text-emerald-300 border border-emerald-400/60 px-2 py-1 rounded text-xs font-bold">🚀 強力布局（籌碼共振）</span>);
                             case 'WATCH_DIVERGE': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 持續觀察（籌碼背離）</span>);
                             case 'SELL': return withChips(<span className="bg-red-600/30 text-red-400 border border-red-500/50 px-2 py-1 rounded text-xs font-bold">🔴 建議賣出（主力棄守）</span>);
-                            default: return <span className="text-slate-600 text-xs font-bold">--</span>;
+                            case 'NONE': return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
+                            default: return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
                         }
                     };
                     const signalBadge = renderSignalBadge(pos.techSignal || '');
