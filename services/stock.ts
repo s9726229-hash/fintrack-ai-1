@@ -917,14 +917,15 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         let chipHint: import('../types').SignalHint | undefined = undefined;
 
         if (techSignal === 'NONE' || techSignal === 'RISK_ALERT') {
-            // ── 技術面：依乖離方向顯示接近訊號，條件顯示門檻（已成立亮/未成立暗）──
+            // ── 技術面：乖離越過門檻才觸發，但顯示所有條件（已成立亮/未成立暗）──
             const computeTechBrewHint = (
                 buyBias: number, strongBuyBias: number,
                 buyRsi: number, strongBuyRsi: number,
                 buySlopeDays: number, strongBuySlopeDays: number,
                 partialSellBias: number, partialSellSlopeDays: number
-            ): import('../types').SignalHint => {
-                if (currentBias20 <= 0) {
+            ): import('../types').SignalHint | undefined => {
+                if (currentBias20 <= buyBias && canBuy) {
+                    // 已進入買進乖離區
                     const isSB = currentBias20 <= strongBuyBias;
                     const rsiThresh = isSB ? strongBuyRsi : buyRsi;
                     const slopeDays = isSB ? strongBuySlopeDays : buySlopeDays;
@@ -932,21 +933,23 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                         target: isSB ? '🟢 醞釀強買' : '🟢 醞釀買進',
                         type: 'BUY',
                         conditions: [
-                            { label: `乖離 ≤ ${buyBias}%`, satisfied: currentBias20 <= buyBias },
+                            { label: `乖離 ≤ ${buyBias}%`, satisfied: true },
                             { label: `RSI < ${rsiThresh}`, satisfied: rsi !== null && rsi < rsiThresh },
                             { label: `斜率連增 ≥ ${slopeDays}棒`, satisfied: checkSlopeImproved(slopeDays) }
                         ]
                     };
-                } else {
+                } else if (currentBias20 >= partialSellBias) {
+                    // 已進入賣出乖離區
                     return {
                         target: '🟡 高位勿追',
                         type: 'SELL',
                         conditions: [
-                            { label: `乖離 ≥ +${partialSellBias}%`, satisfied: currentBias20 >= partialSellBias },
+                            { label: `乖離 ≥ +${partialSellBias}%`, satisfied: true },
                             { label: `斜率連跌 ≥ ${partialSellSlopeDays}棒`, satisfied: checkSlopeDeteriorated(partialSellSlopeDays) }
                         ]
                     };
                 }
+                return undefined;
             };
 
             if (sizeCategory === 'ETF') {
