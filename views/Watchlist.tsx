@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock, TrendingUp } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { WatchlistGroup, MarketRegime } from '../types';
@@ -85,7 +85,10 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         await fetchMarketRegime(true);
         const chunks = chunkArray(symbolsToFetch, 15);
         for (const chunk of chunks) {
-            await Promise.all(chunk.map(async (symbol) => {
+            await Promise.all(chunk.map(async (symbol, idxInChunk) => {
+                // 批內錯開請求時間，避免同時 15 個請求瞬間打 TWSE 觸發限流
+                // 導致 fetchTWSEPrice 失敗、誤 fallback 回 K 線昨收價
+                await new Promise(r => setTimeout(r, idxInChunk * 150));
                 try {
                     const data = await fetchTechnicalData(symbol, assets, transactions);
                     if (data) {
