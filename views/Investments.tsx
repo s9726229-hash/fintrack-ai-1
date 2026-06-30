@@ -468,46 +468,29 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         );
                     };
 
-                    const renderSignalBadge = (signal: string) => {
+                    const withChips = (badge: React.ReactNode) => (
+                        <div className="flex flex-col items-center gap-1">
+                            {badge}
+                            {renderConditionChips(pos.signalHint)}
+                        </div>
+                    );
+
+                    const renderTechBadge = (signal: string) => {
                         const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
-                        if (isBrewingState && (pos.signalHint || pos.chipHint)) {
-                            const renderHintBlock = (hint: typeof pos.signalHint, sectionLabel: string) => {
-                                if (!hint) return null;
-                                const target = hint.target;
-                                const badgeStyle = hint.type === 'BUY'
-                                    ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
-                                    : target.includes('法人')
-                                        ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
-                                        : target.includes('籌碼')
-                                            ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
-                                            : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
-                                return (
-                                    <div className="flex flex-col items-center gap-0.5">
-                                        <span className="text-[9px] text-slate-500 font-medium">{sectionLabel}</span>
-                                        {target && (
-                                            <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>
-                                                {target}
-                                            </span>
-                                        )}
-                                        {renderConditionChips(hint)}
-                                    </div>
-                                );
-                            };
+                        if (isBrewingState) {
+                            if (!pos.signalHint) return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
+                            const hint = pos.signalHint;
+                            const target = hint.target;
+                            const badgeStyle = hint.type === 'BUY'
+                                ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
                             return (
-                                <div className="flex flex-col items-center gap-2 mt-1">
-                                    {renderHintBlock(pos.signalHint, '技術面')}
-                                    {renderHintBlock(pos.chipHint, '籌碼面')}
+                                <div className="flex flex-col items-center gap-1">
+                                    {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
+                                    {renderConditionChips(hint)}
                                 </div>
                             );
                         }
-
-                        const withChips = (badge: React.ReactNode) => (
-                            <div className="flex flex-col items-center gap-1">
-                                {badge}
-                                {renderConditionChips(pos.signalHint)}
-                            </div>
-                        );
-
                         switch (signal) {
                             case 'STRONG_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力買進 (&lt;={targetBuyPrice})</span>);
                             case 'BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 買進訊號 (&lt;={targetBuyPrice})</span>);
@@ -528,7 +511,29 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             default: return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
                         }
                     };
-                    const signalBadge = renderSignalBadge(pos.techSignal || '');
+
+                    const renderChipBadge = (signal: string) => {
+                        const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
+                        if (!isBrewingState || !pos.chipHint) return <span className="text-slate-500 text-xs">-</span>;
+                        const hint = pos.chipHint;
+                        const target = hint.target;
+                        const badgeStyle = hint.type === 'BUY'
+                            ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                            : target.includes('法人')
+                                ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
+                                : target.includes('籌碼')
+                                    ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
+                                    : 'bg-slate-500/10 text-slate-400/80 border-slate-500/20';
+                        return (
+                            <div className="flex flex-col items-center gap-1">
+                                {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
+                                {renderConditionChips(hint)}
+                            </div>
+                        );
+                    };
+
+                    const techBadge = renderTechBadge(pos.techSignal || '');
+                    const chipBadge = renderChipBadge(pos.techSignal || '');
                     
                     const currentSlope = pos.biasSlopes && pos.biasSlopes[0] !== undefined ? pos.biasSlopes[0] : null;
                     const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
@@ -628,7 +633,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             ) : '-'}
                         </td>
 
-                        <td className="p-3 text-center">{signalBadge}</td>
+                        <td className="p-3 text-center">{techBadge}</td>
+                        <td className="p-3 text-center">{chipBadge}</td>
                     </tr>);
                 };
 
@@ -655,7 +661,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <th className="p-3 font-medium text-right">外資買賣(張)</th>
                                 <th className="p-3 font-medium text-right">投信買賣(張)</th>
                                 <th className="p-3 font-medium text-right">融資增減(張)</th>
-                                <th className="p-3 font-medium text-center">訊號</th>
+                                <th className="p-3 font-medium text-center">訊號(技術)</th>
+                                <th className="p-3 font-medium text-center">訊號(籌碼)</th>
                             </tr></thead>
                             <tbody>{inventory.length > 0 ? inventory.map(renderTechRow) : (<tr><td colSpan={11} className="text-center py-6 text-slate-500 text-sm">無庫存資料</td></tr>)}</tbody>
                         </table></div>

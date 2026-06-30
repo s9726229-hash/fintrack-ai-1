@@ -373,48 +373,30 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             );
         };
 
-        const renderSignalBadge = (signal: string) => {
+        const withChips = (badge: React.ReactNode) => (
+            <div className="flex flex-col items-center gap-1">
+                {badge}
+                {renderConditionChips(data.signalHint)}
+            </div>
+        );
+
+        const renderTechBadge = (signal: string) => {
             const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
-            if (isBrewingState && (data.signalHint || data.chipHint)) {
-                const renderHintBlock = (hint: typeof data.signalHint, sectionLabel: string) => {
-                    if (!hint) return null;
-                    const target = hint.target;
-                    const badgeStyle = hint.type === 'BUY'
-                        ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
-                        : target.includes('法人')
-                            ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
-                            : target.includes('籌碼')
-                                ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
-                                : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
-                    return (
-                        <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-[9px] text-slate-500 font-medium">{sectionLabel}</span>
-                            {target && (
-                                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>
-                                    {target}
-                                </span>
-                            )}
-                            {renderConditionChips(hint)}
-                        </div>
-                    );
-                };
+            if (isBrewingState) {
+                if (!data.signalHint) return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
+                const hint = data.signalHint;
+                const target = hint.target;
+                const badgeStyle = hint.type === 'BUY'
+                    ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
                 return (
-                    <div className="flex flex-col items-center gap-2 mt-1">
-                        {renderHintBlock(data.signalHint, '技術面')}
-                        {renderHintBlock(data.chipHint, '籌碼面')}
+                    <div className="flex flex-col items-center gap-1">
+                        {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
+                        {renderConditionChips(hint)}
                     </div>
                 );
             }
-
-            const withChips = (badge: React.ReactNode) => (
-                <div className="flex flex-col items-center gap-1">
-                    {badge}
-                    {renderConditionChips(data.signalHint)}
-                </div>
-            );
-
             switch (signal) {
-                // ── 進場訊號 ──
                 case 'STRONG_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力進場 (&lt;={targetBuyPrice})</span>);
                 case 'BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 進場訊號 (&lt;={targetBuyPrice})</span>);
                 case 'ADDITIONAL_BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 積極進場 (&lt;={targetBuyPrice})</span>);
@@ -422,23 +404,41 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 case 'STRONG_LAYOUT': return withChips(<span className="bg-emerald-600/40 text-emerald-300 border border-emerald-400/60 px-2 py-1 rounded text-xs font-bold">🚀 強力布局（籌碼共振）</span>);
                 case 'TREND_ADD': return withChips(<span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢進場</span>);
                 case 'FINAL_ADD': return withChips(<span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後進場</span>);
-                // ── 過熱警示（無持股，勿追高）──
                 case 'PARTIAL_SELL': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 高位過熱 (勿追 &gt;={targetSellPrice})</span>);
                 case 'FORCE_SELL': return withChips(<span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 嚴重過熱 (切勿追高)</span>);
                 case 'SECOND_PARTIAL_SELL': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 極度過熱 (嚴禁進場)</span>);
-                // ── 籌碼警示 ──
                 case 'WATCH_DIVERGE': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 籌碼疑慮 (暫緩進場)</span>);
                 case 'SELL': return withChips(<span className="bg-red-600/30 text-red-400 border border-red-500/50 px-2 py-1 rounded text-xs font-bold">⛔ 法人棄守 (避免進場)</span>);
-                // ── 以下理論上不會出現（需 isHeld）──
                 case 'STOP_LOSS': return withChips(<span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
                 case 'STOP_LOSS_ALERT': return withChips(<span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
                 case 'RISK_ALERT': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意支撐</span>);
                 case 'NONE': return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
-                default:
-                    return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
+                default: return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
             }
         };
-        const signalBadge = renderSignalBadge(data.techSignal || '');
+
+        const renderChipBadge = (signal: string) => {
+            const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
+            if (!isBrewingState || !data.chipHint) return <span className="text-slate-500 text-xs">-</span>;
+            const hint = data.chipHint;
+            const target = hint.target;
+            const badgeStyle = hint.type === 'BUY'
+                ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                : target.includes('法人')
+                    ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
+                    : target.includes('籌碼')
+                        ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
+                        : 'bg-slate-500/10 text-slate-400/80 border-slate-500/20';
+            return (
+                <div className="flex flex-col items-center gap-1">
+                    {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
+                    {renderConditionChips(hint)}
+                </div>
+            );
+        };
+
+        const techBadge = renderTechBadge(data.techSignal || '');
+        const chipBadge = renderChipBadge(data.techSignal || '');
 
         const currentSlope = data.biasSlopes && data.biasSlopes[0] !== undefined ? data.biasSlopes[0] : null;
         const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
@@ -531,7 +531,8 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     ) : '-'}
                 </td>
 
-                <td className="p-3 text-center">{signalBadge}</td>
+                <td className="p-3 text-center">{techBadge}</td>
+                <td className="p-3 text-center">{chipBadge}</td>
                 <td className="p-3 text-center">
                     <button onClick={() => handleDeleteSymbol(symbol)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
                         <Trash2 size={16} />
@@ -688,7 +689,8 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                                 <th className="p-3 font-medium text-right">外資買賣(張)</th>
                                 <th className="p-3 font-medium text-right">投信買賣(張)</th>
                                 <th className="p-3 font-medium text-right">融資增減(張)</th>
-                                <th className="p-3 font-medium text-center">訊號</th>
+                                <th className="p-3 font-medium text-center">訊號(技術)</th>
+                                <th className="p-3 font-medium text-center">訊號(籌碼)</th>
                                 <th className="p-3 font-medium text-center w-16">操作</th>
                             </tr></thead>
                             <tbody>
