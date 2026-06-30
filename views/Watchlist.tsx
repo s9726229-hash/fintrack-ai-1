@@ -53,14 +53,15 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         }
     }, [activeGroup]);
 
-    // Fetch data for active group
+    // Fetch data for all groups (deduplicated)
     const refreshData = async (force: boolean = false) => {
-        if (!activeGroup || activeGroup.symbols.length === 0) return;
-        
+        const allSymbols = [...new Set(groups.flatMap(g => g.symbols))];
+        if (allSymbols.length === 0) return;
+
         // Find which symbols actually need fetching (skip if already cached unless forced)
-        const symbolsToFetch = force 
-            ? activeGroup.symbols 
-            : activeGroup.symbols.filter(sym => !techDataMap[sym]);
+        const symbolsToFetch = force
+            ? allSymbols
+            : allSymbols.filter(sym => !techDataMap[sym]);
             
         if (symbolsToFetch.length === 0) return;
 
@@ -419,7 +420,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const currentSlope = data.biasSlopes && data.biasSlopes[0] !== undefined ? data.biasSlopes[0] : null;
         const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
 
-        const categoryLabel = data.sizeCategory === 'LARGE_CAP' ? '大型股' : (data.sizeCategory === 'SMALL_CAP' ? '小型股' : 'ETF');
+        const categoryLabel = data.sizeCategory === 'LARGE_CAP' ? '上市' : (data.sizeCategory === 'SMALL_CAP' ? '上櫃' : 'ETF');
 
         const flashType = flashState[symbol];
         const flashClass = flashType === 'up' ? 'flash-row-up' : (flashType === 'down' ? 'flash-row-down' : (flashType === 'neutral' ? 'flash-row-neutral' : ''));
@@ -432,8 +433,8 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 <td className="p-3">
                     <p className="font-bold text-white">{symbol} <span className="text-slate-400 text-xs font-normal">{stockName}</span></p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                        {data.sizeCategory === 'LARGE_CAP' && <span className="text-[9px] px-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 font-bold tracking-wider">大型股</span>}
-                        {data.sizeCategory === 'SMALL_CAP' && <span className="text-[9px] px-1 bg-sky-500/20 text-sky-400 rounded border border-sky-500/30 font-bold tracking-wider">小型股</span>}
+                        {data.sizeCategory === 'LARGE_CAP' && <span className="text-[9px] px-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 font-bold tracking-wider">上市</span>}
+                        {data.sizeCategory === 'SMALL_CAP' && <span className="text-[9px] px-1 bg-sky-500/20 text-sky-400 rounded border border-sky-500/30 font-bold tracking-wider">上櫃</span>}
                         {data.sizeCategory === 'ETF' && <span className="text-[9px] px-1 bg-violet-500/20 text-violet-400 rounded border border-violet-500/30 font-bold tracking-wider">ETF</span>}
                     </div>
                 </td>

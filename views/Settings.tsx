@@ -338,8 +338,8 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                       <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 mb-3 px-4">
                           <div className="font-bold text-slate-500 text-sm flex items-center">訊號燈號</div>
                           <div className="font-bold text-emerald-400 text-center bg-slate-900/50 py-2 rounded-lg border border-emerald-500/20">🟢 ETF</div>
-                          <div className="font-bold text-blue-400 text-center bg-slate-900/50 py-2 rounded-lg border border-blue-500/20">🔵 大型股</div>
-                          <div className="font-bold text-purple-400 text-center bg-slate-900/50 py-2 rounded-lg border border-purple-500/20">🟣 小型股</div>
+                          <div className="font-bold text-blue-400 text-center bg-slate-900/50 py-2 rounded-lg border border-blue-500/20">🔵 上市（TSE）</div>
+                          <div className="font-bold text-purple-400 text-center bg-slate-900/50 py-2 rounded-lg border border-purple-500/20">🟣 上櫃（OTC）</div>
                       </div>
 
                       {/* Chip Setup Row */}

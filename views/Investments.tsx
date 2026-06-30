@@ -513,8 +513,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             <p className="font-bold text-white truncate">{pos.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                                 <p className="text-xs text-slate-500 font-mono">{pos.symbol}</p>
-                                {pos.sizeCategory === 'LARGE_CAP' && <span className="text-[9px] px-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 font-bold tracking-wider">大型股</span>}
-                                {pos.sizeCategory === 'SMALL_CAP' && <span className="text-[9px] px-1 bg-sky-500/20 text-sky-400 rounded border border-sky-500/30 font-bold tracking-wider">小型股</span>}
+                                {pos.sizeCategory === 'LARGE_CAP' && <span className="text-[9px] px-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 font-bold tracking-wider">上市</span>}
+                                {pos.sizeCategory === 'SMALL_CAP' && <span className="text-[9px] px-1 bg-sky-500/20 text-sky-400 rounded border border-sky-500/30 font-bold tracking-wider">上櫃</span>}
                                 {pos.sizeCategory === 'ETF' && <span className="text-[9px] px-1 bg-violet-500/20 text-violet-400 rounded border border-violet-500/30 font-bold tracking-wider">ETF</span>}
                             </div>
                         </td>

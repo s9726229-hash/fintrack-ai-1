@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint } from "../types";
 import { getApiKey, getFeeDiscount, getTechParameters, getFinMindToken } from "./storage";
-import largeCaps from '../src/data/large_caps.json';
 
 const cleanJsonString = (text: string) => {
     if (!text) return "{}";
@@ -34,8 +33,9 @@ const MARGIN_TTL = 6 * 60 * 60 * 1000;
 let taixCache: { closes: number[], timestamp: number } | null = null;
 const TAIX_TTL = 60 * 60 * 1000;
 
-// 上市/上櫃分類快取（symbol → 'tse' | 'otc'），一個 Session 只打一次 FinMind
+// 上市/上櫃分類快取，一個 Session 只打一次 FinMind
 let otcSymbolSet: Set<string> = new Set();
+let etfSymbolSet: Set<string> = new Set();
 let stockInfoLoaded = false;
 
 /** 通用 FinMind fetch，自動帶 token（若有）*/
@@ -67,12 +67,15 @@ export const loadStockInfoMap = async (): Promise<void> => {
             const data = await finmindFetch({ dataset: 'TaiwanStockInfo' });
             if (!data) return; // 不標記 loaded，下次呼叫會重試
             const otcSet = new Set<string>();
+            const etfSet = new Set<string>();
             data.forEach((d: any) => {
-                // FinMind type 欄位實際值為 'twse'（上市）或 'tpex'（上櫃）
                 const t = (d.type || '').toLowerCase();
+                const cat = (d.industry_category || '').toLowerCase();
                 if (t.includes('otc') || t.includes('tpex')) otcSet.add(d.stock_id);
+                if (cat.includes('etf')) etfSet.add(d.stock_id);
             });
             otcSymbolSet = otcSet;
+            etfSymbolSet = etfSet;
             stockInfoLoaded = true; // 確認真的拿到資料才標記完成
         } catch { /* 失敗則不標記，下次呼叫會重試 */ }
         finally {
@@ -688,10 +691,12 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
         }
 
-        // 7. Determine Category
-        const isETF = symbol.startsWith('00') || symbol.toLowerCase().includes('etf');
-        const isLargeCap = !isETF && (largeCaps as string[]).includes(symbol);
-        const sizeCategory = isETF ? 'ETF' : (isLargeCap ? 'LARGE_CAP' : 'SMALL_CAP');
+        // 7. Determine Category — 上市(TSE)→大型股門檻, 上櫃(OTC)→小型股門檻, ETF獨立處理
+        const isETF = etfSymbolSet.size > 0
+            ? etfSymbolSet.has(symbol)
+            : (symbol.startsWith('00') || symbol.toLowerCase().includes('etf')); // FinMind未載入時的備援
+        const isOtc = otcSymbolSet.has(symbol);
+        const sizeCategory = isETF ? 'ETF' : (isOtc ? 'SMALL_CAP' : 'LARGE_CAP');
 
         // 9. V4.0 Signals & Risk Control
         const params = getTechParameters();
