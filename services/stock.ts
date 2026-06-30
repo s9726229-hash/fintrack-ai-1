@@ -917,28 +917,24 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         let chipHint: import('../types').SignalHint | undefined = undefined;
 
         if (techSignal === 'NONE' || techSignal === 'RISK_ALERT') {
-            // ── 技術面：依乖離方向顯示接近訊號，所有條件都顯示（已成立亮/未成立暗）──
+            // ── 技術面：依乖離方向顯示接近訊號，條件顯示門檻（已成立亮/未成立暗）──
             const computeTechBrewHint = (
                 buyBias: number, strongBuyBias: number,
                 buyRsi: number, strongBuyRsi: number,
                 buySlopeDays: number, strongBuySlopeDays: number,
                 partialSellBias: number, partialSellSlopeDays: number
             ): import('../types').SignalHint => {
-                const slope0b = biasSlopes[0] ?? 0;
-                const bLabel = `乖離 ${currentBias20 > 0 ? '+' : ''}${currentBias20.toFixed(2)}%`;
-                const sLabel = `斜率 ${slope0b > 0 ? '+' : ''}${slope0b.toFixed(2)}`;
                 if (currentBias20 <= 0) {
                     const isSB = currentBias20 <= strongBuyBias;
                     const rsiThresh = isSB ? strongBuyRsi : buyRsi;
                     const slopeDays = isSB ? strongBuySlopeDays : buySlopeDays;
-                    const rLabel = `RSI ${rsi !== null ? rsi.toFixed(1) : '-'} (<${rsiThresh})`;
                     return {
                         target: isSB ? '🟢 醞釀強買' : '🟢 醞釀買進',
                         type: 'BUY',
                         conditions: [
-                            { label: bLabel, satisfied: currentBias20 <= buyBias },
-                            { label: rLabel, satisfied: rsi !== null && rsi < rsiThresh },
-                            { label: sLabel, satisfied: checkSlopeImproved(slopeDays) }
+                            { label: `乖離 ≤ ${buyBias}%`, satisfied: currentBias20 <= buyBias },
+                            { label: `RSI < ${rsiThresh}`, satisfied: rsi !== null && rsi < rsiThresh },
+                            { label: `斜率連增 ≥ ${slopeDays}棒`, satisfied: checkSlopeImproved(slopeDays) }
                         ]
                     };
                 } else {
@@ -946,8 +942,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                         target: '🟡 高位勿追',
                         type: 'SELL',
                         conditions: [
-                            { label: bLabel, satisfied: currentBias20 >= partialSellBias },
-                            { label: sLabel, satisfied: checkSlopeDeteriorated(partialSellSlopeDays) }
+                            { label: `乖離 ≥ +${partialSellBias}%`, satisfied: currentBias20 >= partialSellBias },
+                            { label: `斜率連跌 ≥ ${partialSellSlopeDays}棒`, satisfied: checkSlopeDeteriorated(partialSellSlopeDays) }
                         ]
                     };
                 }
@@ -965,24 +961,34 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             if (techSignal === 'NONE' && instData) {
                 const fCS = instData.foreignConsecSell;
                 const tCS = instData.trustConsecSell;
-                const mRLabel = marginChangeRatio !== null ? `融資 ${marginChangeRatio > 0 ? '+' : ''}${marginChangeRatio.toFixed(1)}%` : '融資';
-                const fLabel = institutionalForeign !== null ? `外資 ${institutionalForeign > 0 ? '+' : ''}${institutionalForeign.toLocaleString()}` : '外資';
-                const tLabel = institutionalTrust !== null ? `投信 ${institutionalTrust > 0 ? '+' : ''}${institutionalTrust.toLocaleString()}` : '投信';
-                if (fCS >= 3 && tCS >= 3) {
+                const fCB = instData.foreignConsecBuy;
+                const tCB = instData.trustConsecBuy;
+                const chipDays = params.chipInstDays;
+                const mRLabel = marginChangeRatio !== null ? `融資增幅 ≥ ${params.chipInstDays > 0 ? '2' : '2'}%` : '融資';
+                if (fCS >= chipDays && tCS >= chipDays) {
                     chipHint = { target: '🔴 法人棄守', type: 'SELL', conditions: [
-                        { label: `外資連賣 ${fCS}日`, satisfied: true },
-                        { label: `投信連賣 ${tCS}日`, satisfied: true },
+                        { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
+                        { label: `投信連賣 ≥ ${chipDays}日`, satisfied: true },
                     ]};
-                } else if (fCS >= 3 && marginChangeRatio !== null && marginChangeRatio >= 2) {
+                } else if (fCS >= chipDays && marginChangeRatio !== null && marginChangeRatio >= 2) {
                     chipHint = { target: '🟠 籌碼疑慮', type: 'SELL', conditions: [
-                        { label: `外資連賣 ${fCS}日`, satisfied: true },
+                        { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
                         { label: mRLabel, satisfied: true },
                     ]};
                 } else {
-                    chipHint = { target: '', type: 'BUY', conditions: [
-                        { label: fLabel, satisfied: institutionalForeign !== null && institutionalForeign > 0 },
-                        { label: tLabel, satisfied: institutionalTrust !== null && institutionalTrust > 0 },
-                        { label: mRLabel, satisfied: marginChange !== null && marginChange < 0 },
+                    const fSat = fCB >= chipDays;
+                    const tSat = tCB >= chipDays;
+                    const mSat = marginChange !== null && marginChange < 0;
+                    const satCount = (fSat ? 1 : 0) + (tSat ? 1 : 0) + (mSat ? 1 : 0);
+                    const neutralTarget = satCount >= 2 ? '🟢 籌碼偏多'
+                        : satCount === 1 ? '🔵 籌碼觀察'
+                        : fCS >= 1 || tCS >= 1 ? '🟡 籌碼偏弱'
+                        : '⚪ 籌碼中性';
+                    const neutralType = satCount >= 1 ? 'BUY' as const : 'SELL' as const;
+                    chipHint = { target: neutralTarget, type: neutralType, conditions: [
+                        { label: `外資連買 ≥ ${chipDays}日`, satisfied: fSat },
+                        { label: `投信連買 ≥ ${chipDays}日`, satisfied: tSat },
+                        { label: '融資持續縮減', satisfied: mSat },
                     ]};
                 }
             }

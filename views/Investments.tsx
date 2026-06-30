@@ -517,13 +517,12 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (!isBrewingState || !pos.chipHint) return <span className="text-slate-500 text-xs">-</span>;
                         const hint = pos.chipHint;
                         const target = hint.target;
-                        const badgeStyle = hint.type === 'BUY'
-                            ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
-                            : target.includes('法人')
-                                ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
-                                : target.includes('籌碼')
-                                    ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
-                                    : 'bg-slate-500/10 text-slate-400/80 border-slate-500/20';
+                        const badgeStyle = target.includes('偏多') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
+                            : target.includes('觀察') ? 'bg-sky-500/10 text-sky-400/80 border-sky-500/20'
+                            : target.includes('棄守') ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
+                            : target.includes('疑慮') ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
+                            : target.includes('偏弱') ? 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'
+                            : 'bg-slate-500/10 text-slate-400/80 border-slate-500/20';
                         return (
                             <div className="flex flex-col items-center gap-1">
                                 {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
