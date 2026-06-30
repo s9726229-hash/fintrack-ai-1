@@ -940,8 +940,9 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 const biasInBuyZone = currentBias20 <= buyBias;
                 const slopeBuyMet = checkSlopeImproved(buySlopeDays);
                 const rsiBuyMet = rsi !== null && rsi < buyRsi;
+                const biasOverheated = currentBias20 >= partialSellBias;
 
-                if (biasInBuyZone || slopeBuyMet || rsiBuyMet) {
+                if (!biasOverheated && (biasInBuyZone || slopeBuyMet || rsiBuyMet)) {
                     // 乖離/RSI/斜率任一項達標即醞釀，各自標記實際是否成立
                     const isSB = currentBias20 <= strongBuyBias;
                     const biasThresh = isSB ? strongBuyBias : buyBias;

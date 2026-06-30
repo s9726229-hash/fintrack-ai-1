@@ -1,9 +1,11 @@
-import React from 'react';
-import { BookOpen, LineChart, ShieldAlert, CheckCircle2, TrendingUp, Lightbulb, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, LineChart, ShieldAlert, CheckCircle2, TrendingUp, Lightbulb, Zap, FileText, GitBranch } from 'lucide-react';
 import { getTechParameters } from '../services/storage';
+import { SignalFlowchart } from '../components/SignalFlowchart';
 
 export const TechDocs: React.FC = () => {
     const p = getTechParameters();
+    const [activeTab, setActiveTab] = useState<'docs' | 'flow'>('docs');
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
             {/* Header */}
@@ -16,6 +18,24 @@ export const TechDocs: React.FC = () => {
                     <p className="text-slate-400">基於技術面乖離率與籌碼面共振的雙軌 AI 評估引擎｜最終交易決策由使用者自行判斷</p>
                 </div>
             </div>
+
+            {/* 分頁切換 */}
+            <div className="flex gap-2 border-b border-slate-800">
+                <button
+                    onClick={() => setActiveTab('docs')}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeTab === 'docs' ? 'bg-slate-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <FileText size={16} /> 文字說明
+                </button>
+                <button
+                    onClick={() => setActiveTab('flow')}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeTab === 'flow' ? 'bg-slate-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <GitBranch size={16} /> 決策流程圖
+                </button>
+            </div>
+
+            {activeTab === 'flow' ? <SignalFlowchart /> : <>
 
             {/* ── 1. 燈號快速對照（最重要，放最前） ── */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
@@ -371,6 +391,8 @@ export const TechDocs: React.FC = () => {
                     <b className="text-slate-300">ETF 豁免機制：</b> ETF（以00開頭）採用獨立大盤判斷邏輯，在防禦模式下仍允許「左側加碼」與「強加碼」，體現 ETF 越跌越買、長線攤平的策略定位。
                 </div>
             </div>
+
+            </>}
 
         </div>
     );

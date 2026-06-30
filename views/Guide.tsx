@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ListTree, GitMerge, Sparkles, Activity, ShieldCheck, Cpu,
-  Settings2, Eye, LayoutTemplate, TrendingUp, Zap, RefreshCw, BarChart2
+  Settings2, Eye, LayoutTemplate, TrendingUp, Zap, RefreshCw, BarChart2, GitBranch
 } from 'lucide-react';
 
 const FeatureSection = ({ title, date, color, children }: { title: string; date?: string; color: string; children?: React.ReactNode }) => (
@@ -39,7 +39,12 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.6.6 醞釀邏輯修正 & 大盤指數顯示" date="Latest" color="text-violet-400">
+        <FeatureSection title="V7.6.7 醞釀優先順序修正 & 決策流程圖" date="Latest" color="text-violet-400">
+            <FeatureItem icon={Zap} title="乖離過熱優先於斜率買進" description="修正醞釀邏輯：乖離已達停利門檻時，不再因為斜率剛好上升就誤判為「醞釀買進」，改為優先顯示「醞釀停利/高位勿追」，避免乖離過熱、籌碼轉空卻顯示買進提示的矛盾畫面。" />
+            <FeatureItem icon={GitBranch} title="技術說明新增「決策流程圖」分頁" description="技術說明頁拆成「文字說明」與「決策流程圖」兩分頁，流程圖以5階段呈現完整判斷順序（大盤模式→技術面初判→籌碼面共振/背離→停損層覆寫→醞釀訊號分析），箭頭標示觸發條件，並提示「醞釀」僅代表尚無確切訊號。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.6 醞釀邏輯修正 & 大盤指數顯示" color="text-violet-400">
             <FeatureItem icon={Zap} title="醞釀訊號改為任一條件達標即觸發" description="醞釀買進/醞釀停利不再要求乖離率優先進入門檻區，乖離、RSI、斜率任一項先達標即提示醞釀方向，並修正左側欄位背景燈色與醞釀條件小標的對齊問題。SELL 方向文字依是否持股分流：持股顯示「醞釀停利」，未持股（選股掃描）顯示「高位勿追」。" />
             <FeatureItem icon={BarChart2} title="欄位底色統一綠/紅二色" description="月乖離、乖離斜率、外資/投信買賣、融資增減六欄背景色統一為「正向(偏多)綠底、負向(偏空)紅底」，移除多餘的橙/琥珀色階；融資增減的背景判斷改用與籌碼燈號相同的「有無減少」條件，不再用 ±2% 門檻。訊號(籌碼)欄移除背景色，維持原本無底色。" />
             <FeatureItem icon={TrendingUp} title="大盤加權指數即時顯示" description="股票投資與選股掃描頁面的大盤模式燈號旁，新增顯示加權指數收盤點位、漲跌點數與百分比，跟個股「當前價格」同樣排版，分析/自動更新時同步刷新。" />
