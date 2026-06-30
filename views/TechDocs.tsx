@@ -1,7 +1,9 @@
 import React from 'react';
 import { BookOpen, LineChart, ShieldAlert, CheckCircle2, TrendingUp, Lightbulb, Zap } from 'lucide-react';
+import { getTechParameters } from '../services/storage';
 
 export const TechDocs: React.FC = () => {
+    const p = getTechParameters();
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
             {/* Header */}
@@ -137,65 +139,65 @@ export const TechDocs: React.FC = () => {
                             <tr>
                                 <td className="p-2 border border-slate-700 font-bold text-emerald-400">ETF</td>
                                 <td className="p-2 border border-slate-700">
-                                    Bias ≤ -7%（普）/ ≤ -10%（強）<br/>
-                                    <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; 45/40<br/>
+                                    Bias ≤ {p.etfBuyBias}%（普）/ ≤ {p.etfStrongBuyBias}%（強）<br/>
+                                    <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; {p.etfBuyRsi}/{p.etfStrongBuyRsi}<br/>
                                     <span className="text-slate-500 text-[10px]">防禦模式下阻斷普通買進</span>
                                 </td>
                                 <td className="p-2 border border-slate-700">
                                     <b className="text-cyan-400">左側攤平（不限大盤）</b><br/>
-                                    Bias ≤ -15% → 加碼<br/>
-                                    Bias ≤ -20% → 強加碼<br/>
+                                    Bias ≤ {p.etfAdditionalBuyBias}% → 加碼<br/>
+                                    Bias ≤ {p.etfStrongAdditionalBuyBias}% → 強加碼<br/>
                                     <span className="text-slate-500 text-[10px]">防禦模式下仍可觸發</span>
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    分批停利：Bias ≥ +15%<br/>
-                                    第二批：Bias ≥ +20%<br/>
+                                    分批停利：Bias ≥ +{p.etfPartialSellBias}%<br/>
+                                    第二批：Bias ≥ +{p.etfSecondPartialSellBias}%<br/>
                                     <span className="text-slate-500 text-[10px]">需斜率連降確認</span>
                                 </td>
                                 <td className="p-2 border border-slate-700 text-slate-500">無停損機制<br/>視為長線持有</td>
                             </tr>
                             <tr>
-                                <td className="p-2 border border-slate-700 font-bold text-blue-400">大型股</td>
+                                <td className="p-2 border border-slate-700 font-bold text-blue-400">上市（TSE）</td>
                                 <td className="p-2 border border-slate-700">
-                                    Bias ≤ -7%（普）/ ≤ -10%（強）<br/>
-                                    <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; 45/40
+                                    Bias ≤ {p.largeCapBuyBias}%（普）/ ≤ {p.largeCapStrongBuyBias}%（強）<br/>
+                                    <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; {p.largeCapBuyRsi}/{p.largeCapStrongBuyRsi}
                                 </td>
                                 <td className="p-2 border border-slate-700">
                                     <b className="text-cyan-400">順勢加碼（需大盤平穩）</b><br/>
-                                    持倉中 &amp;&amp; Bias 0 ~ -10%<br/>
+                                    持倉中 &amp;&amp; Bias 0 ~ {p.largeCapStrongBuyBias}%<br/>
                                     MA20↑ &amp;&amp; RSI 40~65<br/>
-                                    距上次買進 ≥ <b className="text-white">5 日</b>
+                                    距上次買進 ≥ <b className="text-white">{p.largeCapTrendAddCoolDownDays} 日</b>
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    分批停利：Bias ≥ +20%<br/>
-                                    強制停利：Bias ≥ +25%
+                                    分批停利：Bias ≥ +{p.largeCapPartialSellBias}%<br/>
+                                    強制停利：Bias ≥ +{p.largeCapForceSellBias}%
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    損益停損：≤ <b className="text-rose-400">-8%</b><br/>
-                                    乖離破底：≤ -20%<br/>
-                                    風險預警：≤ -15%
+                                    損益停損：≤ <b className="text-rose-400">{p.largeCapStopLossPnL}%</b><br/>
+                                    乖離破底：≤ {p.largeCapStopLossBias}%<br/>
+                                    風險預警：≤ {p.largeCapRiskAlertBias}%
                                 </td>
                             </tr>
                             <tr>
-                                <td className="p-2 border border-slate-700 font-bold text-purple-400">小型股</td>
+                                <td className="p-2 border border-slate-700 font-bold text-purple-400">上櫃（OTC）</td>
                                 <td className="p-2 border border-slate-700">
-                                    Bias ≤ -10%（普）/ ≤ -15%（強）<br/>
-                                    <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; 40/35
+                                    Bias ≤ {p.smallCapBuyBias}%（普）/ ≤ {p.smallCapStrongBuyBias}%（強）<br/>
+                                    <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; {p.smallCapBuyRsi}/{p.smallCapStrongBuyRsi}
                                 </td>
                                 <td className="p-2 border border-slate-700">
                                     <b className="text-cyan-400">順勢加碼（需大盤平穩）</b><br/>
-                                    持倉中 &amp;&amp; Bias 0 ~ -15%<br/>
+                                    持倉中 &amp;&amp; Bias 0 ~ {p.smallCapStrongBuyBias}%<br/>
                                     MA20↑ &amp;&amp; RSI 40~60<br/>
-                                    距上次買進 ≥ <b className="text-white">5 日</b>
+                                    距上次買進 ≥ <b className="text-white">{p.smallCapTrendAddCoolDownDays} 日</b>
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    分批停利：Bias ≥ +25%<br/>
-                                    強制停利：Bias ≥ +30%
+                                    分批停利：Bias ≥ +{p.smallCapPartialSellBias}%<br/>
+                                    強制停利：Bias ≥ +{p.smallCapForceSellBias}%
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    損益停損：≤ <b className="text-rose-400">-10%</b><br/>
-                                    乖離破底：≤ -25%<br/>
-                                    風險預警：≤ -18%
+                                    損益停損：≤ <b className="text-rose-400">{p.smallCapStopLossPnL}%</b><br/>
+                                    乖離破底：≤ {p.smallCapStopLossBias}%<br/>
+                                    風險預警：≤ {p.smallCapRiskAlertBias}%
                                 </td>
                             </tr>
                         </tbody>

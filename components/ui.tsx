@@ -54,12 +54,20 @@ export const Button = ({
   );
 };
 
-export const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input 
-    {...props}
-    className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${props.className}`}
-  />
-);
+export const Input = ({ onChange, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // For number inputs, skip update when value is empty (user is mid-typing a negative number like "-7")
+    if (props.type === 'number' && e.target.value === '') return;
+    onChange?.(e);
+  };
+  return (
+    <input
+      {...props}
+      onChange={handleChange}
+      className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${props.className}`}
+    />
+  );
+};
 
 export const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select
