@@ -196,7 +196,7 @@ export const getFullDataJson = () => {
     const data = {
         ft_metadata: {
             backupDate: new Date().toISOString(),
-            appVersion: '7.6.2',
+            appVersion: '7.6.3',
         },
         [STORAGE_KEYS.ASSETS]: getAssets(),
         [STORAGE_KEYS.TRANSACTIONS]: getTransactions(),

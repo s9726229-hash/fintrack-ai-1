@@ -281,7 +281,76 @@ export const TechDocs: React.FC = () => {
                 </div>
             </div>
 
-            {/* ── 6. 大盤三段式 ── */}
+            {/* ── 6. 選股掃描燈號 ── */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-3 flex items-center gap-2">
+                    <Zap className="text-amber-400" /> 選股掃描燈號（無持倉語意）
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">選股掃描以「無持倉」計算，停利類燈號語意轉換為「過熱勿追」，門檻與設定頁停利參數共用。</p>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-900/50 text-slate-400 text-xs">
+                            <tr>
+                                <th className="p-2 border border-slate-700">燈號</th>
+                                <th className="p-2 border border-slate-700">觸發條件</th>
+                                <th className="p-2 border border-slate-700">對應參數</th>
+                                <th className="p-2 border border-slate-700">籌碼輔助</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-slate-300 text-xs">
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 高位勿追</span><br/><span className="text-slate-500 text-[10px]">醞釀過熱</span></td>
+                                <td className="p-2 border border-slate-700">Bias20 ≥ 停利門檻<br/><b className="text-white">但</b> 斜率尚未連降（動能未止）</td>
+                                <td className="p-2 border border-slate-700 font-mono text-[10px]">
+                                    TSE ≥ +{p.largeCapPartialSellBias}%<br/>
+                                    OTC ≥ +{p.smallCapPartialSellBias}%<br/>
+                                    ETF ≥ +{p.etfPartialSellBias}%
+                                </td>
+                                <td className="p-2 border border-slate-700 text-slate-400">不受籌碼覆寫影響</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-amber-400 font-bold">🟡 高位過熱</span><br/><span className="text-slate-500 text-[10px]">過熱確認</span></td>
+                                <td className="p-2 border border-slate-700">Bias20 ≥ 停利門檻<br/><b className="text-white">且</b> 斜率連降 N 天（動能衰退）</td>
+                                <td className="p-2 border border-slate-700 font-mono text-[10px]">
+                                    TSE ≥ +{p.largeCapPartialSellBias}% + 連降{p.largeCapPartialSellSlopeDays}天<br/>
+                                    OTC ≥ +{p.smallCapPartialSellBias}% + 連降{p.smallCapPartialSellSlopeDays}天<br/>
+                                    ETF ≥ +{p.etfPartialSellBias}% + 連降{p.etfPartialSellSlopeDays}天
+                                </td>
+                                <td className="p-2 border border-slate-700 text-slate-400">不受籌碼覆寫影響</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-orange-400 font-bold">🟠 極度過熱</span><br/><span className="text-slate-500 text-[10px]">ETF 專屬</span></td>
+                                <td className="p-2 border border-slate-700">ETF Bias20 ≥ 再次減碼門檻</td>
+                                <td className="p-2 border border-slate-700 font-mono text-[10px]">ETF ≥ +{p.etfSecondPartialSellBias}%</td>
+                                <td className="p-2 border border-slate-700 text-slate-400">不受籌碼覆寫影響</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">🔴 嚴重過熱</span><br/><span className="text-slate-500 text-[10px]">切勿追高</span></td>
+                                <td className="p-2 border border-slate-700">Bias20 ≥ 強制停利門檻（無需斜率）</td>
+                                <td className="p-2 border border-slate-700 font-mono text-[10px]">
+                                    TSE ≥ +{p.largeCapForceSellBias}%<br/>
+                                    OTC ≥ +{p.smallCapForceSellBias}%
+                                </td>
+                                <td className="p-2 border border-slate-700">外資投信同步連買時附註<br/><span className="text-emerald-400/70 text-[10px]">⚡ 籌碼共振（機構承接，仍屬高位）</span></td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-orange-400 font-bold">🟠 籌碼疑慮</span></td>
+                                <td className="p-2 border border-slate-700">原訊號偏多<br/><b className="text-white">但</b> 外資連賣 ≥ 3日 + 融資大增 ≥ +2%</td>
+                                <td className="p-2 border border-slate-700 font-mono text-[10px]">chipInstDays = {p.chipInstDays}日<br/>融資增幅門檻 +2%（固定）</td>
+                                <td className="p-2 border border-slate-700 text-slate-400">籌碼背離強制降級</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 border border-slate-700"><span className="text-red-400 font-bold">⛔ 法人棄守</span></td>
+                                <td className="p-2 border border-slate-700">外資連賣 ≥ 3日<br/><b className="text-white">且</b> 投信連賣 ≥ 3日</td>
+                                <td className="p-2 border border-slate-700 font-mono text-[10px]">chipInstDays = {p.chipInstDays}日</td>
+                                <td className="p-2 border border-slate-700 text-slate-400">法人雙向棄守，強制覆寫</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* ── 7. 大盤三段式 ── */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
                     <LineChart className="text-sky-400" /> 大盤三段式模式（影響所有個股燈號）

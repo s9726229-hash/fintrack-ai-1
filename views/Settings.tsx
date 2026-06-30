@@ -465,6 +465,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                           <div className="font-bold text-amber-400 flex flex-col justify-center">
                               <span>🟡 停利/減碼</span>
                               <span className="text-[10px] text-slate-500 font-normal mt-1">短線獲利入袋</span>
+                              <span className="text-[10px] text-amber-500/60 font-normal mt-1">同時作為選股「過熱勿追」門檻</span>
                           </div>
                           
                           {/* ETF Partial Sell */}
