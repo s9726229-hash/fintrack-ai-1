@@ -39,7 +39,22 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.6.0 DSS 決策引擎強化 & 系統穩定" date="Latest" color="text-violet-400">
+        <FeatureSection title="V7.6.3 選股過熱語意 & 技術說明補完" date="Latest" color="text-violet-400">
+            <FeatureItem icon={Zap} title="選股「高位勿追」燈號" description="乖離達停利門檻但斜率未轉跌時，選股掃描改顯示「高位勿追」取代「醞釀停利」，語意更直覺。停利門檻同時作為過熱判斷基準，可在設定頁調整。" />
+            <FeatureItem icon={BarChart2} title="技術說明新增選股燈號章節" description="技術說明頁新增「選股掃描燈號」完整對照表，涵蓋高位勿追、高位過熱、極度過熱、嚴重過熱、籌碼疑慮、法人棄守等六種訊號的觸發條件、對應參數與籌碼規則。" />
+            <FeatureItem icon={Sparkles} title="無訊號統一顯示「無訊號觀察中」" description="選股掃描與技術監控在無訊號時統一顯示「無訊號觀察中」，取代原本不一致的「👀 觀察中」與「--」。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.2 新增持股自動帶入中文名" date="Recent" color="text-sky-400">
+            <FeatureItem icon={Sparkles} title="股票代號自動查詢中文名稱" description="新增持股時輸入代號後游標離開，自動透過 FinMind TaiwanStockInfo 查詢並填入中文股票名稱（如輸入 2303 自動顯示「聯電」），查不到時以代號儲存。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.1 加碼參數開放設定 & README 中文化" date="Recent" color="text-emerald-400">
+            <FeatureItem icon={TrendingUp} title="順勢加碼（TREND_ADD）參數可調" description="上市/上櫃順勢加碼的乖離範圍（biasMin/biasMax）與 RSI 範圍（rsiMin/rsiMax）從 hardcoded 改為可在設定頁調整，冷卻期原本已可調整。" />
+            <FeatureItem icon={BarChart2} title="README 全面中文化" description="README 改為繁體中文，新增 DSS V5.0 燈號對照表、技術棧說明、選股掃描/投資組合功能描述。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.0 DSS 決策引擎強化 & 系統穩定" date="Previous" color="text-violet-400">
             <FeatureItem
                 icon={Zap}
                 title="DSS V5.0 籌碼共振完整實作"
@@ -67,7 +82,7 @@ export const GuideView: React.FC = () => {
             />
         </FeatureSection>
 
-        <FeatureSection title="V7.5.0 財務儀表板全面升級" date="Previous" color="text-amber-400">
+        <FeatureSection title="V7.5.0 財務儀表板全面升級" date="Archived" color="text-amber-400">
             <FeatureItem 
                 icon={LayoutTemplate}
                 title="版面精簡與資訊整合" 
