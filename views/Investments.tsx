@@ -458,9 +458,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
                         const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
                         return (
-                            <div className="flex items-center justify-center gap-1 flex-wrap mt-1 max-w-[140px]">
+                            <div className="flex items-center justify-center gap-1 flex-wrap mt-1 max-w-[180px]">
                                 {hint.conditions.map((c, i) => (
-                                    <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`}>
+                                    <span key={i} className={`text-xs px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`}>
                                         {c.label}
                                     </span>
                                 ))}
@@ -512,9 +512,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         }
                     };
 
-                    const renderChipBadge = (signal: string) => {
-                        const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
-                        if (!isBrewingState || !pos.chipHint) return <span className="text-slate-500 text-xs">-</span>;
+                    const renderChipBadge = (_signal: string) => {
+                        if (!pos.chipHint) return <span className="text-slate-500 text-xs">-</span>;
                         const hint = pos.chipHint;
                         const target = hint.target;
                         const badgeStyle = target.includes('偏多') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'

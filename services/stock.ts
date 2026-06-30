@@ -960,40 +960,40 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 signalHint = computeTechBrewHint(params.smallCapBuyBias, params.smallCapStrongBuyBias, params.smallCapBuyRsi, params.smallCapStrongBuyRsi, params.smallCapBuySlopeDays, params.smallCapStrongBuySlopeDays, params.smallCapPartialSellBias, params.smallCapPartialSellSlopeDays);
             }
 
-            // ── 籌碼面：獨立計算 chipHint，不影響 signalHint ──
-            if (techSignal === 'NONE' && instData) {
-                const fCS = instData.foreignConsecSell;
-                const tCS = instData.trustConsecSell;
-                const fCB = instData.foreignConsecBuy;
-                const tCB = instData.trustConsecBuy;
-                const chipDays = params.chipInstDays;
-                const mRLabel = marginChangeRatio !== null ? `融資增幅 ≥ ${params.chipInstDays > 0 ? '2' : '2'}%` : '融資';
-                if (fCS >= chipDays && tCS >= chipDays) {
-                    chipHint = { target: '🔴 法人棄守', type: 'SELL', conditions: [
-                        { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
-                        { label: `投信連賣 ≥ ${chipDays}日`, satisfied: true },
-                    ]};
-                } else if (fCS >= chipDays && marginChangeRatio !== null && marginChangeRatio >= 2) {
-                    chipHint = { target: '🟠 籌碼疑慮', type: 'SELL', conditions: [
-                        { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
-                        { label: mRLabel, satisfied: true },
-                    ]};
-                } else {
-                    const fSat = fCB >= chipDays;
-                    const tSat = tCB >= chipDays;
-                    const mSat = marginChange !== null && marginChange < 0;
-                    const satCount = (fSat ? 1 : 0) + (tSat ? 1 : 0) + (mSat ? 1 : 0);
-                    const neutralTarget = satCount >= 2 ? '🟢 籌碼偏多'
-                        : satCount === 1 ? '🔵 籌碼觀察'
-                        : fCS >= 1 || tCS >= 1 ? '🟡 籌碼偏弱'
-                        : '⚪ 籌碼中性';
-                    const neutralType = satCount >= 1 ? 'BUY' as const : 'SELL' as const;
-                    chipHint = { target: neutralTarget, type: neutralType, conditions: [
-                        { label: `外資連買 ≥ ${chipDays}日`, satisfied: fSat },
-                        { label: `投信連買 ≥ ${chipDays}日`, satisfied: tSat },
-                        { label: '融資持續縮減', satisfied: mSat },
-                    ]};
-                }
+        }
+
+        // ── 籌碼面：對所有訊號狀態都維護 chipHint ──
+        if (instData) {
+            const fCS = instData.foreignConsecSell;
+            const tCS = instData.trustConsecSell;
+            const fCB = instData.foreignConsecBuy;
+            const tCB = instData.trustConsecBuy;
+            const chipDays = params.chipInstDays;
+            if (fCS >= chipDays && tCS >= chipDays) {
+                chipHint = { target: '🔴 法人棄守', type: 'SELL', conditions: [
+                    { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
+                    { label: `投信連賣 ≥ ${chipDays}日`, satisfied: true },
+                ]};
+            } else if (fCS >= chipDays && marginChangeRatio !== null && marginChangeRatio >= 2) {
+                chipHint = { target: '🟠 籌碼疑慮', type: 'SELL', conditions: [
+                    { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
+                    { label: '融資增幅 ≥ 2%', satisfied: true },
+                ]};
+            } else {
+                const fSat = fCB >= chipDays;
+                const tSat = tCB >= chipDays;
+                const mSat = marginChange !== null && marginChange < 0;
+                const satCount = (fSat ? 1 : 0) + (tSat ? 1 : 0) + (mSat ? 1 : 0);
+                const neutralTarget = satCount >= 2 ? '🟢 籌碼偏多'
+                    : satCount === 1 ? '🔵 籌碼觀察'
+                    : fCS >= 1 || tCS >= 1 ? '🟡 籌碼偏弱'
+                    : '⚪ 籌碼中性';
+                const neutralType = satCount >= 1 ? 'BUY' as const : 'SELL' as const;
+                chipHint = { target: neutralTarget, type: neutralType, conditions: [
+                    { label: `外資連買 ≥ ${chipDays}日`, satisfied: fSat },
+                    { label: `投信連買 ≥ ${chipDays}日`, satisfied: tSat },
+                    { label: '融資持續縮減', satisfied: mSat },
+                ]};
             }
         }
 
