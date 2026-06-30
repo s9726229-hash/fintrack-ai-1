@@ -75,8 +75,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         // 確保上市/上櫃分類表已就緒，避免掃描第一批時表還沒載完導致前綴猜錯（被 TWSE 限流回 520）
         await loadStockInfoMap();
 
-        const assets = storage.getAssets();
-        const transactions = storage.getStockTransactions();
+
         
         let completed = 0;
         setAnalyzeProgress({ current: 0, total: symbolsToFetch.length, symbol: symbolsToFetch[0] });
@@ -94,7 +93,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 // 批內錯開請求時間，進一步降低瞬間併發
                 await new Promise(r => setTimeout(r, idxInChunk * 600));
                 try {
-                    const data = await fetchTechnicalData(symbol, assets, transactions);
+                    const data = await fetchTechnicalData(symbol, [], []); // 無持倉語意：不傳 assets，isHeld 永遠 false，停損層不介入
                     if (data) {
                         const oldData = techDataMap[symbol];
                         if (oldData) {
