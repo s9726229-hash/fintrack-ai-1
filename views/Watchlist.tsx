@@ -424,7 +424,8 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const flashType = flashState[symbol];
         const flashClass = flashType === 'up' ? 'flash-row-up' : (flashType === 'down' ? 'flash-row-down' : (flashType === 'neutral' ? 'flash-row-neutral' : ''));
 
-        const tickChange = data.priceChangeSinceLastTick;
+        const dailyChange = data.dailyChange;
+        const dailyChangeRatio = data.dailyChangeRatio;
 
         return (
             <tr key={symbol} className={`border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors ${flashClass}`}>
@@ -439,9 +440,9 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 <td className="p-3 text-right font-mono font-bold text-white">
                     <div className="flex flex-col items-end">
                         <span>{data.currentPrice?.toFixed(2) || '-'}</span>
-                        {tickChange !== undefined && tickChange !== 0 && (
-                            <span className={`text-[10px] ${tickChange > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                {tickChange > 0 ? '▲' : '▼'}{Math.abs(tickChange).toFixed(2)}
+                        {dailyChange != null && dailyChangeRatio != null && (
+                            <span className={`text-[10px] ${dailyChange > 0 ? 'text-red-400' : dailyChange < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                {dailyChange > 0 ? '▲' : '▼'} {Math.abs(dailyChange).toFixed(2)} ({dailyChange > 0 ? '+' : ''}{dailyChangeRatio.toFixed(2)}%)
                             </span>
                         )}
                     </div>

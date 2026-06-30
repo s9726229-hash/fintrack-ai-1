@@ -609,9 +609,13 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const twsePrice = !isTAIEX ? await fetchTWSEPrice(symbol) : null;
         const currentPrice = (twsePrice !== null && twsePrice > 0) ? twsePrice : validData[validData.length - 1].close;
 
+        // 今日 vs 昨收：用 TWSE 即時現價 - FinMind 昨日收盤
         let dailyChangeRatio: number | null = null;
-        if (validData.length >= 2) {
-            dailyChangeRatio = ((validData[validData.length - 1].close - validData[validData.length - 2].close) / validData[validData.length - 2].close) * 100;
+        let dailyChange: number | null = null;
+        if (validData.length >= 1) {
+            const prevClose = validData[validData.length - 1].close;
+            dailyChange = currentPrice - prevClose;
+            dailyChangeRatio = (dailyChange / prevClose) * 100;
         }
         const lastIdx = ma20List.length - 1;
         const currentMa20 = ma20List[lastIdx];
@@ -979,6 +983,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             trustConsecBuy: instData?.trustConsecBuy ?? 0,
             trustConsecSell: instData?.trustConsecSell ?? 0,
             dailyChangeRatio,
+            dailyChange,
             sizeCategory,
             techSignal,
             currentPrice,

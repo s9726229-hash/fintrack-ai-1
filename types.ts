@@ -89,6 +89,7 @@ export interface Asset {
   signalHint?: SignalHint;
   sizeCategory?: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
   dailyChangeRatio?: number | null;
+  dailyChange?: number | null;
   riskAlerts?: RiskAlerts;
 }
 
@@ -197,6 +198,7 @@ export interface TechDataResult {
     trustConsecSell: number;
     priceChangeSinceLastTick?: number;
     dailyChangeRatio: number | null;
+    dailyChange: number | null;
     sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
     techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL' | 'STRONG_LAYOUT' | 'WATCH_DIVERGE';
     currentPrice?: number;

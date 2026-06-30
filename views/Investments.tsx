@@ -206,6 +206,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
                         if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
                         if (techData.dailyChangeRatio !== null && techData.dailyChangeRatio !== undefined) cleanTechData.dailyChangeRatio = techData.dailyChangeRatio;
+                        if (techData.dailyChange !== null && techData.dailyChange !== undefined) cleanTechData.dailyChange = techData.dailyChange;
                         if (techData.riskAlerts) cleanTechData.riskAlerts = techData.riskAlerts;
                         
                         updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
@@ -517,7 +518,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 {pos.sizeCategory === 'ETF' && <span className="text-[9px] px-1 bg-violet-500/20 text-violet-400 rounded border border-violet-500/30 font-bold tracking-wider">ETF</span>}
                             </div>
                         </td>
-                        <td className="p-3 text-right font-mono font-bold text-white">{pos.currentPrice?.toFixed(2) || '-'}</td>
+                        <td className="p-3 text-right font-mono font-bold text-white">
+                            <div className="flex flex-col items-end">
+                                <span>{pos.currentPrice?.toFixed(2) || '-'}</span>
+                                {pos.dailyChange != null && pos.dailyChangeRatio != null && (
+                                    <span className={`text-[10px] ${pos.dailyChange > 0 ? 'text-red-400' : pos.dailyChange < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                        {pos.dailyChange > 0 ? '▲' : '▼'} {Math.abs(pos.dailyChange).toFixed(2)} ({pos.dailyChange > 0 ? '+' : ''}{pos.dailyChangeRatio.toFixed(2)}%)
+                                    </span>
+                                )}
+                            </div>
+                        </td>
                         <td className="p-3 text-right font-mono">
                             {currentProfit !== null && profitAmount !== null ? (
                                 <div className={`leading-tight ${currentProfit > 0 ? 'text-red-400' : currentProfit < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
