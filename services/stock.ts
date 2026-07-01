@@ -663,8 +663,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         // 優先用 TWSE 回傳的漲跌（基於官方昨收），fallback 用 FinMind 昨收計算
         let dailyChangeRatio: number | null = twseData?.changePercent ?? null;
         let dailyChange: number | null = twseData?.change ?? null;
-        if (dailyChangeRatio === null && validData.length >= 1) {
-            const prevClose = validData[validData.length - 1].close;
+        if (dailyChangeRatio === null && validData.length >= 2) {
+            const prevClose = validData[validData.length - 2].close;
             dailyChange = currentPrice - prevClose;
             dailyChangeRatio = (dailyChange / prevClose) * 100;
         }
