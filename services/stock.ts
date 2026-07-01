@@ -416,7 +416,7 @@ export const parseStockInventoryCSV = (csvText: string): { assets: Partial<Asset
 let cachedMarketRegime: { regime: MarketRegime, bias20: number, dailyChange: number, lastClose: number, changeAmount: number, timestamp: number } | null = null;
 
 export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<{ regime: MarketRegime, bias20: number, lastClose: number, dailyChange: number, changeAmount: number }> => {
-    if (!forceRefresh && cachedMarketRegime && (Date.now() - cachedMarketRegime.timestamp < TAIX_TTL)) {
+    if (!forceRefresh && cachedMarketRegime && (Date.now() - cachedMarketRegime.timestamp < getTAIEXTTL())) {
         return { regime: cachedMarketRegime.regime, bias20: cachedMarketRegime.bias20, lastClose: cachedMarketRegime.lastClose, dailyChange: cachedMarketRegime.dailyChange, changeAmount: cachedMarketRegime.changeAmount };
     }
     try {
@@ -573,7 +573,48 @@ const fetchTWSEData = async (symbol: string): Promise<{ price: number, change: n
     return null;
 };
 
-export const fetchTechnicalData = async (symbol: string, assets?: Asset[], transactions?: StockTransaction[]): Promise<TechDataResult | null> => {
+/** 開盤中從 CF Worker 抓大盤即時指數（tse_t00.tw） */
+const fetchTAIEXRealtime = async (): Promise<{ price: number; change: number | null; changePercent: number | null } | null> => {
+    try {
+        const res = await fetch(`${CF_WORKER}/api/realtime?ex_ch=tse_t00.tw`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const item = Array.isArray(data) ? data[0] : null;
+        if (!item || !item.price) return null;
+        return { price: item.price, change: item.change ?? null, changePercent: item.changePercent ?? null };
+    } catch {
+        return null;
+    }
+};
+
+/** 批次抓多支股票即時現價（一次 CF 呼叫） */
+export const fetchTWSEBatch = async (
+    symbols: string[]
+): Promise<{ prices: Record<string, { price: number; change: number | null; changePercent: number | null }>; source: 'TWSE' | 'TWSE_FAILED' }> => {
+    if (symbols.length === 0) return { prices: {}, source: 'TWSE' };
+    await loadStockInfoMap();
+    const exChList = symbols.map(sym => {
+        const prefix = otcSymbolSet.has(sym) ? 'otc' : 'tse';
+        return `${prefix}_${sym}.tw`;
+    });
+    try {
+        const res = await fetch(`${CF_WORKER}/api/realtime?ex_ch=${exChList.join('|')}`);
+        if (!res.ok) return { prices: {}, source: 'TWSE_FAILED' };
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) return { prices: {}, source: 'TWSE_FAILED' };
+        const prices: Record<string, { price: number; change: number | null; changePercent: number | null }> = {};
+        for (const item of data) {
+            if (item.stockNo && item.price) {
+                prices[item.stockNo] = { price: item.price, change: item.change ?? null, changePercent: item.changePercent ?? null };
+            }
+        }
+        return { prices, source: 'TWSE' };
+    } catch {
+        return { prices: {}, source: 'TWSE_FAILED' };
+    }
+};
+
+export const fetchTechnicalData = async (symbol: string, assets?: Asset[], transactions?: StockTransaction[], preloadedTWSEData?: { price: number; change: number | null; changePercent: number | null } | null): Promise<TechDataResult | null> => {
     try {
         if (!symbol) return null;
         const isTAIEX = symbol === '^TWII';
@@ -613,8 +654,10 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             currentMa60 = validData.slice(-60).reduce((a, b) => a + b.close, 0) / 60;
         }
 
-        // ── 5. 即時現價（CF Worker /api/realtime，僅個股）──
-        const twseData = !isTAIEX ? await fetchTWSEData(symbol) : null;
+        // ── 5. 即時現價（預載優先，否則個別呼叫 CF Worker）──
+        const twseData = !isTAIEX
+            ? (preloadedTWSEData ?? await fetchTWSEData(symbol))
+            : (isTWSEMarketOpen() ? await fetchTAIEXRealtime() : null);
         const currentPrice = (twseData?.price && twseData.price > 0) ? twseData.price : validData[validData.length - 1].close;
 
         // 優先用 TWSE 回傳的漲跌（基於官方昨收），fallback 用 FinMind 昨收計算

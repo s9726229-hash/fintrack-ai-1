@@ -1,10 +1,10 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock, TrendingUp } from 'lucide-react';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { Eye, Plus, X, Search, RefreshCw, Loader2, LineChart, Trash2, Target, ShieldAlert, Clock, TrendingUp, WifiOff } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { WatchlistGroup, MarketRegime } from '../types';
 import * as storage from '../services/storage';
 import { getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
-import { fetchTechnicalData, fetchMarketRegime, loadStockInfoMap } from '../services/stock';
+import { fetchTechnicalData, fetchMarketRegime, loadStockInfoMap, fetchTWSEBatch } from '../services/stock';
 import { Button } from '../components/ui';
 import twStocks from '../src/data/tw_stocks.json';
 
@@ -32,12 +32,24 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [autoUpdateEnabled, setAutoUpdateEnabledState] = useState(getAutoTechUpdateEnabled());
     const [flashState, setFlashState] = useState<Record<string, string>>({});
+    const [priceSource, setPriceSource] = useState<'TWSE' | 'TWSE_FAILED'>('TWSE');
+    const priceRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Sync state to global cache
     useEffect(() => {
         globalTechDataCache = techDataMap;
         globalLastUpdatedCache = lastUpdated;
     }, [techDataMap, lastUpdated]);
+
+    // 離開頁面時清除重試計時器
+    useEffect(() => {
+        return () => {
+            if (priceRetryRef.current) {
+                clearInterval(priceRetryRef.current);
+                priceRetryRef.current = null;
+            }
+        };
+    }, []);
 
     const activeGroup = groups.find(g => g.id === activeGroupId);
 
@@ -74,8 +86,45 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         setMarketRegime(regime);
         setTaiexInfo({ lastClose: mRegimeData.lastClose, dailyChange: mRegimeData.dailyChange, changeAmount: mRegimeData.changeAmount });
 
-        // 確保上市/上櫃分類表已就緒，避免掃描第一批時表還沒載完導致前綴猜錯（被 TWSE 限流回 520）
+        // 確保上市/上櫃分類表已就緒
         await loadStockInfoMap();
+
+        // ── 批次抓即時現價（一次 CF 呼叫）──
+        const batchResult = await fetchTWSEBatch(symbolsToFetch);
+        if (batchResult.source === 'TWSE_FAILED') {
+            setPriceSource('TWSE_FAILED');
+            // 啟動背景重試（每 10 秒），只更新現價不重跑全部分析
+            if (!priceRetryRef.current) {
+                priceRetryRef.current = setInterval(async () => {
+                    const allSymbols = [...new Set(groups.flatMap(g => g.symbols))];
+                    const retry = await fetchTWSEBatch(allSymbols);
+                    if (retry.source === 'TWSE') {
+                        setPriceSource('TWSE');
+                        setTechDataMap(prev => {
+                            const updated = { ...prev };
+                            for (const sym of allSymbols) {
+                                if (updated[sym] && retry.prices[sym]) {
+                                    updated[sym] = {
+                                        ...updated[sym],
+                                        currentPrice: retry.prices[sym].price,
+                                        dailyChangeRatio: retry.prices[sym].changePercent,
+                                    };
+                                }
+                            }
+                            return updated;
+                        });
+                        clearInterval(priceRetryRef.current!);
+                        priceRetryRef.current = null;
+                    }
+                }, 10_000);
+            }
+        } else {
+            setPriceSource('TWSE');
+            if (priceRetryRef.current) {
+                clearInterval(priceRetryRef.current);
+                priceRetryRef.current = null;
+            }
+        }
 
 
         
@@ -95,7 +144,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 // 批內錯開請求時間，進一步降低瞬間併發
                 await new Promise(r => setTimeout(r, idxInChunk * 600));
                 try {
-                    const data = await fetchTechnicalData(symbol, [], []); // 無持倉語意：不傳 assets，isHeld 永遠 false，停損層不介入
+                    const data = await fetchTechnicalData(symbol, [], [], batchResult.prices[symbol] ?? null);
                     if (data) {
                         const oldData = techDataMap[symbol];
                         if (oldData) {
@@ -567,6 +616,12 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
 
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+            {priceSource === 'TWSE_FAILED' && (
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+                    <WifiOff size={15} />
+                    <span>即時現價暫時無法取得，目前顯示昨日收盤價，每 10 秒自動重試中...</span>
+                </div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3">
