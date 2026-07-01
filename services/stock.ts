@@ -21,17 +21,31 @@ const getAI = () => {
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
 const CF_WORKER = 'https://gentle-voice-bcca.s9726229.workers.dev';
 
-// K線歷史快取 (symbol → close陣列，TTL 6小時)
+// K線歷史快取 (symbol → close陣列)
 const klineCache: Record<string, { closes: number[], timestamp: number }> = {};
-const KLINE_TTL = 6 * 60 * 60 * 1000;
 
-// 融資快取 (symbol → {today, prev}，TTL 6小時)
+// 融資快取 (symbol → {today, prev})
 const marginCache: Record<string, { today: number, prev: number, timestamp: number }> = {};
-const MARGIN_TTL = 6 * 60 * 60 * 1000;
 
-// TAIEX 大盤快取 (TTL 1小時)
+// TAIEX 大盤快取
 let taixCache: { closes: number[], timestamp: number } | null = null;
-const TAIX_TTL = 60 * 60 * 1000;
+
+/** 台股是否開盤中（台灣時間 09:00–13:30，週一至週五） */
+const isTWSEMarketOpen = (): boolean => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false;
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    return minutes >= 9 * 60 && minutes < 13 * 60 + 30;
+};
+
+// 開盤中鎖住快取（24hr），收盤後 6hr TTL 讓 15:00 後自然刷新
+const getFinMindTTL = (): number =>
+    isTWSEMarketOpen() ? 24 * 60 * 60 * 1000 : 6 * 60 * 60 * 1000;
+
+// TAIEX 開盤中鎖住（24hr），收盤後 1hr TTL
+const getTAIEXTTL = (): number =>
+    isTWSEMarketOpen() ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
 
 // 上市/上櫃分類快取，一個 Session 只打一次 FinMind
 let otcSymbolSet: Set<string> = new Set();
@@ -99,7 +113,7 @@ export const lookupStockName = async (symbol: string): Promise<string | null> =>
 /** 抓個股近90日K線（Session快取，一天只打一次 FinMind）*/
 export const fetchFinMindHistory = async (symbol: string): Promise<number[] | null> => {
     const now = Date.now();
-    if (klineCache[symbol] && (now - klineCache[symbol].timestamp < KLINE_TTL)) {
+    if (klineCache[symbol] && (now - klineCache[symbol].timestamp < getFinMindTTL())) {
         return klineCache[symbol].closes;
     }
     const startDate = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -114,7 +128,7 @@ export const fetchFinMindHistory = async (symbol: string): Promise<number[] | nu
 /** 抓 TAIEX 大盤近60日（Session快取，1小時TTL）*/
 const fetchTAIEXHistory = async (): Promise<number[] | null> => {
     const now = Date.now();
-    if (taixCache && (now - taixCache.timestamp < TAIX_TTL)) return taixCache.closes;
+    if (taixCache && (now - taixCache.timestamp < getTAIEXTTL())) return taixCache.closes;
     const startDate = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const data = await finmindFetch({ dataset: 'TaiwanStockPrice', data_id: 'TAIEX', start_date: startDate });
     if (!data) return null;
@@ -127,7 +141,7 @@ const fetchTAIEXHistory = async (): Promise<number[] | null> => {
 /** 抓個股融資餘額 via FinMind（Session快取，6小時TTL）*/
 const fetchFinMindMargin = async (symbol: string): Promise<{ today: number, prev: number } | null> => {
     const now = Date.now();
-    if (marginCache[symbol] && (now - marginCache[symbol].timestamp < MARGIN_TTL)) {
+    if (marginCache[symbol] && (now - marginCache[symbol].timestamp < getFinMindTTL())) {
         return { today: marginCache[symbol].today, prev: marginCache[symbol].prev };
     }
     const startDate = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
