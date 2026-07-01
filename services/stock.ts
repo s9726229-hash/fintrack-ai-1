@@ -553,41 +553,21 @@ export const fetchInstitutionalData = async (symbol: string) => {
  * 優先序：z（最近成交價）→ 買賣中間價 (b/a 各取第一檔) → o（開盤價，最後手段）。
  * z 在集合競價瞬間或冷門股無成交間隔時常為 "-"，此時用買賣報價中點更貼近現價。
  */
-const extractPrice = (info: any): number | null => {
-    if (!info) return null;
-    const z = info.z;
-    if (z && z !== '-') return parseFloat(z);
 
-    // b/a 格式："1625.0000_1620.0000_..._" 取第一檔
-    const bestBid = info.b?.split('_')[0];
-    const bestAsk = info.a?.split('_')[0];
-    const bid = bestBid && bestBid !== '-' ? parseFloat(bestBid) : null;
-    const ask = bestAsk && bestAsk !== '-' ? parseFloat(bestAsk) : null;
-    if (bid && ask) return (bid + ask) / 2;
-    if (bid) return bid;
-    if (ask) return ask;
-
-    const open = info.o;
-    if (open && open !== '-') return parseFloat(open);
-    return null;
-};
-
-const fetchTWSEPrice = async (symbol: string): Promise<number | null> => {
-    await loadStockInfoMap(); // 確保上市/上櫃分類表已載入完成才決定前綴順序
+/** 從 Worker /api/realtime 取得即時行情（含漲跌資料） */
+const fetchTWSEData = async (symbol: string): Promise<{ price: number, change: number | null, changePercent: number | null } | null> => {
+    await loadStockInfoMap();
     const isOtc = otcSymbolSet.has(symbol);
     const prefixOrder = isOtc ? ['otc', 'tse'] : ['tse', 'otc'];
     for (const prefix of prefixOrder) {
-        const path = `/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${symbol}.tw&json=1&delay=0`;
+        const exCh = `${prefix}_${symbol}.tw`;
         try {
-            const res = await Promise.any([
-                fetch(`${CF_WORKER}${path}`).then(r => r.ok ? r.json() : Promise.reject()),
-                fetch(`https://mis.twse.com.tw${path}`).then(r => r.ok ? r.json() : Promise.reject())
-            ]);
-            const info = res?.msgArray?.[0];
-            // 確認真的查到該股票（避免錯誤前綴回傳空陣列卻被誤判成功）
-            if (!info || info.c !== symbol) continue;
-            const price = extractPrice(info);
-            if (price) return price;
+            const res = await fetch(`${CF_WORKER}/api/realtime?ex_ch=${exCh}`);
+            if (!res.ok) continue;
+            const data = await res.json();
+            const item = Array.isArray(data) ? data[0] : null;
+            if (!item || item.stockNo !== symbol || !item.price) continue;
+            return { price: item.price, change: item.change ?? null, changePercent: item.changePercent ?? null };
         } catch { /* try next prefix */ }
     }
     return null;
@@ -602,8 +582,8 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const closes = isTAIEX ? await fetchTAIEXHistory() : await fetchFinMindHistory(symbol);
         if (!closes || closes.length < 21) {
             if (!isTAIEX) {
-                const twsePrice = await fetchTWSEPrice(symbol);
-                if (twsePrice) return { currentPrice: twsePrice, ma20: null, ma60: null, bias20: null, bias20List: [], rsi: null, dailyChangeRatio: null, marginRatio: null, signal: null } as any;
+                const twseData = await fetchTWSEData(symbol);
+                if (twseData?.price) return { currentPrice: twseData.price, ma20: null, ma60: null, bias20: null, bias20List: [], rsi: null, dailyChangeRatio: twseData.changePercent ?? null, marginRatio: null, signal: null } as any;
             }
             return null;
         }
@@ -633,14 +613,14 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             currentMa60 = validData.slice(-60).reduce((a, b) => a + b.close, 0) / 60;
         }
 
-        // ── 5. 即時現價（Cloudflare Worker → TWSE，僅個股）──
-        const twsePrice = !isTAIEX ? await fetchTWSEPrice(symbol) : null;
-        const currentPrice = (twsePrice !== null && twsePrice > 0) ? twsePrice : validData[validData.length - 1].close;
+        // ── 5. 即時現價（CF Worker /api/realtime，僅個股）──
+        const twseData = !isTAIEX ? await fetchTWSEData(symbol) : null;
+        const currentPrice = (twseData?.price && twseData.price > 0) ? twseData.price : validData[validData.length - 1].close;
 
-        // 今日 vs 昨收：用 TWSE 即時現價 - FinMind 昨日收盤
-        let dailyChangeRatio: number | null = null;
-        let dailyChange: number | null = null;
-        if (validData.length >= 1) {
+        // 優先用 TWSE 回傳的漲跌（基於官方昨收），fallback 用 FinMind 昨收計算
+        let dailyChangeRatio: number | null = twseData?.changePercent ?? null;
+        let dailyChange: number | null = twseData?.change ?? null;
+        if (dailyChangeRatio === null && validData.length >= 1) {
             const prevClose = validData[validData.length - 1].close;
             dailyChange = currentPrice - prevClose;
             dailyChangeRatio = (dailyChange / prevClose) * 100;
