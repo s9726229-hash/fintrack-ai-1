@@ -24,8 +24,8 @@ const CF_WORKER = 'https://gentle-voice-bcca.s9726229.workers.dev';
 // K線歷史快取 (symbol → close陣列)
 const klineCache: Record<string, { closes: number[], timestamp: number }> = {};
 
-// 融資快取 (symbol → {today, prev})
-const marginCache: Record<string, { today: number, prev: number, timestamp: number }> = {};
+// 融資快取 (symbol → {today, prev, 連增/連減天數})
+const marginCache: Record<string, { today: number, prev: number, marginConsecIncrease: number, marginConsecDecrease: number, timestamp: number }> = {};
 
 // TAIEX 大盤快取
 let taixCache: { closes: number[], timestamp: number } | null = null;
@@ -139,10 +139,11 @@ const fetchTAIEXHistory = async (): Promise<number[] | null> => {
 };
 
 /** 抓個股融資餘額 via FinMind（Session快取，6小時TTL）*/
-const fetchFinMindMargin = async (symbol: string): Promise<{ today: number, prev: number } | null> => {
+const fetchFinMindMargin = async (symbol: string): Promise<{ today: number, prev: number, marginConsecIncrease: number, marginConsecDecrease: number } | null> => {
     const now = Date.now();
     if (marginCache[symbol] && (now - marginCache[symbol].timestamp < getFinMindTTL())) {
-        return { today: marginCache[symbol].today, prev: marginCache[symbol].prev };
+        const c = marginCache[symbol];
+        return { today: c.today, prev: c.prev, marginConsecIncrease: c.marginConsecIncrease, marginConsecDecrease: c.marginConsecDecrease };
     }
     const startDate = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const data = await finmindFetch({
@@ -154,8 +155,23 @@ const fetchFinMindMargin = async (symbol: string): Promise<{ today: number, prev
     const sorted = data.sort((a: any, b: any) => a.date.localeCompare(b.date));
     const todayVal = Number(sorted[sorted.length - 1].MarginPurchaseTodayBalance) || 0;
     const prevVal = Number(sorted[sorted.length - 2].MarginPurchaseTodayBalance) || 0;
-    marginCache[symbol] = { today: todayVal, prev: prevVal, timestamp: now };
-    return { today: todayVal, prev: prevVal };
+    // 計算連續增加/減少天數（最新→最舊）
+    let marginConsecIncrease = 0;
+    for (let i = sorted.length - 1; i >= 1; i--) {
+        const cur = Number(sorted[i].MarginPurchaseTodayBalance) || 0;
+        const prev = Number(sorted[i - 1].MarginPurchaseTodayBalance) || 0;
+        if (cur > prev) marginConsecIncrease++;
+        else break;
+    }
+    let marginConsecDecrease = 0;
+    for (let i = sorted.length - 1; i >= 1; i--) {
+        const cur = Number(sorted[i].MarginPurchaseTodayBalance) || 0;
+        const prev = Number(sorted[i - 1].MarginPurchaseTodayBalance) || 0;
+        if (cur < prev) marginConsecDecrease++;
+        else break;
+    }
+    marginCache[symbol] = { today: todayVal, prev: prevVal, marginConsecIncrease, marginConsecDecrease, timestamp: now };
+    return { today: todayVal, prev: prevVal, marginConsecIncrease, marginConsecDecrease };
 };
 
 /**
@@ -672,14 +688,28 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const currentMa20 = ma20List[lastIdx];
         const currentBias20 = ((currentPrice - currentMa20) / currentMa20) * 100;
 
-        // Override last element with live-price bias for accuracy
+        // T+1 data: bias20List[lastIdx] = yesterday's close bias; save before override
+        const prevBias20ForSlope = bias20List[lastIdx];
+
+        // Override last element with live-price bias for display accuracy
         bias20List[lastIdx] = currentBias20;
 
         // Build slope array: index 0 = today (newest), index N = oldest
-        // Length = bias20List.length - 1 (up to 9 with SLOPE_WINDOW=10)
+        // During market hours: TWSE has real-time price but FinMind T+1 still shows yesterday.
+        //   prevBias20ForSlope = yesterday's close bias → biasSlopes[0] = today vs yesterday ✅
+        // Outside market hours: FinMind may already have today's data, making currentBias20 ≈
+        //   prevBias20ForSlope and slope ≈ 0. Use sequential loop instead (always correct).
+        const hasTWSEPrice = !!(twseData?.price && twseData.price > 0);
         const biasSlopes: number[] = [];
-        for (let i = lastIdx; i >= 1; i--) {
-            biasSlopes.push(bias20List[i] - bias20List[i - 1]);
+        if (isTWSEMarketOpen() && hasTWSEPrice) {
+            biasSlopes.push(currentBias20 - prevBias20ForSlope);
+            for (let i = lastIdx - 1; i >= 1; i--) {
+                biasSlopes.push(bias20List[i] - bias20List[i - 1]);
+            }
+        } else {
+            for (let i = lastIdx; i >= 1; i--) {
+                biasSlopes.push(bias20List[i] - bias20List[i - 1]);
+            }
         }
         const ma20Slope = ma20List[lastIdx] - ma20List[lastIdx - 1];
 
@@ -708,13 +738,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         const rsi = 100 - (100 / (1 + rs));
 
         // 5. Calculate VolumeRatio
-        const last20Vols = validData.slice(-20).map(d => d.volume);
-        const avgVol = last20Vols.reduce((a, b) => a + b, 0) / 20;
-        const volumeRatio = avgVol === 0 ? 0 : validData[validData.length - 1].volume / avgVol;
-
         // ── 9. 籌碼面（FinMind Session快取）──
         let marginChangeRatio: number | null = null;
         let marginChange: number | null = null;
+        let marginConsecIncrease: number = 0;
+        let marginConsecDecrease: number = 0;
         let institutionalForeign: number | null = null;
         let institutionalTrust: number | null = null;
         let institutionalDealer: number | null = null;
@@ -725,9 +753,13 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         if (!isTAIEX) {
             // 融資（FinMind TaiwanStockMarginPurchaseShortSale）
             const marginResult = await fetchFinMindMargin(symbol);
-            if (marginResult && marginResult.prev > 0) {
-                marginChangeRatio = ((marginResult.today - marginResult.prev) / marginResult.prev) * 100;
-                marginChange = marginResult.today - marginResult.prev;
+            if (marginResult) {
+                marginConsecIncrease = marginResult.marginConsecIncrease;
+                marginConsecDecrease = marginResult.marginConsecDecrease;
+                if (marginResult.prev > 0) {
+                    marginChangeRatio = ((marginResult.today - marginResult.prev) / marginResult.prev) * 100;
+                    marginChange = marginResult.today - marginResult.prev;
+                }
             }
             if (instData && instData.last5 && instData.last5.length > 0) {
                 const lastDate = instData.last5[instData.last5.length - 1];
@@ -806,7 +838,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
         }
 
-        const canBuy = effectiveRegimeForBuy !== MarketRegime.DEFENSIVE && currentBias20 < 0;
+        const canBuy = effectiveRegimeForBuy !== MarketRegime.DEFENSIVE && currentBias20 <= 0;
 
         if (sizeCategory === 'ETF') {
             if (currentBias20 >= params.etfSecondPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) {
@@ -849,24 +881,33 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             }
         }
         
+        // 保存技術面原始訊號（供醞釀提示使用，不受籌碼覆寫影響）
+        const preChipSignal: string = techSignal;
+
         // ── 第二軌：籌碼面共振 / 背離修正 ──
         if (instData) {
+            const instThresh = params.chipInstDays;
+            const instForeignBuy  = instData.foreignConsecBuy  >= instThresh;
+            const instForeignSell = instData.foreignConsecSell >= instThresh;
+            const instTrustBuy    = instData.trustConsecBuy    >= instThresh;
+            const instTrustSell   = instData.trustConsecSell   >= instThresh;
+
             const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
             const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL'].includes(techSignal);
 
-            // 籌碼共振：原訊號偏多 && 外資+投信 近5日各≥3日買超 → 升級強力布局
-            if (isBullishSignal && instData.foreignBuy && instData.trustBuy) {
+            // 籌碼共振：原訊號偏多 && 外資+投信連買 ≥ chipInstDays → 升級強力布局
+            if (isBullishSignal && instForeignBuy && instTrustBuy) {
                 techSignal = 'STRONG_LAYOUT';
             }
-            // 籌碼背離：原訊號偏多 && 外資連賣 && 融資增幅≥+2% → 降級持續觀察
-            else if (isBullishSignal && instData.foreignSell && marginChangeRatio !== null && marginChangeRatio >= 2) {
+            // 籌碼背離：原訊號偏多 && 外資連賣 && 融資連增 ≥ chipMarginDays → 降級持續觀察
+            else if (isBullishSignal && instForeignSell && marginConsecIncrease >= params.chipMarginDays) {
                 techSignal = 'WATCH_DIVERGE';
             }
-            // 主力棄守：原訊號偏弱/中性 && 外資+投信 近5日各≥3日賣超 → 強制建議賣出
-            else if (isWeakOrNeutral && instData.foreignSell && instData.trustSell) {
+            // 主力棄守：原訊號偏弱/中性 && 外資+投信連賣 ≥ chipInstDays → 強制建議賣出
+            else if (isWeakOrNeutral && instForeignSell && instTrustSell) {
                 techSignal = 'SELL';
             }
-            // FORCE_SELL + 籌碼共振：維持強制停利，但在 signalHint 加提示（見 buildTriggerConditions）
+            // FORCE_SELL + 籌碼共振/棄守：維持強制停利，但在 signalHint 加提示（見 buildTriggerConditions）
         }
 
         const riskAlerts: RiskAlerts = {
@@ -941,7 +982,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(`乖離 ≥ +${sellBias}%`, true), cond(`斜率連跌 ≥ ${sellSlopD}棒`, true)] };
                 if (techSignal === 'FORCE_SELL') {
                     const forceConds = [cond(`乖離 ≥ +${sell2Bias}%`, true)];
-                    if (instData?.foreignBuy && instData?.trustBuy) forceConds.push(cond('⚡ 籌碼共振 可考慮布局', true));
+                    const fThresh = params.chipInstDays;
+                    if (instData && instData.foreignConsecBuy >= fThresh && instData.trustConsecBuy >= fThresh)
+                        forceConds.push(cond('⚡ 籌碼共振 可考慮布局', true));
+                    else if (instData && instData.foreignConsecSell >= fThresh && instData.trustConsecSell >= fThresh)
+                        forceConds.push(cond('⚡ 法人同步棄守 強烈建議出場', true));
                     return { target: '', type: 'SELL', conditions: forceConds };
                 }
             }
@@ -966,7 +1011,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         let chipHint: import('../types').SignalHint | undefined = undefined;
 
-        if (techSignal === 'NONE' || techSignal === 'RISK_ALERT') {
+        if (preChipSignal === 'NONE' || preChipSignal === 'RISK_ALERT') {
             // ── 技術面：乖離越過門檻才觸發，但顯示所有條件（已成立亮/未成立暗）──
             const computeTechBrewHint = (
                 buyBias: number, strongBuyBias: number,
@@ -1024,31 +1069,34 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             const tCS = instData.trustConsecSell;
             const fCB = instData.foreignConsecBuy;
             const tCB = instData.trustConsecBuy;
-            const chipDays = params.chipInstDays;
+            const chipDays   = params.chipInstDays;
+            const marginDays = params.chipMarginDays;
             if (fCS >= chipDays && tCS >= chipDays) {
                 chipHint = { target: '🔴 法人棄守', type: 'SELL', conditions: [
                     { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
                     { label: `投信連賣 ≥ ${chipDays}日`, satisfied: true },
                 ]};
-            } else if (fCS >= chipDays && marginChangeRatio !== null && marginChangeRatio >= 2) {
+            } else if (fCS >= chipDays && marginConsecIncrease >= marginDays) {
                 chipHint = { target: '🟠 籌碼疑慮', type: 'SELL', conditions: [
                     { label: `外資連賣 ≥ ${chipDays}日`, satisfied: true },
-                    { label: '融資增幅 ≥ 2%', satisfied: true },
+                    { label: `融資連增 ≥ ${marginDays}日`, satisfied: true },
                 ]};
             } else {
                 const fSat = fCB >= chipDays;
                 const tSat = tCB >= chipDays;
-                const mSat = marginChange !== null && marginChange < 0;
-                const satCount = (fSat ? 1 : 0) + (tSat ? 1 : 0) + (mSat ? 1 : 0);
+                const mBullish = marginConsecIncrease >= 1;  // 融資連增 → 偏多加分
+                const mBearish = marginConsecDecrease >= 1;  // 融資連減 → 偏弱加分
+                const satCount = (fSat ? 1 : 0) + (tSat ? 1 : 0) + (mBullish ? 1 : 0);
                 const neutralTarget = satCount >= 2 ? '🟢 籌碼偏多'
                     : satCount === 1 ? '🔵 籌碼觀察'
-                    : fCS >= 1 || tCS >= 1 ? '🟡 籌碼偏弱'
+                    : fCS >= 1 || tCS >= 1 || mBearish ? '🟡 籌碼偏弱'
                     : '⚪ 籌碼中性';
                 const neutralType = satCount >= 1 ? 'BUY' as const : 'SELL' as const;
+                const isBullishZone = satCount >= 1;
                 chipHint = { target: neutralTarget, type: neutralType, conditions: [
                     { label: `外資連買 ≥ ${chipDays}日`, satisfied: fSat },
                     { label: `投信連買 ≥ ${chipDays}日`, satisfied: tSat },
-                    { label: '融資持續縮減', satisfied: mSat },
+                    { label: isBullishZone ? '融資連增 ≥ 1日' : '融資連減 ≥ 1日', satisfied: isBullishZone ? mBullish : mBearish },
                 ]};
             }
         }
@@ -1062,11 +1110,12 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             ma20: currentMa20,
             ma60: currentMa60,
             rsi,
-            volumeRatio,
             biasSlopes,
             ma20Slope,
             marginChangeRatio,
             marginChange,
+            marginConsecIncrease,
+            marginConsecDecrease,
             institutionalForeign,
             institutionalTrust,
             institutionalDealer,

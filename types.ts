@@ -67,7 +67,6 @@ export interface Asset {
 
   // --- V7.1.0 Technical Monitor ---
   rsi?: number;
-  volumeRatio?: number;
   techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL' | 'STRONG_LAYOUT' | 'WATCH_DIVERGE';
   biasSlopes?: number[]; // Index 0: today's slope, 1: yesterday's, 2: day before yesterday
   ma20Slope?: number;
@@ -189,11 +188,12 @@ export interface TechDataResult {
     ma20: number | null;
     ma60: number | null;
     rsi: number | null;
-    volumeRatio: number | null;
     biasSlopes: number[];
     ma20Slope: number | null;
     marginChangeRatio: number | null;
     marginChange: number | null;
+    marginConsecIncrease: number;
+    marginConsecDecrease: number;
     institutionalForeign: number | null;
     institutionalTrust: number | null;
     institutionalDealer: number | null;

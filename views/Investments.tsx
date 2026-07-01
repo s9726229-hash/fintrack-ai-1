@@ -191,7 +191,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
                         if (techData.ma60 !== null) cleanTechData.ma60 = techData.ma60;
                         if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
-                        if (techData.volumeRatio !== null) cleanTechData.volumeRatio = techData.volumeRatio;
                         cleanTechData.techSignal = techData.techSignal;
                         cleanTechData.biasSlopes = techData.biasSlopes;
                         if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;

@@ -39,7 +39,16 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.6.7 醞釀優先順序修正 & 決策流程圖" date="Latest" color="text-violet-400">
+        <FeatureSection title="V7.7.2 DSS 籌碼面深度修正" date="Latest" color="text-violet-400">
+            <FeatureItem icon={Zap} title="乖離斜率修正（開盤中）" description="開盤期間乖離斜率 [0] 改用 TWSE 即時現價 vs FinMind 昨日收盤，避免因 FinMind 資料尚未更新今日而導致今日斜率錯誤為 0。收盤後仍使用 FinMind 連續日序列計算。" />
+            <FeatureItem icon={ShieldCheck} title="canBuy 買進門檻修正" description="canBuy 條件改為月乖離 ≤ 0（貼近或低於均線），消除大盤防禦模式下仍可能觸發買進的邊界案例。" />
+            <FeatureItem icon={Cpu} title="籌碼第二軌動態門檻" description="第二軌法人天數改用 params.chipInstDays（設定頁可調），融資判斷全面改為連增/連減天數（params.chipMarginDays），取代原本固定 +2% 單日變化。" />
+            <FeatureItem icon={Activity} title="醞釀訊號不被籌碼覆寫" description="新增 preChipSignal 在籌碼第二軌介入前儲存技術面訊號，醞釀偵測改用 preChipSignal 判斷，確保籌碼共振/背離覆寫後醞釀提示仍能正常顯示。" />
+            <FeatureItem icon={BarChart2} title="融資連增／連減對稱設計" description="籌碼常駐偵測（chipHint）偏多區塊改用融資連增天數加分（正向共振），偏弱區塊改用融資連減天數（籌碼轉空佐證），條件標籤隨狀態自動切換顯示語意。" />
+            <FeatureItem icon={GitBranch} title="技術說明新增籌碼常駐偵測章節" description="TechDocs 新增「籌碼常駐偵測（ChipHint）」章節，列出全部 6 種狀態（法人棄守／籌碼疑慮／籌碼偏多／籌碼觀察／籌碼偏弱／籌碼中性）的觸發條件表，並說明與主燈號的獨立關係及醞釀燈號的交互作用。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.6.7 醞釀優先順序修正 & 決策流程圖" color="text-violet-400">
             <FeatureItem icon={Zap} title="乖離過熱優先於斜率買進" description="修正醞釀邏輯：乖離已達停利門檻時，不再因為斜率剛好上升就誤判為「醞釀買進」，改為優先顯示「醞釀停利/高位勿追」，避免乖離過熱、籌碼轉空卻顯示買進提示的矛盾畫面。" />
             <FeatureItem icon={GitBranch} title="技術說明新增「決策流程圖」分頁" description="技術說明頁拆成「文字說明」與「決策流程圖」兩分頁，流程圖以5階段呈現完整判斷順序（大盤模式→技術面初判→籌碼面共振/背離→停損層覆寫→醞釀訊號分析），箭頭標示觸發條件，並提示「醞釀」僅代表尚無確切訊號。" />
         </FeatureSection>
