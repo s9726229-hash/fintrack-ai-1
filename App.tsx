@@ -323,7 +323,7 @@ export default function App() {
       <div className={view === 'WATCHLIST' ? 'block' : 'hidden'}>
         <Watchlist isActiveView={view === 'WATCHLIST'} />
       </div>
-      {view === 'DSS_LAB' && <DSSLab stockTransactions={stockTransactions} />}
+      {view === 'DSS_LAB' && <DSSLab stockTransactions={stockTransactions} assets={assets} />}
       {view === 'GUIDE' && <GuideView />}
       {view === 'TECH_DOCS' && <TechDocs />}
       {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}

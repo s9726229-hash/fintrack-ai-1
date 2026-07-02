@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { FlaskConical, TrendingUp, TrendingDown, Trophy, Target, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import { StockTransaction } from '../types';
+import { StockTransaction, Asset } from '../types';
 
 interface Props {
     stockTransactions: StockTransaction[];
+    assets: Asset[];
 }
 
 interface CompletedTrade {
@@ -123,7 +124,15 @@ const StatCard = ({ label, value, sub, color = 'text-white' }: { label: string; 
     </div>
 );
 
-export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
+export const DSSLab: React.FC<Props> = ({ stockTransactions, assets }) => {
+    const nameMap = useMemo(() => {
+        const map = new Map<string, string>();
+        // from assets
+        assets.forEach(a => { if ((a as any).stockCode) map.set((a as any).stockCode, a.name); });
+        // fallback: scan transactions
+        stockTransactions.forEach(t => { if (t.symbol && t.name && !map.has(t.symbol)) map.set(t.symbol, t.name); });
+        return map;
+    }, [assets, stockTransactions]);
     const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
     const [sortKey, setSortKey] = useState<SortKey>('trades');
     const [sortAsc, setSortAsc] = useState(false);
@@ -261,8 +270,8 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                                                 <td className="p-3">
                                                     <div className="flex items-center gap-2">
                                                         <div>
-                                                            <div className="font-bold text-white text-sm">{s.name ?? s.symbol}</div>
-                                                            <div className="text-xs text-slate-500">{s.symbol}</div>
+                                                            {(nameMap.get(s.symbol) ?? s.name) && <div className="font-bold text-white text-sm">{nameMap.get(s.symbol) ?? s.name}</div>}
+                                                            <div className={`font-mono ${(nameMap.get(s.symbol) ?? s.name) ? 'text-xs text-slate-500' : 'font-bold text-white text-sm'}`}>{s.symbol}</div>
                                                         </div>
                                                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${catColor(s.category)}`}>{s.category}</span>
                                                     </div>
