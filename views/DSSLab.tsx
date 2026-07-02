@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { FlaskConical, TrendingUp, TrendingDown, Trophy, Target, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import { StockTransaction, Asset } from '../types';
+import { StockTransaction } from '../types';
+import { lookupStockName } from '../services/stock';
 
 interface Props {
     stockTransactions: StockTransaction[];
-    assets: Asset[];
 }
 
 interface CompletedTrade {
@@ -124,15 +124,18 @@ const StatCard = ({ label, value, sub, color = 'text-white' }: { label: string; 
     </div>
 );
 
-export const DSSLab: React.FC<Props> = ({ stockTransactions, assets }) => {
-    const nameMap = useMemo(() => {
-        const map = new Map<string, string>();
-        // from assets
-        assets.forEach(a => { if ((a as any).stockCode) map.set((a as any).stockCode, a.name); });
-        // fallback: scan transactions
-        stockTransactions.forEach(t => { if (t.symbol && t.name && !map.has(t.symbol)) map.set(t.symbol, t.name); });
-        return map;
-    }, [assets, stockTransactions]);
+export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
+    const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
+
+    useEffect(() => {
+        const symbols = [...new Set(stockTransactions.map(t => t.symbol).filter(Boolean))] as string[];
+        Promise.all(symbols.map(async s => [s, await lookupStockName(s)] as [string, string | null]))
+            .then(entries => {
+                const map = new Map<string, string>();
+                entries.forEach(([s, n]) => { if (n) map.set(s, n); });
+                setNameMap(map);
+            });
+    }, [stockTransactions]);
     const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
     const [sortKey, setSortKey] = useState<SortKey>('trades');
     const [sortAsc, setSortAsc] = useState(false);
