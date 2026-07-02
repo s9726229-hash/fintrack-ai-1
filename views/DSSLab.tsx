@@ -365,6 +365,7 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                 <thead><tr className="text-xs text-slate-400 border-b border-slate-700">
                                     <th className="py-2 px-3">標的</th>
                                     <th className="py-2 px-3 text-center">進場日</th>
+                                    <th className="py-2 px-3 text-center">出場日</th>
                                     <th className="py-2 px-3 text-right">實際買入</th>
                                     <th className="py-2 px-3 text-right">實際報酬</th>
                                     <th className="py-2 px-3 text-center">最佳日（偏移）</th>
@@ -380,6 +381,7 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                                 <div className="text-xs text-slate-500">{r.symbol}</div>
                                             </td>
                                             <td className="py-2 px-3 text-center text-xs text-slate-400">{r.buyDate}</td>
+                                            <td className="py-2 px-3 text-center text-xs text-slate-400">{r.sellDate}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.actualBuyPrice}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm">
                                                 <span className={r.actualReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
