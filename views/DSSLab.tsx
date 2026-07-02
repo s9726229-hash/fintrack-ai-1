@@ -259,10 +259,24 @@ interface WindowResult {
 }
 
 const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades, nameMap }) => {
+    const CACHE_KEY = 'ft_dsslab_optimal_cache';
     const [window_, setWindow_] = useState<5 | 10>(5);
     const [isRunning, setIsRunning] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
     const [results, setResults] = useState<WindowResult[] | null>(null);
+    const [cacheTs, setCacheTs] = useState<number | null>(null);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                setResults(parsed.results);
+                setCacheTs(parsed.timestamp);
+                setWindow_(parsed.window ?? 5);
+            }
+        } catch { /* 快取損壞則忽略 */ }
+    }, []);
 
     const handleRun = async () => {
         setIsRunning(true);
@@ -323,7 +337,11 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                 dayOffset: daysBetween2(best.date, trade.buyDate),
             });
         }
-        setResults(windowResults.sort((a, b) => b.improvement - a.improvement));
+        const sorted = windowResults.sort((a, b) => b.improvement - a.improvement);
+        const ts = Date.now();
+        setResults(sorted);
+        setCacheTs(ts);
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ results: sorted, timestamp: ts, window: window_ })); } catch { /* 空間不足忽略 */ }
         setIsRunning(false);
         setProgress(null);
     };
@@ -352,6 +370,7 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                         {isRunning ? <><Loader2 size={14} className="animate-spin" />分析中…</> : '開始分析'}
                     </button>
                     {progress && <span className="text-xs text-slate-400">{progress.done}/{progress.total} 標的</span>}
+                    {cacheTs && !isRunning && <span className="text-xs text-slate-500 ml-2">上次分析：{new Date(cacheTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
                 </div>
 
                 {results && (
