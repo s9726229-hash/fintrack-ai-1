@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2 } from 'lucide-react';
+import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Download } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
 import { lookupStockName, fetchKlineWindow, computeMultiBias } from '../services/stock';
 import { getBacktestCache } from '../services/storage';
@@ -116,6 +116,18 @@ const buildSymbolStats = (trades: CompletedTrade[]): SymbolStats[] => {
 
 type SortKey = 'trades' | 'winRate' | 'avgProfit' | 'totalPnL' | 'avgHolding';
 type CategoryFilter = 'ALL' | 'ETF' | '上市' | '上櫃';
+
+const downloadCSV = (filename: string, headers: string[], rows: (string | number | null | undefined)[][]) => {
+    const escape = (v: string | number | null | undefined) => {
+        const s = v === null || v === undefined ? '' : String(v);
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [headers, ...rows].map(r => r.map(escape).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+};
 
 // ── Section 2：進場條件分析（交叉比對回測快取）──────────────────────────────
 interface EnrichedTrade extends CompletedTrade {
@@ -374,6 +386,15 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                             </div>
                         </div>
 
+                        <div className="flex justify-end">
+                            <button onClick={() => downloadCSV(
+                                `dss_optimal_entry_${new Date().toISOString().slice(0,10)}.csv`,
+                                ['代號','名稱','進場日','出場日','實際買入價','實際報酬%','B5%','B10%','B20%','最佳日','最佳價格','最佳報酬%','最佳B5%','最佳B10%','最佳B20%','可改善%','偏移天數'],
+                                results.map(r => [r.symbol, r.name??'', r.buyDate, r.sellDate, r.actualBuyPrice, r.actualReturn.toFixed(2), r.actualBias5?.toFixed(1)??'', r.actualBias10?.toFixed(1)??'', r.actualBias20?.toFixed(1)??'', r.bestDate, r.bestPrice, r.bestReturn.toFixed(2), r.bestBias5?.toFixed(1)??'', r.bestBias10?.toFixed(1)??'', r.bestBias20?.toFixed(1)??'', r.improvement.toFixed(2), r.dayOffset])
+                            )} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-slate-400 border border-slate-700 hover:text-white hover:border-slate-500 transition-all">
+                                <Download size={12} /> 匯出 CSV
+                            </button>
+                        </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead><tr className="text-xs text-slate-400 border-b border-slate-700">
@@ -573,6 +594,13 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                             <Trophy size={16} className="text-amber-400" />
                             <h3 className="text-sm font-bold text-slate-200">標的勝率排行</h3>
                             <span className="text-xs text-slate-500 ml-1">（點擊展開明細）</span>
+                            <button onClick={() => downloadCSV(
+                                `dss_symbol_stats_${new Date().toISOString().slice(0,10)}.csv`,
+                                ['代號','名稱','類別','交易數','勝','敗','勝率%','平均損益','平均報酬%','累計損益','平均持倉天數','最大獲利','最大虧損'],
+                                symbolStats.map(s => [s.symbol, nameMap.get(s.symbol)??s.name??'', s.category, s.trades.length, s.wins, s.losses, s.winRate.toFixed(1), s.avgProfit.toFixed(0), s.avgReturn.toFixed(2), s.totalPnL.toFixed(0), s.avgHoldingDays.toFixed(1), s.maxProfit.toFixed(0), s.maxLoss.toFixed(0)])
+                            )} className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-slate-400 border border-slate-700 hover:text-white hover:border-slate-500 transition-all">
+                                <Download size={12} /> 匯出 CSV
+                            </button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
