@@ -196,7 +196,7 @@ export const getFullDataJson = () => {
     const data = {
         ft_metadata: {
             backupDate: new Date().toISOString(),
-            appVersion: '7.6.7',
+            appVersion: '7.7.3',
         },
         [STORAGE_KEYS.ASSETS]: getAssets(),
         [STORAGE_KEYS.TRANSACTIONS]: getTransactions(),
@@ -208,7 +208,8 @@ export const getFullDataJson = () => {
         [STORAGE_KEYS.STOCK_TRANSACTIONS]: getStockTransactions(),
         [STORAGE_KEYS.WATCHLISTS]: getWatchlists(),
         [STORAGE_KEYS.TECH_PARAMS]: getTechParameters(),
-        'ft_api_key': getApiKey(), 
+        [BACKTEST_CACHE_KEY]: getBacktestCache(),
+        'ft_api_key': getApiKey(),
         'ft_finmind_token': getFinMindToken(),
         'ft_google_client_id': getGoogleClientId(),
         [STORAGE_KEYS.FEE_DISCOUNT]: getFeeDiscount(),
@@ -266,6 +267,7 @@ export const importData = (jsonData: string) => {
     if (data[STORAGE_KEYS.STOCK_HISTORY]) saveStockHistory(data[STORAGE_KEYS.STOCK_HISTORY]);
     if (data[STORAGE_KEYS.WATCHLISTS]) saveWatchlists(data[STORAGE_KEYS.WATCHLISTS]);
     if (data[STORAGE_KEYS.TECH_PARAMS]) saveTechParameters(data[STORAGE_KEYS.TECH_PARAMS]);
+    if (data[BACKTEST_CACHE_KEY]) localStorage.setItem(BACKTEST_CACHE_KEY, JSON.stringify(data[BACKTEST_CACHE_KEY]));
     if (data['ft_api_key']) saveApiKey(data['ft_api_key']);
     if (data['ft_finmind_token']) saveFinMindToken(data['ft_finmind_token']);
     if (data['ft_google_client_id']) saveGoogleClientId(data['ft_google_client_id']);
@@ -280,6 +282,18 @@ export const importData = (jsonData: string) => {
 
 export const clearAllData = () => {
   localStorage.clear();
+};
+
+// --- 回測分析快取 ---
+const BACKTEST_CACHE_KEY = 'ft_backtest_cache';
+
+export const getBacktestCache = (): { timestamp: number; results: import('../types').BacktestResult[] } | null => {
+    const data = localStorage.getItem(BACKTEST_CACHE_KEY);
+    return data ? JSON.parse(data) : null;
+};
+
+export const saveBacktestCache = (results: import('../types').BacktestResult[]) => {
+    localStorage.setItem(BACKTEST_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), results }));
 };
 
 export const getAutoTechUpdateEnabled = (): boolean => {

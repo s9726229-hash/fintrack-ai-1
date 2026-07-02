@@ -39,7 +39,14 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.7.2 DSS 籌碼面深度修正" date="Latest" color="text-violet-400">
+        <FeatureSection title="V7.7.3 DSS 回測分析" date="Latest" color="text-sky-400">
+            <FeatureItem icon={BarChart2} title="歷史交易 vs DSS 訊號吻合度" description="回測引擎將所有歷史交易紀錄逐筆套用 DSS V5.0 公式，計算當時乖離、RSI、法人籌碼，與實際買賣方向對比，輸出 MATCH / PARTIAL / DIVERGE 吻合標記。" />
+            <FeatureItem icon={GitMerge} title="嵌入交易記錄頁" description="回測面板整合於「交易記錄」頁籤下方，自動繼承日期範圍與搜尋篩選條件，支援按吻合度二次篩選與操作方向過濾。" />
+            <FeatureItem icon={Activity} title="距離指標（距買進 / 距停利）" description="每筆交易同步顯示 gapToBuyBias（負值表示已在買進區間）與 gapToSellBias（正值表示已超過停利區間），量化當時距離訊號的遠近。" />
+            <FeatureItem icon={ShieldCheck} title="結果快取 + 備份整合" description="225 次 FinMind API 呼叫結果快取至 localStorage（ft_backtest_cache），備份匯出自動包含快取，匯入時一併還原，避免重複拉取。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.7.2 DSS 籌碼面深度修正" color="text-violet-400">
             <FeatureItem icon={Zap} title="乖離斜率修正（開盤中）" description="開盤期間乖離斜率 [0] 改用 TWSE 即時現價 vs FinMind 昨日收盤，避免因 FinMind 資料尚未更新今日而導致今日斜率錯誤為 0。收盤後仍使用 FinMind 連續日序列計算。" />
             <FeatureItem icon={ShieldCheck} title="canBuy 買進門檻修正" description="canBuy 條件改為月乖離 ≤ 0（貼近或低於均線），消除大盤防禦模式下仍可能觸發買進的邊界案例。" />
             <FeatureItem icon={Cpu} title="籌碼第二軌動態門檻" description="第二軌法人天數改用 params.chipInstDays（設定頁可調），融資判斷全面改為連增/連減天數（params.chipMarginDays），取代原本固定 +2% 單日變化。" />

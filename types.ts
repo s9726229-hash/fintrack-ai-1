@@ -217,6 +217,37 @@ export interface TechDataResult {
     chipHint?: SignalHint;
 }
 
+export interface BacktestResult {
+    tradeId: string;
+    symbol: string;
+    name?: string;
+    date: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    shares: number;
+    realizedProfit?: number;
+    amount: number;
+    // DSS at trade date
+    techSignal: TechDataResult['techSignal'];
+    chipHint?: SignalHint;
+    bias20: number;
+    rsi: number;
+    biasSlopes: number[];
+    foreignConsecBuy: number;
+    foreignConsecSell: number;
+    trustConsecBuy: number;
+    trustConsecSell: number;
+    marginConsecIncrease: number;
+    marginConsecDecrease: number;
+    institutionalForeign?: number | null;
+    institutionalTrust?: number | null;
+    sizeCategory: 'ETF' | 'LARGE_CAP' | 'SMALL_CAP' | 'UNKNOWN';
+    alignment: 'MATCH' | 'DIVERGE' | 'PARTIAL';
+    gapToBuyBias: number | null;   // bias20 - buyThreshold; 負值=在買進區間
+    gapToSellBias: number | null;  // bias20 - sellThreshold; 正值=在停利區間
+    error?: string;
+}
+
 export interface Transaction {
   id: string;
   date: string; // YYYY-MM-DD

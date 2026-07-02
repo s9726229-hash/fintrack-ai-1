@@ -7,6 +7,7 @@ import { InvestmentInputModal } from '../components/investments/InvestmentInputM
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime } from '../services/stock';
 import { getApiKey, getTechParameters, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
+import { BacktestView } from './BacktestView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
 interface InvestmentsProps {
@@ -737,6 +738,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 <div className="space-y-4 animate-fade-in">
                     <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
                     <TransactionAnalysisView transactions={filteredStockTransactions} stockNameMap={stockNameMap} />
+                    <BacktestView allTransactions={stockTransactions} filteredTransactions={filteredStockTransactions} />
                 </div>
             )}
             <InvestmentInputModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingAsset(null); }} onSave={handleSaveAsset} editingAsset={editingAsset} />

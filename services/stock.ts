@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint } from "../types";
+import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint, TechParameters, BacktestResult } from "../types";
 import { getApiKey, getFeeDiscount, getTechParameters, getFinMindToken } from "./storage";
 
 const cleanJsonString = (text: string) => {
@@ -1141,6 +1141,285 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         console.error(`Failed to fetch Technical Data for ${symbol}:`, error);
         return null;
     }
+};
+
+// ============================================================
+// 回測分析（Backtest）—— 歷史資料抓取 + 純 DSS 計算
+// ============================================================
+
+const fetchHistoricalKlineForBacktest = async (
+    symbol: string, startDate: string, endDate: string
+): Promise<{ date: string; close: number }[] | null> => {
+    const data = await finmindFetch({ dataset: 'TaiwanStockPrice', data_id: symbol, start_date: startDate, end_date: endDate });
+    if (!data) return null;
+    return data
+        .map((d: any) => ({ date: String(d.date), close: Number(d.close) }))
+        .filter((d: any) => d.close > 0)
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+};
+
+const fetchHistoricalInstForBacktest = async (
+    symbol: string, startDate: string, endDate: string
+): Promise<{ date: string; foreign: number; trust: number }[] | null> => {
+    const data = await finmindFetch({ dataset: 'TaiwanStockInstitutionalInvestorsBuySell', data_id: symbol, start_date: startDate, end_date: endDate });
+    if (!data) return null;
+    return data
+        .map((d: any) => ({ date: String(d.date), foreign: Number(d.Foreign_Investor) || 0, trust: Number(d.Investment_Trust) || 0 }))
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+};
+
+const fetchHistoricalMarginForBacktest = async (
+    symbol: string, startDate: string, endDate: string
+): Promise<{ date: string; balance: number }[] | null> => {
+    const data = await finmindFetch({ dataset: 'TaiwanStockMarginPurchaseShortSale', data_id: symbol, start_date: startDate, end_date: endDate });
+    if (!data) return null;
+    return data
+        .map((d: any) => ({ date: String(d.date), balance: Number(d.MarginPurchaseTodayBalance) || 0 }))
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+};
+
+interface DSSAtDateResult {
+    techSignal: TechDataResult['techSignal'];
+    chipHint?: SignalHint;
+    bias20: number;
+    rsi: number;
+    biasSlopes: number[];
+    foreignConsecBuy: number;
+    foreignConsecSell: number;
+    trustConsecBuy: number;
+    trustConsecSell: number;
+    marginConsecIncrease: number;
+    marginConsecDecrease: number;
+    institutionalForeign: number | null;
+    institutionalTrust: number | null;
+}
+
+// 純 DSS 計算（大盤假設 NORMAL、跳過持倉相關的 TREND_ADD / 停損層）
+const computeDSSForDate = (
+    klineRows: { date: string; close: number }[],
+    instRows: { date: string; foreign: number; trust: number }[],
+    marginRows: { date: string; balance: number }[],
+    tradeDate: string,
+    params: TechParameters,
+    sizeCategory: 'ETF' | 'LARGE_CAP' | 'SMALL_CAP'
+): DSSAtDateResult | null => {
+    const tradeDateKlines = klineRows.filter(r => r.date <= tradeDate);
+    if (tradeDateKlines.length < 23) return null;
+    const closes = tradeDateKlines.map(r => r.close);
+
+    // MA20 / bias20List
+    const SLOPE_WINDOW = 10;
+    const validData = closes.map(c => ({ close: c }));
+    const bias20List: number[] = [];
+    const ma20List: number[] = [];
+    for (let i = 0; i < SLOPE_WINDOW; i++) {
+        const targetIdx = validData.length - 1 - i;
+        if (targetIdx - 19 < 0) break;
+        const slice = validData.slice(targetIdx - 19, targetIdx + 1);
+        const ma20 = slice.reduce((a, b) => a + b.close, 0) / 20;
+        ma20List.unshift(ma20);
+        bias20List.unshift(((slice[19].close - ma20) / ma20) * 100);
+    }
+    if (bias20List.length < 4) return null;
+
+    const lastIdx = ma20List.length - 1;
+    const currentMa20 = ma20List[lastIdx];
+    const currentPrice = closes[closes.length - 1];
+    const currentBias20 = ((currentPrice - currentMa20) / currentMa20) * 100;
+    bias20List[lastIdx] = currentBias20;
+
+    // biasSlopes（序列計算，歷史資料無 TWSE 即時）
+    const biasSlopes: number[] = [];
+    for (let i = lastIdx; i >= 1; i--) biasSlopes.push(bias20List[i] - bias20List[i - 1]);
+    const ma20Slope = ma20List[lastIdx] - ma20List[lastIdx - 1];
+
+    // RSI 14
+    let avgGain = 0, avgLoss = 0;
+    for (let i = 1; i <= 14; i++) {
+        const diff = validData[i].close - validData[i - 1].close;
+        if (diff > 0) avgGain += diff; else avgLoss += Math.abs(diff);
+    }
+    avgGain /= 14; avgLoss /= 14;
+    for (let i = 15; i < validData.length; i++) {
+        const diff = validData[i].close - validData[i - 1].close;
+        avgGain = (avgGain * 13 + (diff > 0 ? diff : 0)) / 14;
+        avgLoss = (avgLoss * 13 + (diff < 0 ? Math.abs(diff) : 0)) / 14;
+    }
+    const rsi = 100 - 100 / (1 + avgGain / (avgLoss === 0 ? 1 : avgLoss));
+
+    // 法人連買/連賣天數
+    const filteredInst = instRows.filter(r => r.date <= tradeDate);
+    let foreignConsecBuy = 0, foreignConsecSell = 0, trustConsecBuy = 0, trustConsecSell = 0;
+    for (let i = filteredInst.length - 1; i >= 0; i--) { if (filteredInst[i].foreign > 0) foreignConsecBuy++; else break; }
+    for (let i = filteredInst.length - 1; i >= 0; i--) { if (filteredInst[i].foreign < 0) foreignConsecSell++; else break; }
+    for (let i = filteredInst.length - 1; i >= 0; i--) { if (filteredInst[i].trust > 0) trustConsecBuy++; else break; }
+    for (let i = filteredInst.length - 1; i >= 0; i--) { if (filteredInst[i].trust < 0) trustConsecSell++; else break; }
+    const institutionalForeign = filteredInst.length > 0 ? filteredInst[filteredInst.length - 1].foreign : null;
+    const institutionalTrust   = filteredInst.length > 0 ? filteredInst[filteredInst.length - 1].trust   : null;
+    const hasInst = filteredInst.length > 0;
+
+    // 融資連增/連減天數
+    const filteredMargin = marginRows.filter(r => r.date <= tradeDate);
+    let marginConsecIncrease = 0, marginConsecDecrease = 0;
+    for (let i = filteredMargin.length - 1; i >= 1; i--) { if (filteredMargin[i].balance > filteredMargin[i-1].balance) marginConsecIncrease++; else break; }
+    for (let i = filteredMargin.length - 1; i >= 1; i--) { if (filteredMargin[i].balance < filteredMargin[i-1].balance) marginConsecDecrease++; else break; }
+
+    // Track 1（大盤假設 NORMAL、跳過持倉相關訊號）
+    const checkSlopeImproved = (days: number) => {
+        if (days <= 0) return true;
+        for (let i = 0; i < Math.min(days, biasSlopes.length); i++) { if (biasSlopes[i] <= 0) return false; }
+        return true;
+    };
+    const checkSlopeDeteriorated = (days: number) => {
+        if (days <= 0) return true;
+        for (let i = 0; i < Math.min(days, biasSlopes.length); i++) { if (biasSlopes[i] >= 0) return false; }
+        return true;
+    };
+
+    const canBuy = currentBias20 <= 0;
+    let techSignal: TechDataResult['techSignal'] = 'NONE';
+
+    if (sizeCategory === 'ETF') {
+        if      (currentBias20 >= params.etfSecondPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) techSignal = 'SECOND_PARTIAL_SELL';
+        else if (currentBias20 >= params.etfPartialSellBias        && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) techSignal = 'PARTIAL_SELL';
+        else if (currentBias20 <= params.etfStrongAdditionalBuyBias) techSignal = 'STRONG_ADDITIONAL_BUY';
+        else if (currentBias20 <= params.etfAdditionalBuyBias)       techSignal = 'ADDITIONAL_BUY';
+        else if (canBuy && currentBias20 <= params.etfStrongBuyBias && checkSlopeImproved(params.etfStrongBuySlopeDays) && rsi < params.etfStrongBuyRsi) techSignal = 'STRONG_BUY';
+        else if (canBuy && currentBias20 <= params.etfBuyBias       && checkSlopeImproved(params.etfBuySlopeDays)       && rsi < params.etfBuyRsi)       techSignal = 'BUY';
+    } else if (sizeCategory === 'LARGE_CAP') {
+        if      (currentBias20 >= params.largeCapForceSellBias) techSignal = 'FORCE_SELL';
+        else if (currentBias20 >= params.largeCapPartialSellBias && checkSlopeDeteriorated(params.largeCapPartialSellSlopeDays)) techSignal = 'PARTIAL_SELL';
+        else if (canBuy && currentBias20 <= params.largeCapStrongBuyBias && checkSlopeImproved(params.largeCapStrongBuySlopeDays) && rsi < params.largeCapStrongBuyRsi) techSignal = 'STRONG_BUY';
+        else if (canBuy && currentBias20 <= params.largeCapBuyBias       && checkSlopeImproved(params.largeCapBuySlopeDays)       && rsi < params.largeCapBuyRsi)       techSignal = 'BUY';
+    } else {
+        if      (currentBias20 >= params.smallCapForceSellBias) techSignal = 'FORCE_SELL';
+        else if (currentBias20 >= params.smallCapPartialSellBias && checkSlopeDeteriorated(params.smallCapPartialSellSlopeDays)) techSignal = 'PARTIAL_SELL';
+        else if (canBuy && currentBias20 <= params.smallCapStrongBuyBias && checkSlopeImproved(params.smallCapStrongBuySlopeDays) && rsi < params.smallCapStrongBuyRsi) techSignal = 'STRONG_BUY';
+        else if (canBuy && currentBias20 <= params.smallCapBuyBias       && checkSlopeImproved(params.smallCapBuySlopeDays)       && rsi < params.smallCapBuyRsi)       techSignal = 'BUY';
+    }
+
+    // Track 2（籌碼面共振 / 背離）
+    if (hasInst) {
+        const instThresh = params.chipInstDays;
+        const instForeignBuy  = foreignConsecBuy  >= instThresh;
+        const instForeignSell = foreignConsecSell >= instThresh;
+        const instTrustBuy    = trustConsecBuy    >= instThresh;
+        const instTrustSell   = trustConsecSell   >= instThresh;
+        const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
+        const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL'].includes(techSignal);
+        if      (isBullishSignal && instForeignBuy  && instTrustBuy)                                         techSignal = 'STRONG_LAYOUT';
+        else if (isBullishSignal && instForeignSell && marginConsecIncrease >= params.chipMarginDays)         techSignal = 'WATCH_DIVERGE';
+        else if (isWeakOrNeutral && instForeignSell && instTrustSell)                                        techSignal = 'SELL';
+    }
+
+    // chipHint
+    let chipHint: SignalHint | undefined = undefined;
+    if (hasInst) {
+        const fCS = foreignConsecSell, tCS = trustConsecSell;
+        const fCB = foreignConsecBuy,  tCB = trustConsecBuy;
+        const chipDays   = params.chipInstDays;
+        const marginDays = params.chipMarginDays;
+        if (fCS >= chipDays && tCS >= chipDays) {
+            chipHint = { target: '🔴 法人棄守', type: 'SELL', conditions: [{ label: `外資連賣 ≥ ${chipDays}日`, satisfied: true }, { label: `投信連賣 ≥ ${chipDays}日`, satisfied: true }] };
+        } else if (fCS >= chipDays && marginConsecIncrease >= marginDays) {
+            chipHint = { target: '🟠 籌碼疑慮', type: 'SELL', conditions: [{ label: `外資連賣 ≥ ${chipDays}日`, satisfied: true }, { label: `融資連增 ≥ ${marginDays}日`, satisfied: true }] };
+        } else {
+            const fSat = fCB >= chipDays, tSat = tCB >= chipDays;
+            const mBullish = marginConsecIncrease >= 1, mBearish = marginConsecDecrease >= 1;
+            const satCount = (fSat ? 1 : 0) + (tSat ? 1 : 0) + (mBullish ? 1 : 0);
+            const neutralTarget = satCount >= 2 ? '🟢 籌碼偏多' : satCount === 1 ? '🔵 籌碼觀察' : fCS >= 1 || tCS >= 1 || mBearish ? '🟡 籌碼偏弱' : '⚪ 籌碼中性';
+            const isBullishZone = satCount >= 1;
+            chipHint = { target: neutralTarget, type: isBullishZone ? 'BUY' : 'SELL', conditions: [
+                { label: `外資連買 ≥ ${chipDays}日`, satisfied: fSat },
+                { label: `投信連買 ≥ ${chipDays}日`, satisfied: tSat },
+                { label: isBullishZone ? '融資連增 ≥ 1日' : '融資連減 ≥ 1日', satisfied: isBullishZone ? mBullish : mBearish },
+            ]};
+        }
+    }
+
+    return { techSignal, chipHint, bias20: currentBias20, rsi, biasSlopes, foreignConsecBuy, foreignConsecSell, trustConsecBuy, trustConsecSell, marginConsecIncrease, marginConsecDecrease, institutionalForeign, institutionalTrust };
+};
+
+export const runBacktest = async (
+    trades: StockTransaction[],
+    onProgress?: (done: number, total: number, currentSymbol: string) => void
+): Promise<BacktestResult[]> => {
+    await loadStockInfoMap();
+    const params = getTechParameters();
+
+    const bySymbol = new Map<string, StockTransaction[]>();
+    for (const trade of trades) {
+        if (!bySymbol.has(trade.symbol)) bySymbol.set(trade.symbol, []);
+        bySymbol.get(trade.symbol)!.push(trade);
+    }
+
+    const results: BacktestResult[] = [];
+    let doneSymbols = 0;
+    const totalSymbols = bySymbol.size;
+
+    for (const [symbol, symbolTrades] of bySymbol.entries()) {
+        const sortedDates = symbolTrades.map(t => t.date).sort();
+        const minDate = sortedDates[0];
+        const maxDate = sortedDates[sortedDates.length - 1];
+        const klineStart = new Date(new Date(minDate).getTime() - 95 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const isETF = etfSymbolSet.size > 0 ? etfSymbolSet.has(symbol) : (symbol.startsWith('00') || symbol.toLowerCase().includes('etf'));
+        const isOtc = otcSymbolSet.has(symbol);
+        const sizeCategory: 'ETF' | 'LARGE_CAP' | 'SMALL_CAP' = isETF ? 'ETF' : (isOtc ? 'SMALL_CAP' : 'LARGE_CAP');
+
+        const buyBias  = isETF ? params.etfBuyBias  : sizeCategory === 'LARGE_CAP' ? params.largeCapBuyBias  : params.smallCapBuyBias;
+        const sellBias = isETF ? params.etfPartialSellBias : sizeCategory === 'LARGE_CAP' ? params.largeCapPartialSellBias : params.smallCapPartialSellBias;
+
+        const [klineRows, instRows, marginRows] = await Promise.all([
+            fetchHistoricalKlineForBacktest(symbol, klineStart, maxDate),
+            fetchHistoricalInstForBacktest(symbol, klineStart, maxDate),
+            fetchHistoricalMarginForBacktest(symbol, klineStart, maxDate),
+        ]);
+
+        for (const trade of symbolTrades) {
+            const baseEntry = {
+                tradeId: trade.id, symbol, name: trade.name, date: trade.date,
+                side: trade.side, price: trade.price, shares: trade.shares,
+                realizedProfit: trade.realizedProfit, amount: trade.amount,
+                sizeCategory,
+            };
+
+            if (!klineRows) {
+                results.push({ ...baseEntry, techSignal: 'NONE', bias20: 0, rsi: 0, biasSlopes: [], foreignConsecBuy: 0, foreignConsecSell: 0, trustConsecBuy: 0, trustConsecSell: 0, marginConsecIncrease: 0, marginConsecDecrease: 0, alignment: 'PARTIAL', gapToBuyBias: null, gapToSellBias: null, error: 'K線資料無法取得' });
+                continue;
+            }
+            const dss = computeDSSForDate(klineRows, instRows ?? [], marginRows ?? [], trade.date, params, sizeCategory);
+            if (!dss) {
+                results.push({ ...baseEntry, techSignal: 'NONE', bias20: 0, rsi: 0, biasSlopes: [], foreignConsecBuy: 0, foreignConsecSell: 0, trustConsecBuy: 0, trustConsecSell: 0, marginConsecIncrease: 0, marginConsecDecrease: 0, alignment: 'PARTIAL', gapToBuyBias: null, gapToSellBias: null, error: 'K線不足（需 ≥ 23 筆）' });
+                continue;
+            }
+
+            const { techSignal } = dss;
+            let alignment: 'MATCH' | 'DIVERGE' | 'PARTIAL';
+            if (trade.side === 'BUY') {
+                if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY', 'TREND_ADD'].includes(techSignal)) alignment = 'MATCH';
+                else if (['WATCH_DIVERGE', 'SELL', 'PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT'].includes(techSignal)) alignment = 'DIVERGE';
+                else alignment = 'PARTIAL';
+            } else {
+                if (['PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT', 'SELL'].includes(techSignal)) alignment = 'MATCH';
+                else if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal)) alignment = 'DIVERGE';
+                else alignment = 'PARTIAL';
+            }
+
+            results.push({
+                ...baseEntry,
+                ...dss,
+                alignment,
+                gapToBuyBias:  dss.bias20 - buyBias,
+                gapToSellBias: dss.bias20 - sellBias,
+            });
+        }
+
+        doneSymbols++;
+        onProgress?.(doneSymbols, totalSymbols, symbol);
+    }
+
+    return results.sort((a, b) => b.date.localeCompare(a.date));
 };
 
 
