@@ -348,6 +348,9 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
 
     const avgImprovement = results?.length ? avg(results.map(r => r.improvement)) : null;
     const couldImprove = results?.filter(r => r.improvement > 0.5).length ?? 0;
+    const losers = results?.filter(r => r.actualReturn < 0) ?? [];
+    const avgLossReduction = losers.length ? avg(losers.map(r => r.improvement)) : null;
+    const lossAvoided = losers.filter(r => r.bestReturn >= 0).length;
 
     return (
         <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
@@ -375,21 +378,35 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
 
                 {results && (
                     <>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                             <div className="bg-slate-900/60 rounded-xl p-3 text-center">
                                 <div className="text-xs text-slate-400 mb-1">平均可改善報酬</div>
                                 <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
                                     {avgImprovement !== null ? `+${avgImprovement.toFixed(2)}%` : '-'}
                                 </div>
+                                <div className="text-[10px] text-slate-500">全部交易</div>
                             </div>
                             <div className="bg-slate-900/60 rounded-xl p-3 text-center">
                                 <div className="text-xs text-slate-400 mb-1">可顯著改善筆數</div>
                                 <div className="text-lg font-bold text-amber-400">{couldImprove} / {results.length}</div>
                                 <div className="text-[10px] text-slate-500">改善 &gt; 0.5%</div>
                             </div>
-                            <div className="bg-slate-900/60 rounded-xl p-3 text-center">
-                                <div className="text-xs text-slate-400 mb-1">視窗</div>
-                                <div className="text-lg font-bold text-violet-300">±{window_} 日</div>
+                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-red-400 mb-1">虧損交易筆數</div>
+                                <div className="text-lg font-bold text-red-400">{losers.length}</div>
+                                <div className="text-[10px] text-slate-500">實際負報酬</div>
+                            </div>
+                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-red-400 mb-1">虧損平均可減少</div>
+                                <div className={`text-lg font-bold ${(avgLossReduction ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    {avgLossReduction !== null ? `+${avgLossReduction.toFixed(2)}%` : '-'}
+                                </div>
+                                <div className="text-[10px] text-slate-500">提早/延後進場</div>
+                            </div>
+                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-red-400 mb-1">可轉為獲利</div>
+                                <div className="text-lg font-bold text-emerald-400">{lossAvoided} 筆</div>
+                                <div className="text-[10px] text-slate-500">最佳日報酬 ≥ 0</div>
                             </div>
                         </div>
 
@@ -414,7 +431,7 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                 </tr></thead>
                                 <tbody>
                                     {results.slice(0, 50).map((r, i) => (
-                                        <tr key={i} className="border-t border-slate-700/30 hover:bg-slate-700/10">
+                                        <tr key={i} className={`border-t border-slate-700/30 transition-colors ${r.actualReturn < 0 ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-slate-700/10'}`}>
                                             <td className="py-2 px-3 text-sm">
                                                 <div className="font-medium text-white">{r.name ?? r.symbol}</div>
                                                 <div className="text-xs text-slate-500">{r.symbol}</div>
