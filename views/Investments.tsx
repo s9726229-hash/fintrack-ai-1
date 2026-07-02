@@ -4,7 +4,7 @@ import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, Clipbo
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime } from '../services/stock';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime, fetchTWSEBatch } from '../services/stock';
 import { getApiKey, getTechParameters, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { BacktestView } from './BacktestView';
@@ -182,11 +182,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
         const refreshedRegime = await fetchMarketRegime(true);
         setMarketRegime(refreshedRegime.regime);
         setTaiexInfo({ lastClose: refreshedRegime.lastClose, dailyChange: refreshedRegime.dailyChange, changeAmount: refreshedRegime.changeAmount });
+
+        // 批次抓即時現價（一次 CF 呼叫），與 Watchlist 相同做法
+        const symbols = validStocks.map(s => s.symbol!);
+        const batchResult = await fetchTWSEBatch(symbols);
+
         const chunks = chunkArray(validStocks, 15);
         for (const chunk of chunks) {
             await Promise.all(chunk.map(async (stock) => {
                 if (stock.symbol) {
-                    const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions);
+                    const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions, batchResult.prices[stock.symbol] ?? null);
                     if (techData !== null) {
                         const cleanTechData: Partial<Asset> = {};
                         if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
