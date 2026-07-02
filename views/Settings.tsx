@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
-import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS } from '../services/storage';
+import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS, getDSSProfiles, saveDSSProfiles, DSSProfile } from '../services/storage';
 import { initGapi, initGis, handleAuthClick, uploadToDrive, downloadFromDrive, getBackupMetadata, checkConnection } from '../services/googleDrive';
-import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
+import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon, FlaskConical } from 'lucide-react';
 import { ApiKeyStatus, Asset, AssetType } from '../types';
 import { STORAGE_KEYS } from '../constants';
 import { fetchFinMindUsage } from '../services/stock';
@@ -14,6 +14,60 @@ interface SettingsProps {
 
 
 
+
+const DSSProfilesCard: React.FC<{ onApply: (p: DSSProfile) => void }> = ({ onApply }) => {
+    const [profiles, setProfiles] = useState<DSSProfile[]>([]);
+    const [applied, setApplied] = useState<string | null>(null);
+
+    useEffect(() => { setProfiles(getDSSProfiles()); }, []);
+
+    const handleDelete = (id: string) => {
+        const next = profiles.filter(p => p.id !== id);
+        saveDSSProfiles(next);
+        setProfiles(next);
+    };
+
+    const handleApply = (p: DSSProfile) => {
+        onApply(p);
+        setApplied(p.id);
+        setTimeout(() => setApplied(null), 2500);
+    };
+
+    if (!profiles.length) return null;
+
+    return (
+        <Card className="border-violet-500/30 bg-gradient-to-br from-slate-800 to-slate-900/50">
+            <div className="flex items-center gap-2 mb-4">
+                <FlaskConical size={18} className="text-violet-400" />
+                <h3 className="text-lg font-bold text-white">DSS 設定檔</h3>
+                <span className="text-xs text-slate-500 ml-1">由 DSS 實驗室分析產生</span>
+            </div>
+            <div className="space-y-2">
+                {profiles.map(p => (
+                    <div key={p.id} className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700/40">
+                        <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-slate-200">{p.name}</div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                <span className="text-xs text-slate-500">{new Date(p.createdAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className="text-xs text-slate-500">比對 {p.source.matched}/{p.source.total} 筆</span>
+                                {p.categories.ETF && <span className="text-xs text-cyan-400/70">ETF: RSI&lt;{p.categories.ETF.rsi.toFixed(1)} B20&lt;{p.categories.ETF.bias20.toFixed(1)}%</span>}
+                                {p.categories['上市'] && <span className="text-xs text-emerald-400/70">上市: RSI&lt;{p.categories['上市'].rsi.toFixed(1)} B20&lt;{p.categories['上市'].bias20.toFixed(1)}%</span>}
+                                {p.categories['上櫃'] && <span className="text-xs text-amber-400/70">上櫃: RSI&lt;{p.categories['上櫃'].rsi.toFixed(1)} B20&lt;{p.categories['上櫃'].bias20.toFixed(1)}%</span>}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {applied === p.id
+                                ? <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle2 size={12} />已套用</span>
+                                : <button onClick={() => handleApply(p)} className="text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">套用</button>
+                            }
+                            <button onClick={() => handleDelete(p.id)} className="text-slate-600 hover:text-red-400 transition-colors p-1"><Trash2 size={14} /></button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </Card>
+    );
+};
 
 export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
@@ -523,6 +577,27 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
 
 
+
+      {/* DSS 設定檔 */}
+      <DSSProfilesCard onApply={(p) => {
+          const cur = getTechParameters();
+          const next = { ...cur };
+          if (p.categories.ETF) {
+              next.etfBuyRsi   = p.categories.ETF.rsi;
+              next.etfBuyBias  = p.categories.ETF.bias20;
+          }
+          if (p.categories['上市']) {
+              next.largeCapBuyRsi  = p.categories['上市'].rsi;
+              next.largeCapBuyBias = p.categories['上市'].bias20;
+          }
+          if (p.categories['上櫃']) {
+              next.smallCapBuyRsi  = p.categories['上櫃'].rsi;
+              next.smallCapBuyBias = p.categories['上櫃'].bias20;
+          }
+          saveTechParameters(next);
+          setTechParams(next);
+          triggerRescan();
+      }} />
 
       <div className="text-center text-[10px] text-slate-600 pb-4">
           <p>FinTrack AI</p>

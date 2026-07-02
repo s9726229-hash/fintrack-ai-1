@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2 } from 'lucide-react';
+import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Save } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
 import { lookupStockName, fetchKlineWindow, computeMultiBias } from '../services/stock';
-import { getBacktestCache } from '../services/storage';
+import { getBacktestCache, getDSSProfiles, saveDSSProfiles, DSSProfile } from '../services/storage';
 
 interface Props {
     stockTransactions: StockTransaction[];
@@ -126,10 +126,48 @@ interface EnrichedTrade extends CompletedTrade {
     trustConsecBuy?: number;
 }
 
+const median = (arr: number[]): number | null => {
+    if (!arr.length) return null;
+    const s = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
 const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
 
-const CmpRow = ({ label, wVal, lVal, unit = '', inverse = false }: {
-    label: string; wVal: number | null; lVal: number | null; unit?: string; inverse?: boolean;
+interface CatStats {
+    cat: 'ETF' | '上市' | '上櫃';
+    matched: number; winners: number; losers: number;
+    wRsi: number | null; lRsi: number | null; medRsi: number | null;
+    wBias: number | null; lBias: number | null; medBias: number | null;
+    wForeign: number | null; lForeign: number | null;
+    wTrust: number | null; lTrust: number | null;
+    wHolding: number | null; lHolding: number | null;
+}
+
+const buildCatStats = (list: EnrichedTrade[], cat: 'ETF' | '上市' | '上櫃'): CatStats | null => {
+    const minN = cat === 'ETF' ? 1 : 3;
+    const withDSS = list.filter(t => t.category === cat && t.rsi !== undefined);
+    if (withDSS.length < minN) return null;
+    const winners = withDSS.filter(t => t.realizedProfit > 0);
+    const losers  = withDSS.filter(t => t.realizedProfit <= 0);
+    return {
+        cat, matched: withDSS.length, winners: winners.length, losers: losers.length,
+        wRsi: avg(winners.map(t => t.rsi!)), lRsi: avg(losers.map(t => t.rsi!)),
+        medRsi: median(winners.map(t => t.rsi!)),
+        wBias: avg(winners.map(t => t.bias20!)), lBias: avg(losers.map(t => t.bias20!)),
+        medBias: median(winners.map(t => t.bias20!)),
+        wForeign: avg(winners.map(t => t.foreignConsecBuy ?? 0)),
+        lForeign: avg(losers.map(t => t.foreignConsecBuy ?? 0)),
+        wTrust: avg(winners.map(t => t.trustConsecBuy ?? 0)),
+        lTrust: avg(losers.map(t => t.trustConsecBuy ?? 0)),
+        wHolding: avg(winners.map(t => t.holdingDays)),
+        lHolding: avg(losers.map(t => t.holdingDays)),
+    };
+};
+
+const CmpRow = ({ label, wVal, lVal, medVal, unit = '', inverse = false }: {
+    label: string; wVal: number | null; lVal: number | null; medVal?: number | null; unit?: string; inverse?: boolean;
 }) => {
     if (wVal === null || lVal === null) return null;
     const winnerBetter = inverse ? wVal < lVal : wVal > lVal;
@@ -138,22 +176,54 @@ const CmpRow = ({ label, wVal, lVal, unit = '', inverse = false }: {
             <td className="py-2.5 px-3 text-sm text-slate-300">{label}</td>
             <td className="py-2.5 px-3 text-center font-mono text-sm text-emerald-400 font-bold">{wVal.toFixed(1)}{unit}</td>
             <td className="py-2.5 px-3 text-center font-mono text-sm text-red-400 font-bold">{lVal.toFixed(1)}{unit}</td>
-            <td className="py-2.5 px-3 text-center text-xs text-slate-400">
+            <td className="py-2.5 px-3 text-center text-xs">
                 {winnerBetter
                     ? <span className="text-emerald-400">Winner 較優 ↑</span>
                     : <span className="text-amber-400">差距不明顯</span>}
             </td>
             <td className="py-2.5 px-3 text-right text-xs font-mono text-violet-300">
-                {inverse
-                    ? `< ${((wVal + lVal) / 2).toFixed(1)}${unit}`
-                    : `≥ ${((wVal + lVal) / 2).toFixed(1)}${unit}`}
+                {medVal !== null && medVal !== undefined
+                    ? (inverse ? `< ${medVal.toFixed(1)}${unit}` : `≥ ${medVal.toFixed(1)}${unit}`)
+                    : '—'}
             </td>
         </tr>
     );
 };
 
+const CatPanel: React.FC<{ s: CatStats }> = ({ s }) => (
+    <div className="space-y-3">
+        <div className="flex items-center gap-4 text-xs text-slate-400">
+            <span>已比對 <strong className="text-white">{s.matched}</strong> 筆</span>
+            <span className="text-emerald-400">✓ Winner {s.winners} 筆</span>
+            <span className="text-red-400">✗ Loser {s.losers} 筆</span>
+            <span className="text-slate-500 ml-auto">建議門檻 = Winner 中位數</span>
+        </div>
+        <table className="w-full">
+            <thead>
+                <tr className="text-xs text-slate-400">
+                    <th className="py-1.5 px-3 text-left font-medium">指標</th>
+                    <th className="py-1.5 px-3 text-center font-medium text-emerald-400">Winner 均值</th>
+                    <th className="py-1.5 px-3 text-center font-medium text-red-400">Loser 均值</th>
+                    <th className="py-1.5 px-3 text-center font-medium">差異</th>
+                    <th className="py-1.5 px-3 text-right font-medium text-violet-300">建議門檻</th>
+                </tr>
+            </thead>
+            <tbody>
+                <CmpRow label="RSI 進場" wVal={s.wRsi} lVal={s.lRsi} medVal={s.medRsi} inverse />
+                <CmpRow label="Bias20 進場" wVal={s.wBias} lVal={s.lBias} medVal={s.medBias} unit="%" inverse />
+                <CmpRow label="外資連買天數" wVal={s.wForeign} lVal={s.lForeign} unit="天" />
+                <CmpRow label="投信連買天數" wVal={s.wTrust} lVal={s.lTrust} unit="天" />
+                <CmpRow label="持倉天數" wVal={s.wHolding} lVal={s.lHolding} unit="天" />
+            </tbody>
+        </table>
+    </div>
+);
+
 const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades }) => {
     const [enriched, setEnriched] = useState<EnrichedTrade[] | null>(null);
+    const [activeTab, setActiveTab] = useState<'ETF' | '上市' | '上櫃'>('上市');
+    const [saving, setSaving] = useState(false);
+    const [savedMsg, setSavedMsg] = useState('');
 
     useEffect(() => {
         const cache = getBacktestCache();
@@ -167,30 +237,41 @@ const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMa
         setEnriched(list);
     }, [completedTrades]);
 
-    const stats = useMemo(() => {
+    const catStats = useMemo(() => {
         if (!enriched?.length) return null;
-        const withDSS = enriched.filter(t => t.rsi !== undefined);
-        if (!withDSS.length) return null;
-        const winners = withDSS.filter(t => t.realizedProfit > 0);
-        const losers  = withDSS.filter(t => t.realizedProfit <= 0);
-        return {
-            matched: withDSS.length,
-            winners: winners.length,
-            losers: losers.length,
-            wRsi:   avg(winners.map(t => t.rsi!)),
-            lRsi:   avg(losers.map(t => t.rsi!)),
-            wBias:  avg(winners.map(t => t.bias20!)),
-            lBias:  avg(losers.map(t => t.bias20!)),
-            wForeign: avg(winners.map(t => t.foreignConsecBuy ?? 0)),
-            lForeign: avg(losers.map(t => t.foreignConsecBuy ?? 0)),
-            wTrust:   avg(winners.map(t => t.trustConsecBuy ?? 0)),
-            lTrust:   avg(losers.map(t => t.trustConsecBuy ?? 0)),
-            wHolding: avg(winners.map(t => t.holdingDays)),
-            lHolding: avg(losers.map(t => t.holdingDays)),
-        };
+        const etf   = buildCatStats(enriched, 'ETF');
+        const listed = buildCatStats(enriched, '上市');
+        const otc   = buildCatStats(enriched, '上櫃');
+        if (!etf && !listed && !otc) return null;
+        return { ETF: etf, 上市: listed, 上櫃: otc };
     }, [enriched]);
 
+    const totalMatched = enriched?.filter(t => t.rsi !== undefined).length ?? 0;
+
+    const handleSaveProfile = () => {
+        if (!catStats) return;
+        setSaving(true);
+        const cats: DSSProfile['categories'] = {};
+        if (catStats.ETF)  cats['ETF']  = { rsi: catStats.ETF.medRsi ?? 0,  bias20: catStats.ETF.medBias ?? 0,  n: catStats.ETF.matched };
+        if (catStats['上市']) cats['上市'] = { rsi: catStats['上市'].medRsi ?? 0, bias20: catStats['上市'].medBias ?? 0, n: catStats['上市'].matched };
+        if (catStats['上櫃']) cats['上櫃'] = { rsi: catStats['上櫃'].medRsi ?? 0, bias20: catStats['上櫃'].medBias ?? 0, n: catStats['上櫃'].matched };
+        const profile: DSSProfile = {
+            id: crypto.randomUUID(),
+            name: `交易分析 ${new Date().toLocaleDateString('zh-TW')}`,
+            createdAt: Date.now(),
+            source: { total: completedTrades.length, matched: totalMatched },
+            categories: cats,
+        };
+        const profiles = getDSSProfiles();
+        saveDSSProfiles([...profiles, profile]);
+        setSaving(false);
+        setSavedMsg('已儲存！可至系統設定套用');
+        setTimeout(() => setSavedMsg(''), 3000);
+    };
+
     if (!enriched) return null;
+
+    const tabs: Array<'ETF' | '上市' | '上櫃'> = ['ETF', '上市', '上櫃'];
 
     return (
         <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
@@ -198,38 +279,47 @@ const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMa
                 <BarChart2 size={16} className="text-violet-400" />
                 <h3 className="text-sm font-bold text-slate-200">進場條件分析</h3>
                 <span className="text-xs text-slate-500 ml-1">交叉比對回測快取 · Winner vs Loser</span>
+                <div className="ml-auto flex items-center gap-2">
+                    {savedMsg && <span className="text-xs text-emerald-400">{savedMsg}</span>}
+                    {catStats && (
+                        <button onClick={handleSaveProfile} disabled={saving}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">
+                            <Save size={12} />儲存為設定檔
+                        </button>
+                    )}
+                </div>
             </div>
-            {!enriched.length || !stats ? (
+            {!enriched.length || !catStats ? (
                 <div className="p-8 text-center text-slate-500 text-sm">
                     尚無回測快取 — 請先至「交易紀錄 → DSS 回測分析」執行一次分析
                 </div>
             ) : (
                 <div className="p-4 space-y-4">
-                    <div className="flex items-center gap-4 text-xs text-slate-400">
-                        <span>已比對 <strong className="text-white">{stats.matched}</strong> 筆</span>
-                        <span className="text-emerald-400">✓ Winner {stats.winners} 筆</span>
-                        <span className="text-red-400">✗ Loser {stats.losers} 筆</span>
-                        {completedTrades.length - stats.matched > 0 &&
-                            <span className="text-slate-500">（{completedTrades.length - stats.matched} 筆無快取資料）</span>}
+                    <div className="flex gap-1">
+                        {tabs.map(tab => {
+                            const s = catStats[tab];
+                            const disabled = !s;
+                            return (
+                                <button key={tab} onClick={() => !disabled && setActiveTab(tab)}
+                                    disabled={disabled}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                        activeTab === tab && !disabled
+                                            ? 'bg-violet-600/30 text-violet-300 border border-violet-500/40'
+                                            : disabled
+                                                ? 'text-slate-600 cursor-not-allowed'
+                                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                                    }`}>
+                                    {tab}
+                                    {s ? <span className="ml-1 text-slate-500">({s.matched})</span>
+                                       : <span className="ml-1 text-slate-600">(不足)</span>}
+                                </button>
+                            );
+                        })}
                     </div>
-                    <table className="w-full">
-                        <thead>
-                            <tr className="text-xs text-slate-400">
-                                <th className="py-1.5 px-3 text-left font-medium">指標</th>
-                                <th className="py-1.5 px-3 text-center font-medium text-emerald-400">Winner 平均</th>
-                                <th className="py-1.5 px-3 text-center font-medium text-red-400">Loser 平均</th>
-                                <th className="py-1.5 px-3 text-center font-medium">差異</th>
-                                <th className="py-1.5 px-3 text-right font-medium text-violet-300">建議門檻</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <CmpRow label="RSI 進場" wVal={stats.wRsi} lVal={stats.lRsi} inverse />
-                            <CmpRow label="Bias20 進場" wVal={stats.wBias} lVal={stats.lBias} unit="%" inverse />
-                            <CmpRow label="外資連買天數" wVal={stats.wForeign} lVal={stats.lForeign} unit="天" />
-                            <CmpRow label="投信連買天數" wVal={stats.wTrust}   lVal={stats.lTrust}   unit="天" />
-                            <CmpRow label="持倉天數" wVal={stats.wHolding} lVal={stats.lHolding} unit="天" />
-                        </tbody>
-                    </table>
+                    {catStats[activeTab]
+                        ? <CatPanel s={catStats[activeTab]!} />
+                        : <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
+                    }
                 </div>
             )}
         </div>

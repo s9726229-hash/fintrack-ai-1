@@ -166,6 +166,28 @@ export const getTechParameters = (): import('../types').TechParameters => {
 export const saveTechParameters = (params: import('../types').TechParameters) => {
     localStorage.setItem(STORAGE_KEYS.TECH_PARAMS, JSON.stringify(params));
 };
+
+// ── DSS 設定檔 ────────────────────────────────────────────────────────────────
+export interface DSSProfile {
+    id: string;
+    name: string;
+    createdAt: number;
+    source: { total: number; matched: number };
+    categories: {
+        ETF?:  { rsi: number; bias20: number; n: number };
+        上市?: { rsi: number; bias20: number; n: number };
+        上櫃?: { rsi: number; bias20: number; n: number };
+    };
+}
+
+export const getDSSProfiles = (): DSSProfile[] => {
+    try { return JSON.parse(localStorage.getItem('ft_dss_profiles') || '[]'); }
+    catch { return []; }
+};
+
+export const saveDSSProfiles = (profiles: DSSProfile[]) => {
+    localStorage.setItem('ft_dss_profiles', JSON.stringify(profiles));
+};
 // ------------------------
 
 export const getApiKey = (): string => {
