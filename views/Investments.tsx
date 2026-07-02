@@ -1,6 +1,6 @@
 ﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart, Clock } from 'lucide-react';
+import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart, Clock, WifiOff } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
@@ -68,6 +68,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
     const [isUpdatingBias, setIsUpdatingBias] = useState(false);
+    const [priceSource, setPriceSource] = useState<'TWSE' | 'TWSE_FAILED'>('TWSE');
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
     const [taiexInfo, setTaiexInfo] = useState<{ lastClose: number, dailyChange: number, changeAmount: number } | null>(null);
@@ -186,6 +187,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         // 批次抓即時現價（一次 CF 呼叫），與 Watchlist 相同做法
         const symbols = validStocks.map(s => s.symbol!);
         const batchResult = await fetchTWSEBatch(symbols);
+        setPriceSource(batchResult.source);
 
         const chunks = chunkArray(validStocks, 15);
         for (const chunk of chunks) {
@@ -284,6 +286,12 @@ export const Investments: React.FC<InvestmentsProps> = ({
     
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+            {priceSource === 'TWSE_FAILED' && (
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+                    <WifiOff size={15} />
+                    <span>即時現價暫時無法取得，目前顯示昨日收盤價，DSS 訊號僅供參考。</span>
+                </div>
+            )}
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                     <div className="flex items-center gap-3">
