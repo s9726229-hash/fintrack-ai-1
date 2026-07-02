@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { FlaskConical, TrendingUp, TrendingDown, Trophy, Target, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import { StockTransaction } from '../types';
-import { lookupStockName } from '../services/stock';
+import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2 } from 'lucide-react';
+import { StockTransaction, BacktestResult } from '../types';
+import { lookupStockName, fetchKlineWindow } from '../services/stock';
+import { getBacktestCache } from '../services/storage';
 
 interface Props {
     stockTransactions: StockTransaction[];
@@ -115,6 +116,309 @@ const buildSymbolStats = (trades: CompletedTrade[]): SymbolStats[] => {
 
 type SortKey = 'trades' | 'winRate' | 'avgProfit' | 'totalPnL' | 'avgHolding';
 type CategoryFilter = 'ALL' | 'ETF' | '上市' | '上櫃';
+
+// ── Section 2：進場條件分析（交叉比對回測快取）──────────────────────────────
+interface EnrichedTrade extends CompletedTrade {
+    rsi?: number;
+    bias20?: number;
+    techSignal?: string;
+    foreignConsecBuy?: number;
+    trustConsecBuy?: number;
+}
+
+const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+
+const CmpRow = ({ label, wVal, lVal, unit = '', inverse = false }: {
+    label: string; wVal: number | null; lVal: number | null; unit?: string; inverse?: boolean;
+}) => {
+    if (wVal === null || lVal === null) return null;
+    const winnerBetter = inverse ? wVal < lVal : wVal > lVal;
+    return (
+        <tr className="border-t border-slate-700/40">
+            <td className="py-2.5 px-3 text-sm text-slate-300">{label}</td>
+            <td className="py-2.5 px-3 text-center font-mono text-sm text-emerald-400 font-bold">{wVal.toFixed(1)}{unit}</td>
+            <td className="py-2.5 px-3 text-center font-mono text-sm text-red-400 font-bold">{lVal.toFixed(1)}{unit}</td>
+            <td className="py-2.5 px-3 text-center text-xs text-slate-400">
+                {winnerBetter
+                    ? <span className="text-emerald-400">Winner 較優 ↑</span>
+                    : <span className="text-amber-400">差距不明顯</span>}
+            </td>
+            <td className="py-2.5 px-3 text-right text-xs font-mono text-violet-300">
+                {inverse
+                    ? `< ${((wVal + lVal) / 2).toFixed(1)}${unit}`
+                    : `≥ ${((wVal + lVal) / 2).toFixed(1)}${unit}`}
+            </td>
+        </tr>
+    );
+};
+
+const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades }) => {
+    const [enriched, setEnriched] = useState<EnrichedTrade[] | null>(null);
+
+    useEffect(() => {
+        const cache = getBacktestCache();
+        if (!cache) { setEnriched([]); return; }
+        const resultMap = new Map<string, BacktestResult>();
+        cache.results.forEach(r => { if (r.side === 'BUY') resultMap.set(`${r.symbol}|${r.date}`, r); });
+        const list: EnrichedTrade[] = completedTrades.map(t => {
+            const r = resultMap.get(`${t.symbol}|${t.buyDate}`);
+            return r ? { ...t, rsi: r.rsi, bias20: r.bias20, techSignal: r.techSignal, foreignConsecBuy: r.foreignConsecBuy, trustConsecBuy: r.trustConsecBuy } : t;
+        });
+        setEnriched(list);
+    }, [completedTrades]);
+
+    const stats = useMemo(() => {
+        if (!enriched?.length) return null;
+        const withDSS = enriched.filter(t => t.rsi !== undefined);
+        if (!withDSS.length) return null;
+        const winners = withDSS.filter(t => t.realizedProfit > 0);
+        const losers  = withDSS.filter(t => t.realizedProfit <= 0);
+        return {
+            matched: withDSS.length,
+            winners: winners.length,
+            losers: losers.length,
+            wRsi:   avg(winners.map(t => t.rsi!)),
+            lRsi:   avg(losers.map(t => t.rsi!)),
+            wBias:  avg(winners.map(t => t.bias20!)),
+            lBias:  avg(losers.map(t => t.bias20!)),
+            wForeign: avg(winners.map(t => t.foreignConsecBuy ?? 0)),
+            lForeign: avg(losers.map(t => t.foreignConsecBuy ?? 0)),
+            wTrust:   avg(winners.map(t => t.trustConsecBuy ?? 0)),
+            lTrust:   avg(losers.map(t => t.trustConsecBuy ?? 0)),
+            wHolding: avg(winners.map(t => t.holdingDays)),
+            lHolding: avg(losers.map(t => t.holdingDays)),
+        };
+    }, [enriched]);
+
+    if (!enriched) return null;
+
+    return (
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-700 flex items-center gap-2">
+                <BarChart2 size={16} className="text-violet-400" />
+                <h3 className="text-sm font-bold text-slate-200">進場條件分析</h3>
+                <span className="text-xs text-slate-500 ml-1">交叉比對回測快取 · Winner vs Loser</span>
+            </div>
+            {!enriched.length || !stats ? (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                    尚無回測快取 — 請先至「交易紀錄 → DSS 回測分析」執行一次分析
+                </div>
+            ) : (
+                <div className="p-4 space-y-4">
+                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                        <span>已比對 <strong className="text-white">{stats.matched}</strong> 筆</span>
+                        <span className="text-emerald-400">✓ Winner {stats.winners} 筆</span>
+                        <span className="text-red-400">✗ Loser {stats.losers} 筆</span>
+                        {completedTrades.length - stats.matched > 0 &&
+                            <span className="text-slate-500">（{completedTrades.length - stats.matched} 筆無快取資料）</span>}
+                    </div>
+                    <table className="w-full">
+                        <thead>
+                            <tr className="text-xs text-slate-400">
+                                <th className="py-1.5 px-3 text-left font-medium">指標</th>
+                                <th className="py-1.5 px-3 text-center font-medium text-emerald-400">Winner 平均</th>
+                                <th className="py-1.5 px-3 text-center font-medium text-red-400">Loser 平均</th>
+                                <th className="py-1.5 px-3 text-center font-medium">差異</th>
+                                <th className="py-1.5 px-3 text-right font-medium text-violet-300">建議門檻</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <CmpRow label="RSI 進場" wVal={stats.wRsi} lVal={stats.lRsi} inverse />
+                            <CmpRow label="Bias20 進場" wVal={stats.wBias} lVal={stats.lBias} unit="%" inverse />
+                            <CmpRow label="外資連買天數" wVal={stats.wForeign} lVal={stats.lForeign} unit="天" />
+                            <CmpRow label="投信連買天數" wVal={stats.wTrust}   lVal={stats.lTrust}   unit="天" />
+                            <CmpRow label="持倉天數" wVal={stats.wHolding} lVal={stats.lHolding} unit="天" />
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ── Section 3：±N日最佳進場分析 ───────────────────────────────────────────
+interface WindowResult {
+    symbol: string;
+    name?: string;
+    buyDate: string;
+    sellDate: string;
+    sellPrice: number;
+    actualBuyPrice: number;
+    actualReturn: number;
+    bestDate: string;
+    bestPrice: number;
+    bestReturn: number;
+    improvement: number; // bestReturn - actualReturn
+    dayOffset: number;   // negative = earlier, positive = later
+}
+
+const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades, nameMap }) => {
+    const [window_, setWindow_] = useState<5 | 10>(5);
+    const [isRunning, setIsRunning] = useState(false);
+    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+    const [results, setResults] = useState<WindowResult[] | null>(null);
+
+    const handleRun = async () => {
+        setIsRunning(true);
+        setResults(null);
+        const symbols = [...new Set(completedTrades.map(t => t.symbol))];
+        const klineCache = new Map<string, { date: string; close: number }[]>();
+        const total = symbols.length;
+        let done = 0;
+
+        // 1. 每個 symbol 的 kline（以 buyDate 的最早日期為中心，抓整個交易範圍）
+        for (const sym of symbols) {
+            setProgress({ done, total });
+            const symTrades = completedTrades.filter(t => t.symbol === sym);
+            const minDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
+            const maxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
+            const rows = await fetchKlineWindow(sym, minDate, window_ + 5, 0); // 用最早 buyDate 起抓到 maxDate
+            // 實際取完整範圍
+            const full = await fetchKlineWindow(sym, minDate, window_ + 5, daysBetween2(minDate, maxDate) + window_ + 5);
+            if (full) klineCache.set(sym, full);
+            done++;
+        }
+        setProgress({ done: total, total });
+
+        // 2. 每筆交易找最佳進場日
+        const windowResults: WindowResult[] = [];
+        for (const trade of completedTrades) {
+            const kline = klineCache.get(trade.symbol);
+            if (!kline) continue;
+            // 取 [buyDate - window_, buyDate + window_] 內的交易日收盤
+            const candidates = kline.filter(r => {
+                const diff = daysBetween2(r.date, trade.buyDate); // positive = r before buyDate
+                return diff >= -window_ && diff <= window_;
+            });
+            if (!candidates.length) continue;
+            // 找最低收盤（最便宜的入場點）
+            const best = candidates.reduce((m, c) => c.close < m.close ? c : m, candidates[0]);
+            const bestReturn = trade.sellPrice > 0 ? ((trade.sellPrice - best.close) / best.close) * 100 : 0;
+            windowResults.push({
+                symbol: trade.symbol,
+                name: nameMap.get(trade.symbol),
+                buyDate: trade.buyDate,
+                sellDate: trade.sellDate,
+                sellPrice: trade.sellPrice,
+                actualBuyPrice: trade.buyPrice,
+                actualReturn: trade.returnPct,
+                bestDate: best.date,
+                bestPrice: best.close,
+                bestReturn,
+                improvement: bestReturn - trade.returnPct,
+                dayOffset: daysBetween2(best.date, trade.buyDate), // positive = best was before actual
+            });
+        }
+        setResults(windowResults.sort((a, b) => b.improvement - a.improvement));
+        setIsRunning(false);
+        setProgress(null);
+    };
+
+    const avgImprovement = results?.length ? avg(results.map(r => r.improvement)) : null;
+    const couldImprove = results?.filter(r => r.improvement > 0.5).length ?? 0;
+
+    return (
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-700 flex items-center gap-2">
+                <Zap size={16} className="text-amber-400" />
+                <h3 className="text-sm font-bold text-slate-200">±N日最佳進場分析</h3>
+                <span className="text-xs text-slate-500 ml-1">若改在附近最低價入場，報酬率可提升多少？</span>
+            </div>
+            <div className="p-4 space-y-4">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400">視窗範圍：</span>
+                    {([5, 10] as const).map(n => (
+                        <button key={n} onClick={() => setWindow_(n)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${window_ === n ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'text-slate-400 border-slate-700 hover:text-white'}`}>
+                            ±{n} 日
+                        </button>
+                    ))}
+                    <button onClick={handleRun} disabled={isRunning}
+                        className="ml-4 px-4 py-1.5 rounded-lg text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white border border-violet-500 disabled:opacity-50 flex items-center gap-2 transition-all">
+                        {isRunning ? <><Loader2 size={14} className="animate-spin" />分析中…</> : '開始分析'}
+                    </button>
+                    {progress && <span className="text-xs text-slate-400">{progress.done}/{progress.total} 標的</span>}
+                </div>
+
+                {results && (
+                    <>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="bg-slate-900/60 rounded-xl p-3 text-center">
+                                <div className="text-xs text-slate-400 mb-1">平均可改善報酬</div>
+                                <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                    {avgImprovement !== null ? `+${avgImprovement.toFixed(2)}%` : '-'}
+                                </div>
+                            </div>
+                            <div className="bg-slate-900/60 rounded-xl p-3 text-center">
+                                <div className="text-xs text-slate-400 mb-1">可顯著改善筆數</div>
+                                <div className="text-lg font-bold text-amber-400">{couldImprove} / {results.length}</div>
+                                <div className="text-[10px] text-slate-500">改善 &gt; 0.5%</div>
+                            </div>
+                            <div className="bg-slate-900/60 rounded-xl p-3 text-center">
+                                <div className="text-xs text-slate-400 mb-1">視窗</div>
+                                <div className="text-lg font-bold text-violet-300">±{window_} 日</div>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead><tr className="text-xs text-slate-400 border-b border-slate-700">
+                                    <th className="py-2 px-3">標的</th>
+                                    <th className="py-2 px-3 text-center">進場日</th>
+                                    <th className="py-2 px-3 text-right">實際買入</th>
+                                    <th className="py-2 px-3 text-right">實際報酬</th>
+                                    <th className="py-2 px-3 text-center">最佳日（偏移）</th>
+                                    <th className="py-2 px-3 text-right">最佳價格</th>
+                                    <th className="py-2 px-3 text-right">最佳報酬</th>
+                                    <th className="py-2 px-3 text-right">可改善</th>
+                                </tr></thead>
+                                <tbody>
+                                    {results.slice(0, 50).map((r, i) => (
+                                        <tr key={i} className="border-t border-slate-700/30 hover:bg-slate-700/10">
+                                            <td className="py-2 px-3 text-sm">
+                                                <div className="font-medium text-white">{r.name ?? r.symbol}</div>
+                                                <div className="text-xs text-slate-500">{r.symbol}</div>
+                                            </td>
+                                            <td className="py-2 px-3 text-center text-xs text-slate-400">{r.buyDate}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.actualBuyPrice}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm">
+                                                <span className={r.actualReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                    {r.actualReturn >= 0 ? '+' : ''}{r.actualReturn.toFixed(2)}%
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-center text-xs">
+                                                <span className="text-slate-300">{r.bestDate}</span>
+                                                <span className={`ml-1 ${r.dayOffset > 0 ? 'text-sky-400' : r.dayOffset < 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                                                    {r.dayOffset > 0 ? `(早 ${r.dayOffset}天)` : r.dayOffset < 0 ? `(晚 ${Math.abs(r.dayOffset)}天)` : '(同日)'}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.bestPrice}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm">
+                                                <span className={r.bestReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                    {r.bestReturn >= 0 ? '+' : ''}{r.bestReturn.toFixed(2)}%
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm font-bold">
+                                                <span className={r.improvement > 0.5 ? 'text-amber-400' : r.improvement > 0 ? 'text-slate-300' : 'text-slate-500'}>
+                                                    {r.improvement > 0 ? '+' : ''}{r.improvement.toFixed(2)}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const daysBetween2 = (d1: string, d2: string) => {
+    const diff = new Date(d2).getTime() - new Date(d1).getTime();
+    return Math.round(diff / 86400000);
+};
 
 const StatCard = ({ label, value, sub, color = 'text-white' }: { label: string; value: string; sub?: string; color?: string }) => (
     <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
@@ -342,12 +646,8 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                         </div>
                     </div>
 
-                    {/* Placeholder for Step 2 */}
-                    <div className="bg-slate-800/30 border border-dashed border-slate-700 rounded-2xl p-8 text-center text-slate-500">
-                        <Target size={32} className="mx-auto mb-2 opacity-30" />
-                        <p className="text-sm font-medium">Step 2：進場條件分析</p>
-                        <p className="text-xs mt-1">完成標的選取後，將分析 RSI / Bias / 籌碼在 Winner vs Loser 的分布差異，推算 DSS_SHORT 最佳門檻</p>
-                    </div>
+                    <SignalQualitySection completedTrades={filteredTrades} nameMap={nameMap} />
+                    <OptimalEntrySection completedTrades={filteredTrades} nameMap={nameMap} />
                 </>
             )}
         </div>

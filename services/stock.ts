@@ -1340,6 +1340,18 @@ const computeDSSForDate = (
     return { techSignal, chipHint, bias20: currentBias20, rsi, biasSlopes, foreignConsecBuy, foreignConsecSell, trustConsecBuy, trustConsecSell, marginConsecIncrease, marginConsecDecrease, institutionalForeign, institutionalTrust };
 };
 
+export const fetchKlineWindow = async (
+    symbol: string, centerDate: string, daysBefore: number, daysAfter: number
+): Promise<{ date: string; close: number }[] | null> => {
+    const start = new Date(centerDate);
+    start.setDate(start.getDate() - daysBefore - 5); // 多抓 5 天緩衝（非交易日）
+    const end = new Date(centerDate);
+    end.setDate(end.getDate() + daysAfter + 5);
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr = end.toISOString().slice(0, 10);
+    return fetchHistoricalKlineForBacktest(symbol, startStr, endStr);
+};
+
 export const runBacktest = async (
     trades: StockTransaction[],
     onProgress?: (done: number, total: number, currentSymbol: string) => void
