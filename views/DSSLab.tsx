@@ -85,7 +85,7 @@ const buildCompletedTrades = (transactions: StockTransaction[]): CompletedTrade[
             }
         }
     }
-    return result;
+    return result.filter(t => t.holdingDays > 0);
 };
 
 const buildSymbolStats = (trades: CompletedTrade[]): SymbolStats[] => {
