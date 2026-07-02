@@ -1344,12 +1344,29 @@ export const fetchKlineWindow = async (
     symbol: string, centerDate: string, daysBefore: number, daysAfter: number
 ): Promise<{ date: string; close: number }[] | null> => {
     const start = new Date(centerDate);
-    start.setDate(start.getDate() - daysBefore - 5); // 多抓 5 天緩衝（非交易日）
+    // 多抓 35 天緩衝：涵蓋非交易日 + MA20 所需歷史資料
+    start.setDate(start.getDate() - daysBefore - 35);
     const end = new Date(centerDate);
     end.setDate(end.getDate() + daysAfter + 5);
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
     return fetchHistoricalKlineForBacktest(symbol, startStr, endStr);
+};
+
+/** 給定有序 K 線陣列與目標日期，計算 Bias5 / Bias10 / Bias20（% 乖離） */
+export const computeMultiBias = (
+    kline: { date: string; close: number }[],
+    targetDate: string
+): { bias5: number | null; bias10: number | null; bias20: number | null } => {
+    const rows = kline.filter(r => r.date <= targetDate);
+    const ma = (n: number) => {
+        if (rows.length < n) return null;
+        const slice = rows.slice(-n);
+        const avg = slice.reduce((s, r) => s + r.close, 0) / n;
+        const last = rows[rows.length - 1].close;
+        return ((last - avg) / avg) * 100;
+    };
+    return { bias5: ma(5), bias10: ma(10), bias20: ma(20) };
 };
 
 export const runBacktest = async (

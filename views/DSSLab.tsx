@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2 } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
-import { lookupStockName, fetchKlineWindow } from '../services/stock';
+import { lookupStockName, fetchKlineWindow, computeMultiBias } from '../services/stock';
 import { getBacktestCache } from '../services/storage';
 
 interface Props {
@@ -245,11 +245,17 @@ interface WindowResult {
     sellPrice: number;
     actualBuyPrice: number;
     actualReturn: number;
+    actualBias5: number | null;
+    actualBias10: number | null;
+    actualBias20: number | null;
     bestDate: string;
     bestPrice: number;
     bestReturn: number;
-    improvement: number; // bestReturn - actualReturn
-    dayOffset: number;   // negative = earlier, positive = later
+    bestBias5: number | null;
+    bestBias10: number | null;
+    bestBias20: number | null;
+    improvement: number;
+    dayOffset: number;
 }
 
 const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades, nameMap }) => {
@@ -294,6 +300,8 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
             // 找最低收盤（最便宜的入場點）
             const best = candidates.reduce((m, c) => c.close < m.close ? c : m, candidates[0]);
             const bestReturn = trade.sellPrice > 0 ? ((trade.sellPrice - best.close) / best.close) * 100 : 0;
+            const actualBias = computeMultiBias(kline, trade.buyDate);
+            const bestBias   = computeMultiBias(kline, best.date);
             windowResults.push({
                 symbol: trade.symbol,
                 name: nameMap.get(trade.symbol),
@@ -302,11 +310,17 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                 sellPrice: trade.sellPrice,
                 actualBuyPrice: trade.buyPrice,
                 actualReturn: trade.returnPct,
+                actualBias5:  actualBias.bias5,
+                actualBias10: actualBias.bias10,
+                actualBias20: actualBias.bias20,
                 bestDate: best.date,
                 bestPrice: best.close,
                 bestReturn,
+                bestBias5:  bestBias.bias5,
+                bestBias10: bestBias.bias10,
+                bestBias20: bestBias.bias20,
                 improvement: bestReturn - trade.returnPct,
-                dayOffset: daysBetween2(best.date, trade.buyDate), // positive = best was before actual
+                dayOffset: daysBetween2(best.date, trade.buyDate),
             });
         }
         setResults(windowResults.sort((a, b) => b.improvement - a.improvement));
@@ -368,9 +382,15 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                     <th className="py-2 px-3 text-center">出場日</th>
                                     <th className="py-2 px-3 text-right">實際買入</th>
                                     <th className="py-2 px-3 text-right">實際報酬</th>
+                                    <th className="py-2 px-3 text-center text-sky-400">B5</th>
+                                    <th className="py-2 px-3 text-center text-violet-400">B10</th>
+                                    <th className="py-2 px-3 text-center text-slate-400">B20</th>
                                     <th className="py-2 px-3 text-center">最佳日（偏移）</th>
                                     <th className="py-2 px-3 text-right">最佳價格</th>
                                     <th className="py-2 px-3 text-right">最佳報酬</th>
+                                    <th className="py-2 px-3 text-center text-sky-400">最佳B5</th>
+                                    <th className="py-2 px-3 text-center text-violet-400">最佳B10</th>
+                                    <th className="py-2 px-3 text-center text-slate-400">最佳B20</th>
                                     <th className="py-2 px-3 text-right">可改善</th>
                                 </tr></thead>
                                 <tbody>
@@ -388,6 +408,9 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                                     {r.actualReturn >= 0 ? '+' : ''}{r.actualReturn.toFixed(2)}%
                                                 </span>
                                             </td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-sky-400">{r.actualBias5 !== null ? `${r.actualBias5.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-violet-400">{r.actualBias10 !== null ? `${r.actualBias10.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-slate-400">{r.actualBias20 !== null ? `${r.actualBias20.toFixed(1)}%` : '-'}</td>
                                             <td className="py-2 px-3 text-center text-xs">
                                                 <span className="text-slate-300">{r.bestDate}</span>
                                                 <span className={`ml-1 ${r.dayOffset > 0 ? 'text-sky-400' : r.dayOffset < 0 ? 'text-amber-400' : 'text-slate-500'}`}>
@@ -400,6 +423,9 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                                     {r.bestReturn >= 0 ? '+' : ''}{r.bestReturn.toFixed(2)}%
                                                 </span>
                                             </td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-sky-400">{r.bestBias5 !== null ? `${r.bestBias5.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-violet-400">{r.bestBias10 !== null ? `${r.bestBias10.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-slate-400">{r.bestBias20 !== null ? `${r.bestBias20.toFixed(1)}%` : '-'}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm font-bold">
                                                 <span className={r.improvement > 0.5 ? 'text-amber-400' : r.improvement > 0 ? 'text-slate-300' : 'text-slate-500'}>
                                                     {r.improvement > 0 ? '+' : ''}{r.improvement.toFixed(2)}%
