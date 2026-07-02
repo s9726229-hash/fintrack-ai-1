@@ -93,6 +93,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         const batchResult = await fetchTWSEBatch(symbolsToFetch);
         if (batchResult.source === 'TWSE_FAILED') {
             setPriceSource('TWSE_FAILED');
+            window.dispatchEvent(new CustomEvent('api-status-change', { detail: { api: 'twse', status: 'offline' } }));
             // 啟動背景重試（每 10 秒），只更新現價不重跑全部分析
             if (!priceRetryRef.current) {
                 priceRetryRef.current = setInterval(async () => {
@@ -100,6 +101,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     const retry = await fetchTWSEBatch(allSymbols);
                     if (retry.source === 'TWSE') {
                         setPriceSource('TWSE');
+                        window.dispatchEvent(new CustomEvent('api-status-change', { detail: { api: 'twse', status: 'online' } }));
                         setTechDataMap(prev => {
                             const updated = { ...prev };
                             for (const sym of allSymbols) {
