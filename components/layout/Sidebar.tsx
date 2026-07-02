@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { ViewState, ApiKeyStatus } from '../../types';
-import { 
+import {
   LayoutGrid, PieChart, ScrollText, Target, CalendarClock,
-  Bot, Settings, BookOpen, TrendingUp, Loader2, Eye, ListTree
+  Bot, Settings, BookOpen, TrendingUp, Loader2, Eye, ListTree, FlaskConical
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -94,6 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
         <NavItem view="ASSETS" current={currentView} icon={PieChart} label="資產管理" onClick={onChangeView} />
         <NavItem view="INVESTMENTS" current={currentView} icon={TrendingUp} label="股票投資" onClick={onChangeView} loading={isEnrichingInBackground} />
         <NavItem view="WATCHLIST" current={currentView} icon={Eye} label="選股掃描" onClick={onChangeView} />
+        <NavItem view="DSS_LAB" current={currentView} icon={FlaskConical} label="DSS 實驗室" onClick={onChangeView} />
         <NavItem view="TRANSACTIONS" current={currentView} icon={ScrollText} label="收支記帳" onClick={onChangeView} />
         <NavItem view="BUDGET" current={currentView} icon={Target} label="預算與分析" onClick={onChangeView} />
         <NavItem view="RECURRING" current={currentView} icon={CalendarClock} label="固定收支" onClick={onChangeView} />

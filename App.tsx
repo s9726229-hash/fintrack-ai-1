@@ -11,6 +11,7 @@ import { Budget } from './views/Budget';
 import { Investments } from './views/Investments';
 import { TechDocs } from './views/TechDocs';
 import { Watchlist } from './views/Watchlist';
+import { DSSLab } from './views/DSSLab';
 import { ViewState, Asset, Transaction, RecurringItem, AssetType, BudgetConfig, ApiKeyStatus, StockSnapshot, StockTransaction, Currency } from './types';
 import * as storage from './services/storage';
 import { calculateLoanBalance } from './services/finance';
@@ -322,6 +323,7 @@ export default function App() {
       <div className={view === 'WATCHLIST' ? 'block' : 'hidden'}>
         <Watchlist isActiveView={view === 'WATCHLIST'} />
       </div>
+      {view === 'DSS_LAB' && <DSSLab stockTransactions={stockTransactions} />}
       {view === 'GUIDE' && <GuideView />}
       {view === 'TECH_DOCS' && <TechDocs />}
       {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}

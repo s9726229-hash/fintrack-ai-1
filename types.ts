@@ -361,7 +361,7 @@ export interface LocalStorageData {
   ft_watchlists: WatchlistGroup[]; // New V5
 }
 
-export type ViewState = 'DASHBOARD' | 'ASSETS' | 'TRANSACTIONS' | 'RECURRING' | 'BUDGET' | 'GUIDE' | 'HISTORY' | 'SETTINGS' | 'INVESTMENTS' | 'TECH_DOCS' | 'WATCHLIST';
+export type ViewState = 'DASHBOARD' | 'ASSETS' | 'TRANSACTIONS' | 'RECURRING' | 'BUDGET' | 'GUIDE' | 'HISTORY' | 'SETTINGS' | 'INVESTMENTS' | 'TECH_DOCS' | 'WATCHLIST' | 'DSS_LAB';
 
 export type ApiKeyStatus = 'unchecked' | 'valid' | 'invalid' | 'verifying';
 
