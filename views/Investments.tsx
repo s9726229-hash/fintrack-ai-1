@@ -761,7 +761,10 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         </>
                     )}
                     {historySubTab === 'BACKTEST' && (
-                        <BacktestView allTransactions={stockTransactions} filteredTransactions={filteredStockTransactions} />
+                        <>
+                            <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
+                            <BacktestView allTransactions={stockTransactions} filteredTransactions={filteredStockTransactions} />
+                        </>
                     )}
                 </div>
             )}
