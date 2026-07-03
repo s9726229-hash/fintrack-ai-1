@@ -194,7 +194,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
         for (const chunk of chunks) {
             await Promise.all(chunk.map(async (stock) => {
                 if (stock.symbol) {
-                    const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions, batchResult.prices[stock.symbol] ?? null);
+                    // 批次已整批失敗時不逐檔重打 TWSE（避免併發爆量觸發 rate limit），直接讓 fetchTechnicalData 用昨收 fallback
+                    const preloadedPrice = batchResult.source === 'TWSE_FAILED'
+                        ? { price: 0, change: null, changePercent: null }
+                        : (batchResult.prices[stock.symbol] ?? null);
+                    const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions, preloadedPrice);
                     if (techData !== null) {
                         const cleanTechData: Partial<Asset> = {};
                         if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;

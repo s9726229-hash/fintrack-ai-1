@@ -267,6 +267,10 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
     const handleAddSymbol = async () => {
         if (!newSymbol.trim() || !activeGroup) return;
         const symbol = newSymbol.trim().toUpperCase();
+        if (!/^\d{4,6}[A-Z]?$/.test(symbol)) {
+            alert(`「${newSymbol.trim()}」不是合法的股票代號格式（需為 4-6 碼數字，可選字母後綴，例如 2330、00631L）`);
+            return;
+        }
         if (activeGroup.symbols.includes(symbol)) {
             setNewSymbol('');
             return;
