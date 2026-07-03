@@ -1,11 +1,116 @@
 import React, { useState } from 'react';
-import { BookOpen, LineChart, ShieldAlert, CheckCircle2, TrendingUp, Lightbulb, Zap, FileText, GitBranch } from 'lucide-react';
+import { BookOpen, LineChart, ShieldAlert, CheckCircle2, TrendingUp, Lightbulb, Zap, FileText, GitBranch, FlaskConical, CircleDashed, HelpCircle } from 'lucide-react';
 import { getTechParameters } from '../services/storage';
 import { SignalFlowchart } from '../components/SignalFlowchart';
 
+const StepBadge = ({ status }: { status: 'done' | 'todo' | 'partial' }) => {
+    const map = {
+        done: { icon: CheckCircle2, cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', label: '已完成' },
+        partial: { icon: HelpCircle, cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: '部分完成' },
+        todo: { icon: CircleDashed, cls: 'bg-slate-700/50 text-slate-400 border-slate-600/50', label: '尚未開始' },
+    } as const;
+    const { icon: Icon, cls, label } = map[status];
+    return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${cls}`}><Icon size={12} />{label}</span>;
+};
+
+const DSSLabParamGuide: React.FC = () => (
+    <div className="space-y-6">
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+            <h3 className="text-lg font-bold text-slate-200 mb-2 flex items-center gap-2">
+                <FlaskConical className="text-violet-400" /> 目標：從真實交易歷史回推「優化後」的進場參數
+            </h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+                核心想法：既然有歷史交易紀錄，就能回頭檢視「當時如果換個時間點進場，結果會不會更好」，找出那個更好的進場時間點當下的技術/籌碼指標，反過來當作 DSS 系統的建議參數門檻。整體分四個步驟，皆位於 <b className="text-slate-300">DSS 實驗室</b> 頁面。
+            </p>
+        </div>
+
+        <div className="space-y-4">
+            {/* Step 1 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">1</span>
+                    <h4 className="font-bold text-slate-200">標的勝率排行</h4>
+                    <StepBadge status="done" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                    把股票交易紀錄用 FIFO 配對成完整的「買進→賣出」交易，排除當沖（持倉 0 天），並依 ETF / 上市 / 上櫃分類、算出每檔標的的勝率、損益統計。這是後面三步的資料基礎。
+                </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">2</span>
+                    <h4 className="font-bold text-slate-200">±N日最佳進場分析</h4>
+                    <StepBadge status="done" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed mb-2">
+                    對每筆完整交易，在實際進場日前後 ±5 或 ±10 個交易日的範圍內，用<b className="text-slate-300">報酬最大化</b>（固定賣出價格下，找 (賣價-買價)/買價 最大的那天）找出「最佳進場日」，並在實際進場日與最佳進場日兩邊，都計算：
+                </p>
+                <ul className="text-sm text-slate-400 list-disc list-inside space-y-0.5">
+                    <li>Bias5 / Bias10 / Bias20（乖離率）</li>
+                    <li>RSI</li>
+                    <li>斜率連續上升天數（呼應設定頁的 xxxBuySlopeDays 概念）</li>
+                    <li>外資 / 投信連買天數、融資連增天數</li>
+                </ul>
+                <p className="text-xs text-slate-500 mt-2">實作重用了 DSS 回測分析的核心計算函式（computeDSSForDate），確保跟現有回測邏輯算法一致，不是另外兜一套。</p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">3</span>
+                    <h4 className="font-bold text-slate-200">依分類取中位數</h4>
+                    <StepBadge status="partial" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                    把 Step2 每筆交易「最佳進場日」的各項指標，依 ETF / 上市 / 上櫃分類分組，取中位數，做為該分類的建議參數。畫面上已有分類頁籤 + 統計卡呈現。
+                </p>
+                <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300">
+                    ⚠️ 目前是「全部交易直接取中位數」，還沒有先篩選「優質數據」再算。哪些交易該被排除（例如：改善幅度太小、樣本數太少的標的、虧損交易要不要排除等）尚未定案，見下方「待確認事項」。
+                </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">4</span>
+                    <h4 className="font-bold text-slate-200">進場條件分析（提取優化後參數 → 存成設定檔）</h4>
+                    <StepBadge status="todo" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                    最後一步，把 Step3 算出來的「最佳進場日」中位數，取代目前進場條件分析所用的「實際進場日」資料，並擴充 DSS 設定檔（DSSProfile）結構，把斜率／外資／投信／融資的建議門檻一起存進去（現在的設定檔只存 RSI + Bias20），存檔後可在系統設定頁套用回技術面參數。
+                </p>
+                <p className="text-xs text-slate-500 mt-2">尚未開始動工。程式碼本身不受資料/額度問題影響，可以先寫、用合成資料驗證邏輯，但要看真實跑出來的參數合不合理，需要等下方「已知限制」解決。</p>
+            </div>
+        </div>
+
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+            <h3 className="text-base font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <HelpCircle className="text-amber-400" size={18} /> 待確認事項
+            </h3>
+            <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
+                <li>「優質數據」的篩選標準還沒定案——用改善幅度門檻？持倉天數範圍？排除虧損交易？單一標的最少樣本數？需要先討論定義，Step3 才能在取中位數前先篩選。</li>
+                <li>目前分析是 ETF / 上市 / 上櫃「混在一起跑」，事後才依分類統計中位數，如果要「先分類、各分類獨立跑」是另一個架構調整，目前未採用此方向。</li>
+            </ul>
+        </div>
+
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+            <h3 className="text-base font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <ShieldAlert className="text-red-400" size={18} /> 已知限制
+            </h3>
+            <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
+                <li>Step2 一次分析要對每檔標的打 3 種 FinMind 資料（股價/籌碼/融資），交易筆數多時請求量很大，容易撞到 FinMind 額度限制（曾實測出現 402 Requests reach the upper limit，甚至更嚴重的連線被拒）。帳號後台「API 使用量」顯示的用量，跟實際資料查詢端點的限制不一定同步，數字看起來夠用也可能還是打不通。</li>
+                <li>因應額度問題，DSS 實驗室的「±N日最佳進場分析」新增了<b className="text-slate-300">匯出快取 / 匯入快取</b>按鈕，可以在額度充足的裝置上先跑完分析、匯出 JSON，再拿到別的裝置匯入使用，不用重打 API。</li>
+                <li>標的名稱顯示（中文股票名）依賴 FinMind 的 TaiwanStockInfo 查詢，若額度/連線有問題，畫面上會退回顯示股票代號，屬正常降級行為，非程式錯誤。</li>
+            </ul>
+        </div>
+    </div>
+);
+
 export const TechDocs: React.FC = () => {
     const p = getTechParameters();
-    const [activeTab, setActiveTab] = useState<'docs' | 'flow'>('docs');
+    const [activeTab, setActiveTab] = useState<'docs' | 'flow' | 'dsslab'>('docs');
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
             {/* Header */}
@@ -33,9 +138,15 @@ export const TechDocs: React.FC = () => {
                 >
                     <GitBranch size={16} /> 決策流程圖
                 </button>
+                <button
+                    onClick={() => setActiveTab('dsslab')}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeTab === 'dsslab' ? 'bg-slate-800/50 text-indigo-400 border-b-2 border-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <FlaskConical size={16} /> DSS 參數提取機制
+                </button>
             </div>
 
-            {activeTab === 'flow' ? <SignalFlowchart /> : <>
+            {activeTab === 'flow' ? <SignalFlowchart /> : activeTab === 'dsslab' ? <DSSLabParamGuide /> : <>
 
             {/* ── 1. 燈號快速對照（最重要，放最前） ── */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
