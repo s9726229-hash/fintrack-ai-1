@@ -20,7 +20,7 @@ const DSSLabParamGuide: React.FC = () => (
                 <FlaskConical className="text-violet-400" /> 目標：從真實交易歷史回推「優化後」的進場參數
             </h3>
             <p className="text-sm text-slate-400 leading-relaxed">
-                核心想法：既然有歷史交易紀錄，就能回頭檢視「當時如果換個時間點進場，結果會不會更好」，找出那個更好的進場時間點當下的技術/籌碼指標，反過來當作 DSS 系統的建議參數門檻。整體分四個步驟，皆位於 <b className="text-slate-300">DSS 實驗室</b> 頁面。
+                核心想法：既然有歷史交易紀錄，就能回頭檢視「當時如果換個時間點進場，結果會不會更好」，找出那個更好的進場時間點當下的技術/籌碼指標，反過來當作 DSS 系統的建議參數門檻。整體分五個步驟，皆位於 <b className="text-slate-300">DSS 實驗室</b> 頁面。
             </p>
         </div>
 
@@ -79,9 +79,26 @@ const DSSLabParamGuide: React.FC = () => (
                     <StepBadge status="todo" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                    最後一步，把 Step3 算出來的「最佳進場日」中位數，取代目前進場條件分析所用的「實際進場日」資料，並擴充 DSS 設定檔（DSSProfile）結構，把斜率／外資／投信／融資的建議門檻一起存進去（現在的設定檔只存 RSI + Bias20），存檔後可在系統設定頁套用回技術面參數。
+                    把 Step3 算出來的「最佳進場日」中位數，取代目前進場條件分析所用的「實際進場日」資料，並擴充 DSS 設定檔（DSSProfile）結構，把斜率／外資／投信／融資的建議門檻一起存進去（現在的設定檔只存 RSI + Bias20），存檔後可在系統設定頁套用回技術面參數。
                 </p>
                 <p className="text-xs text-slate-500 mt-2">尚未開始動工。程式碼本身不受資料/額度問題影響，可以先寫、用合成資料驗證邏輯，但要看真實跑出來的參數合不合理，需要等下方「已知限制」解決。</p>
+            </div>
+
+            {/* Step 5 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">5</span>
+                    <h4 className="font-bold text-slate-200">套用新參數 → 驗證命中率（Match Rate）與燈號分布</h4>
+                    <StepBadge status="todo" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed mb-2">
+                    最後一步，把 Step4 存好的設定檔套用回技術面參數後，用新參數重跑一次 DSS 回測分析，用兩個指標驗證「換參數是不是真的變好」，而不是存了就當作結束：
+                </p>
+                <ul className="text-sm text-slate-400 list-disc list-inside space-y-0.5">
+                    <li><b className="text-slate-300">命中率（Match Rate）</b>：重用 DSS 回測分析既有的 MATCH / DIVERGE / PARTIAL 吻合度判斷，比較套用新參數前後，歷史交易的吻合度有沒有實際提升。</li>
+                    <li><b className="text-slate-300">燈號分布</b>：統計新參數下，各檔標的落在 STRONG_BUY／BUY／WATCH_DIVERGE／SELL 等各訊號燈號的筆數分布，避免出現「新參數太寬鬆變成全部強買」或「太嚴苛完全不觸發」這種失真結果，當作換參數前的健檢。</li>
+                </ul>
+                <p className="text-xs text-slate-500 mt-2">尚未開始動工，需等 Step4 完成後才能接續。</p>
             </div>
         </div>
 
@@ -92,6 +109,23 @@ const DSSLabParamGuide: React.FC = () => (
             <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
                 <li>「優質數據」的篩選標準還沒定案——用改善幅度門檻？持倉天數範圍？排除虧損交易？單一標的最少樣本數？需要先討論定義，Step3 才能在取中位數前先篩選。</li>
                 <li>目前分析是 ETF / 上市 / 上櫃「混在一起跑」，事後才依分類統計中位數，如果要「先分類、各分類獨立跑」是另一個架構調整，目前未採用此方向。</li>
+            </ul>
+        </div>
+
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+            <h3 className="text-base font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <Lightbulb className="text-sky-400" size={18} /> 未來規劃（尚未實作，先記錄構想）
+            </h3>
+            <ul className="text-sm text-slate-400 space-y-3 list-disc list-inside">
+                <li>
+                    <b className="text-slate-300">參數版本化</b>：DSS 設定檔目前是單純的清單（存了就是一筆），未來希望能有「版本」概念，把不同版本的參數組合套進同一份歷史資料重跑，直接比較 Match Rate / 燈號分布等績效差異，方便判斷新參數是不是真的比舊版好，而不是憑感覺換。
+                </li>
+                <li>
+                    <b className="text-slate-300">匯入交易紀錄自動觸發分析</b>：目前「標的勝率排行」與「DSS 回測分析」都要手動點按鈕才會跑。未來希望匯入股票交易 CSV 後就自動觸發這兩項分析，資料一進來就能立刻檢視每一筆交易目前落在哪個環節/狀態，不用額外操作。
+                </li>
+                <li>
+                    <b className="text-slate-300">DSS 實驗室版面改用分頁</b>：目前「標的勝率排行」「進場條件分析」「±N日最佳進場分析」三個區塊是全部往下堆疊，頁面拉得很長。未來想改成分頁切換顯示，一次只看一個區塊，畫面更乾淨。
+                </li>
             </ul>
         </div>
 
