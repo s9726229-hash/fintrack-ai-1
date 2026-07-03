@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Save } from 'lucide-react';
+import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Save, Download, Upload } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
-import { lookupStockName, fetchKlineWindow, computeMultiBias } from '../services/stock';
-import { getBacktestCache, getDSSProfiles, saveDSSProfiles, DSSProfile } from '../services/storage';
+import { lookupStockName, fetchKlineWindow, computeMultiBias, computeDSSForDate, fetchHistoricalInstForBacktest, fetchHistoricalMarginForBacktest } from '../services/stock';
+import { getBacktestCache, getDSSProfiles, saveDSSProfiles, DSSProfile, getTechParameters } from '../services/storage';
 
 interface Props {
     stockTransactions: StockTransaction[];
@@ -330,6 +330,7 @@ const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMa
 interface WindowResult {
     symbol: string;
     name?: string;
+    category: 'ETF' | '上市' | '上櫃';
     buyDate: string;
     sellDate: string;
     sellPrice: number;
@@ -346,7 +347,59 @@ interface WindowResult {
     bestBias20: number | null;
     improvement: number;
     dayOffset: number;
+    // Step2 補齊：斜率(連升天數)/RSI/籌碼 — 實際進場日 vs 最佳進場日
+    actualRsi: number | null;
+    actualSlopeUpDays: number | null;
+    actualForeignConsecBuy: number | null;
+    actualTrustConsecBuy: number | null;
+    actualMarginConsecIncrease: number | null;
+    bestRsi: number | null;
+    bestSlopeUpDays: number | null;
+    bestForeignConsecBuy: number | null;
+    bestTrustConsecBuy: number | null;
+    bestMarginConsecIncrease: number | null;
 }
+
+/** biasSlopes[0] 起算連續正斜率天數（配合 TechParameters 的 xxxBuySlopeDays 門檻概念）*/
+const slopeConsecUp = (slopes: number[]): number => {
+    let n = 0;
+    for (const s of slopes) { if (s > 0) n++; else break; }
+    return n;
+};
+
+// ── Step3：±N日最佳進場分析數據 → 依分類(ETF/上市/上櫃)取中位數 ──────────────
+interface OptimalCatStats {
+    cat: 'ETF' | '上市' | '上櫃';
+    n: number;
+    medRsi: number | null;
+    medBias5: number | null;
+    medBias10: number | null;
+    medBias20: number | null;
+    medSlopeUpDays: number | null;
+    medForeignConsecBuy: number | null;
+    medTrustConsecBuy: number | null;
+    medMarginConsecIncrease: number | null;
+}
+
+const notNull = (v: number | null): v is number => v !== null;
+
+const buildOptimalCatStats = (results: WindowResult[], cat: 'ETF' | '上市' | '上櫃'): OptimalCatStats | null => {
+    const minN = cat === 'ETF' ? 1 : 3;
+    const list = results.filter(r => r.category === cat);
+    if (list.length < minN) return null;
+    return {
+        cat,
+        n: list.length,
+        medRsi: median(list.map(r => r.bestRsi).filter(notNull)),
+        medBias5: median(list.map(r => r.bestBias5).filter(notNull)),
+        medBias10: median(list.map(r => r.bestBias10).filter(notNull)),
+        medBias20: median(list.map(r => r.bestBias20).filter(notNull)),
+        medSlopeUpDays: median(list.map(r => r.bestSlopeUpDays).filter(notNull)),
+        medForeignConsecBuy: median(list.map(r => r.bestForeignConsecBuy).filter(notNull)),
+        medTrustConsecBuy: median(list.map(r => r.bestTrustConsecBuy).filter(notNull)),
+        medMarginConsecIncrease: median(list.map(r => r.bestMarginConsecIncrease).filter(notNull)),
+    };
+};
 
 const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades, nameMap }) => {
     const CACHE_KEY = 'ft_dsslab_optimal_cache';
@@ -355,6 +408,16 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
     const [results, setResults] = useState<WindowResult[] | null>(null);
     const [cacheTs, setCacheTs] = useState<number | null>(null);
+    const [optimalCatTab, setOptimalCatTab] = useState<'ETF' | '上市' | '上櫃'>('上市');
+
+    const optimalCatStats = useMemo(() => {
+        if (!results?.length) return null;
+        const etf = buildOptimalCatStats(results, 'ETF');
+        const listed = buildOptimalCatStats(results, '上市');
+        const otc = buildOptimalCatStats(results, '上櫃');
+        if (!etf && !listed && !otc) return null;
+        return { ETF: etf, 上市: listed, 上櫃: otc };
+    }, [results]);
 
     useEffect(() => {
         try {
@@ -368,29 +431,75 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
         } catch { /* 快取損壞則忽略 */ }
     }, []);
 
+    /** 匯出目前快取（本機分析結果）為 JSON，供另一台裝置匯入 */
+    const handleExportCache = () => {
+        if (!results?.length) return;
+        const payload = { results, timestamp: cacheTs ?? Date.now(), window: window_ };
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dsslab_optimal_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    /** 匯入其他裝置匯出的快取 JSON，直接覆蓋目前結果 */
+    const handleImportCache = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const parsed = JSON.parse(ev.target?.result as string);
+                if (!Array.isArray(parsed.results)) throw new Error('invalid');
+                localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
+                setResults(parsed.results);
+                setCacheTs(parsed.timestamp ?? Date.now());
+                setWindow_(parsed.window ?? 5);
+            } catch {
+                alert('匯入失敗：檔案格式不正確');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
     const handleRun = async () => {
         setIsRunning(true);
         setResults(null);
+        const params = getTechParameters();
         const symbols = [...new Set(completedTrades.map(t => t.symbol))];
         const klineCache = new Map<string, { date: string; close: number }[]>();
+        const instCache = new Map<string, { date: string; foreign: number; trust: number }[]>();
+        const marginCache = new Map<string, { date: string; balance: number }[]>();
         const total = symbols.length;
         let done = 0;
 
-        // 1. 每個 symbol 的 kline（以 buyDate 的最早日期為中心，抓整個交易範圍）
+        // 1. 每個 symbol 的 kline + 籌碼(外資/投信)+ 融資（涵蓋整個交易範圍 ± 視窗天數）
         for (const sym of symbols) {
             setProgress({ done, total });
             const symTrades = completedTrades.filter(t => t.symbol === sym);
             const minDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
             const maxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
-            const rows = await fetchKlineWindow(sym, minDate, window_ + 5, 0); // 用最早 buyDate 起抓到 maxDate
-            // 實際取完整範圍
             const full = await fetchKlineWindow(sym, minDate, window_ + 5, daysBetween2(minDate, maxDate) + window_ + 5);
             if (full) klineCache.set(sym, full);
+
+            const rangeStart = new Date(minDate); rangeStart.setDate(rangeStart.getDate() - window_ - 10);
+            const rangeEnd = new Date(maxDate); rangeEnd.setDate(rangeEnd.getDate() + window_ + 10);
+            const rangeStartStr = rangeStart.toISOString().slice(0, 10);
+            const rangeEndStr = rangeEnd.toISOString().slice(0, 10);
+            const [instRows, marginRows] = await Promise.all([
+                fetchHistoricalInstForBacktest(sym, rangeStartStr, rangeEndStr),
+                fetchHistoricalMarginForBacktest(sym, rangeStartStr, rangeEndStr),
+            ]);
+            if (instRows) instCache.set(sym, instRows);
+            if (marginRows) marginCache.set(sym, marginRows);
             done++;
         }
         setProgress({ done: total, total });
 
-        // 2. 每筆交易找最佳進場日
+        // 2. 每筆交易找最佳進場日（以報酬最大化評估，非單純最低價）
         const windowResults: WindowResult[] = [];
         for (const trade of completedTrades) {
             const kline = klineCache.get(trade.symbol);
@@ -401,14 +510,26 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                 return diff >= -window_ && diff <= window_;
             });
             if (!candidates.length) continue;
-            // 找最低收盤（最便宜的入場點）
-            const best = candidates.reduce((m, c) => c.close < m.close ? c : m, candidates[0]);
-            const bestReturn = trade.sellPrice > 0 ? ((trade.sellPrice - best.close) / best.close) * 100 : 0;
+            // 找報酬最大化的進場點（固定 sellPrice 下，等同最低收盤價，但用報酬明確表達意圖）
+            const withReturns = candidates.map(c => ({
+                ...c,
+                ret: trade.sellPrice > 0 ? ((trade.sellPrice - c.close) / c.close) * 100 : -Infinity,
+            }));
+            const best = withReturns.reduce((m, c) => c.ret > m.ret ? c : m, withReturns[0]);
+            const bestReturn = best.ret === -Infinity ? 0 : best.ret;
             const actualBias = computeMultiBias(kline, trade.buyDate);
             const bestBias   = computeMultiBias(kline, best.date);
+
+            const instRows = instCache.get(trade.symbol) ?? [];
+            const marginRows = marginCache.get(trade.symbol) ?? [];
+            const sizeCategory = trade.category === 'ETF' ? 'ETF' : trade.category === '上櫃' ? 'SMALL_CAP' : 'LARGE_CAP';
+            const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.buyDate, params, sizeCategory);
+            const bestDss   = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
+
             windowResults.push({
                 symbol: trade.symbol,
                 name: nameMap.get(trade.symbol),
+                category: trade.category,
                 buyDate: trade.buyDate,
                 sellDate: trade.sellDate,
                 sellPrice: trade.sellPrice,
@@ -425,6 +546,16 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                 bestBias20: bestBias.bias20,
                 improvement: bestReturn - trade.returnPct,
                 dayOffset: daysBetween2(best.date, trade.buyDate),
+                actualRsi: actualDss?.rsi ?? null,
+                actualSlopeUpDays: actualDss ? slopeConsecUp(actualDss.biasSlopes) : null,
+                actualForeignConsecBuy: actualDss?.foreignConsecBuy ?? null,
+                actualTrustConsecBuy: actualDss?.trustConsecBuy ?? null,
+                actualMarginConsecIncrease: actualDss?.marginConsecIncrease ?? null,
+                bestRsi: bestDss?.rsi ?? null,
+                bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
+                bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null,
+                bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
+                bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
             });
         }
         const sorted = windowResults.sort((a, b) => b.improvement - a.improvement);
@@ -464,6 +595,18 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                     </button>
                     {progress && <span className="text-xs text-slate-400">{progress.done}/{progress.total} 標的</span>}
                     {cacheTs && !isRunning && <span className="text-xs text-slate-500 ml-2">上次分析：{new Date(cacheTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
+                    <div className="ml-auto flex items-center gap-2">
+                        {results && results.length > 0 && (
+                            <button onClick={handleExportCache}
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors">
+                                <Download size={12} />匯出快取
+                            </button>
+                        )}
+                        <label className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors cursor-pointer">
+                            <Upload size={12} />匯入快取
+                            <input type="file" accept="application/json" className="hidden" onChange={handleImportCache} />
+                        </label>
+                    </div>
                 </div>
 
                 {results && (
@@ -517,6 +660,11 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                     <th className="py-2 px-3 text-center text-sky-400">最佳B5</th>
                                     <th className="py-2 px-3 text-center text-violet-400">最佳B10</th>
                                     <th className="py-2 px-3 text-center text-slate-400">最佳B20</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳RSI</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳斜率</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳外資</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳投信</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳融資</th>
                                     <th className="py-2 px-3 text-right">可改善</th>
                                 </tr></thead>
                                 <tbody>
@@ -552,6 +700,11 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                             <td className="py-2 px-3 text-center font-mono text-xs text-sky-400">{r.bestBias5 !== null ? `${r.bestBias5.toFixed(1)}%` : '-'}</td>
                                             <td className="py-2 px-3 text-center font-mono text-xs text-violet-400">{r.bestBias10 !== null ? `${r.bestBias10.toFixed(1)}%` : '-'}</td>
                                             <td className="py-2 px-3 text-center font-mono text-xs text-slate-400">{r.bestBias20 !== null ? `${r.bestBias20.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestRsi != null ? r.bestRsi.toFixed(1) : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestSlopeUpDays != null ? `${r.bestSlopeUpDays}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestForeignConsecBuy != null ? `${r.bestForeignConsecBuy}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestTrustConsecBuy != null ? `${r.bestTrustConsecBuy}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestMarginConsecIncrease != null ? `${r.bestMarginConsecIncrease}天` : '-'}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm font-bold">
                                                 <span className={r.improvement > 0.5 ? 'text-amber-400' : r.improvement > 0 ? 'text-slate-300' : 'text-slate-500'}>
                                                     {r.improvement > 0 ? '+' : ''}{r.improvement.toFixed(2)}%
@@ -562,6 +715,50 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                 </tbody>
                             </table>
                         </div>
+
+                        {optimalCatStats && (
+                            <div className="pt-4 border-t border-slate-700 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-bold text-slate-200">最佳進場點參數中位數</h4>
+                                    <span className="text-xs text-slate-500">依分類彙總 — 供進場條件分析參考優化後門檻</span>
+                                </div>
+                                <div className="flex gap-1">
+                                    {(['ETF', '上市', '上櫃'] as const).map(tab => {
+                                        const s = optimalCatStats[tab];
+                                        const disabled = !s;
+                                        return (
+                                            <button key={tab} onClick={() => !disabled && setOptimalCatTab(tab)}
+                                                disabled={disabled}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                                    optimalCatTab === tab && !disabled
+                                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                                        : disabled
+                                                            ? 'text-slate-600 cursor-not-allowed'
+                                                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                                                }`}>
+                                                {tab}
+                                                {s ? <span className="ml-1 text-slate-500">({s.n})</span>
+                                                   : <span className="ml-1 text-slate-600">(不足)</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {optimalCatStats[optimalCatTab] ? (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <StatCard label="RSI 中位數" value={optimalCatStats[optimalCatTab]!.medRsi?.toFixed(1) ?? '-'} color="text-amber-300" />
+                                        <StatCard label="Bias5 中位數" value={optimalCatStats[optimalCatTab]!.medBias5 !== null ? `${optimalCatStats[optimalCatTab]!.medBias5!.toFixed(1)}%` : '-'} color="text-sky-400" />
+                                        <StatCard label="Bias10 中位數" value={optimalCatStats[optimalCatTab]!.medBias10 !== null ? `${optimalCatStats[optimalCatTab]!.medBias10!.toFixed(1)}%` : '-'} color="text-violet-400" />
+                                        <StatCard label="Bias20 中位數" value={optimalCatStats[optimalCatTab]!.medBias20 !== null ? `${optimalCatStats[optimalCatTab]!.medBias20!.toFixed(1)}%` : '-'} color="text-slate-300" />
+                                        <StatCard label="斜率連升天數中位數" value={optimalCatStats[optimalCatTab]!.medSlopeUpDays !== null ? `${optimalCatStats[optimalCatTab]!.medSlopeUpDays}天` : '-'} color="text-amber-300" />
+                                        <StatCard label="外資連買天數中位數" value={optimalCatStats[optimalCatTab]!.medForeignConsecBuy !== null ? `${optimalCatStats[optimalCatTab]!.medForeignConsecBuy}天` : '-'} color="text-amber-300" />
+                                        <StatCard label="投信連買天數中位數" value={optimalCatStats[optimalCatTab]!.medTrustConsecBuy !== null ? `${optimalCatStats[optimalCatTab]!.medTrustConsecBuy}天` : '-'} color="text-amber-300" />
+                                        <StatCard label="融資連增天數中位數" value={optimalCatStats[optimalCatTab]!.medMarginConsecIncrease !== null ? `${optimalCatStats[optimalCatTab]!.medMarginConsecIncrease}天` : '-'} color="text-amber-300" />
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </div>

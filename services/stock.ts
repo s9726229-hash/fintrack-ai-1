@@ -1158,7 +1158,7 @@ const fetchHistoricalKlineForBacktest = async (
         .sort((a: any, b: any) => a.date.localeCompare(b.date));
 };
 
-const fetchHistoricalInstForBacktest = async (
+export const fetchHistoricalInstForBacktest = async (
     symbol: string, startDate: string, endDate: string
 ): Promise<{ date: string; foreign: number; trust: number }[] | null> => {
     const data = await finmindFetch({ dataset: 'TaiwanStockInstitutionalInvestorsBuySell', data_id: symbol, start_date: startDate, end_date: endDate });
@@ -1168,7 +1168,7 @@ const fetchHistoricalInstForBacktest = async (
         .sort((a: any, b: any) => a.date.localeCompare(b.date));
 };
 
-const fetchHistoricalMarginForBacktest = async (
+export const fetchHistoricalMarginForBacktest = async (
     symbol: string, startDate: string, endDate: string
 ): Promise<{ date: string; balance: number }[] | null> => {
     const data = await finmindFetch({ dataset: 'TaiwanStockMarginPurchaseShortSale', data_id: symbol, start_date: startDate, end_date: endDate });
@@ -1178,7 +1178,7 @@ const fetchHistoricalMarginForBacktest = async (
         .sort((a: any, b: any) => a.date.localeCompare(b.date));
 };
 
-interface DSSAtDateResult {
+export interface DSSAtDateResult {
     techSignal: TechDataResult['techSignal'];
     chipHint?: SignalHint;
     bias20: number;
@@ -1195,7 +1195,7 @@ interface DSSAtDateResult {
 }
 
 // 純 DSS 計算（大盤假設 NORMAL、跳過持倉相關的 TREND_ADD / 停損層）
-const computeDSSForDate = (
+export const computeDSSForDate = (
     klineRows: { date: string; close: number }[],
     instRows: { date: string; foreign: number; trust: number }[],
     marginRows: { date: string; balance: number }[],
