@@ -1163,9 +1163,20 @@ export const fetchHistoricalInstForBacktest = async (
 ): Promise<{ date: string; foreign: number; trust: number }[] | null> => {
     const data = await finmindFetch({ dataset: 'TaiwanStockInstitutionalInvestorsBuySell', data_id: symbol, start_date: startDate, end_date: endDate });
     if (!data) return null;
-    return data
-        .map((d: any) => ({ date: String(d.date), foreign: Number(d.Foreign_Investor) || 0, trust: Number(d.Investment_Trust) || 0 }))
-        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+    // FinMind 回傳格式是「每列一種法人類別」(date, name, buy, sell)，需依 name 分組加總，
+    // 不是每列一個日期直接帶 Foreign_Investor/Investment_Trust 欄位。
+    const byDate: Record<string, { foreign: number; trust: number }> = {};
+    data.forEach((item: any) => {
+        const date = String(item.date);
+        if (!byDate[date]) byDate[date] = { foreign: 0, trust: 0 };
+        const n = item.name || '';
+        const net = Math.round((Number(item.buy) - Number(item.sell)) / 1000);
+        if (n.includes('外資') || n === 'Foreign_Investor') byDate[date].foreign += net;
+        if (n.includes('投信') || n === 'Investment_Trust') byDate[date].trust += net;
+    });
+    return Object.entries(byDate)
+        .map(([date, v]) => ({ date, foreign: v.foreign, trust: v.trust }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 };
 
 export const fetchHistoricalMarginForBacktest = async (

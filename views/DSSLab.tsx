@@ -371,6 +371,8 @@ const slopeConsecUp = (slopes: number[]): number => {
 interface OptimalCatStats {
     cat: 'ETF' | '上市' | '上櫃';
     n: number;
+    rawN: number;
+    qualityCutoff: number;
     medRsi: number | null;
     medBias5: number | null;
     medBias10: number | null;
@@ -383,13 +385,29 @@ interface OptimalCatStats {
 
 const notNull = (v: number | null): v is number => v !== null;
 
+/** 優質數據篩選：依改善幅度(improvement)排序，僅保留該分類前70%（排除改善幅度最低的30%）*/
+const KEEP_RATIO = 0.7;
+const filterQualityTrades = (list: WindowResult[]): { kept: WindowResult[]; cutoff: number } => {
+    if (list.length === 0) return { kept: [], cutoff: 0 };
+    const sorted = [...list].sort((a, b) => a.improvement - b.improvement);
+    const cutoffIdx = Math.floor(sorted.length * (1 - KEEP_RATIO));
+    const cutoff = sorted[cutoffIdx].improvement;
+    return { kept: list.filter(r => r.improvement >= cutoff), cutoff };
+};
+
 const buildOptimalCatStats = (results: WindowResult[], cat: 'ETF' | '上市' | '上櫃'): OptimalCatStats | null => {
     const minN = cat === 'ETF' ? 1 : 3;
-    const list = results.filter(r => r.category === cat);
+    const catList = results.filter(r => r.category === cat);
+    if (catList.length < minN) return null;
+
+    const { kept: list, cutoff } = filterQualityTrades(catList);
     if (list.length < minN) return null;
+
     return {
         cat,
         n: list.length,
+        rawN: catList.length,
+        qualityCutoff: cutoff,
         medRsi: median(list.map(r => r.bestRsi).filter(notNull)),
         medBias5: median(list.map(r => r.bestBias5).filter(notNull)),
         medBias10: median(list.map(r => r.bestBias10).filter(notNull)),
@@ -401,8 +419,15 @@ const buildOptimalCatStats = (results: WindowResult[], cat: 'ETF' | '上市' | '
     };
 };
 
+interface RawCacheEntry {
+    kline: { date: string; close: number }[];
+    inst: { date: string; foreign: number; trust: number }[];
+    margin: { date: string; balance: number }[];
+}
+
 const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades, nameMap }) => {
     const CACHE_KEY = 'ft_dsslab_optimal_cache';
+    const RAW_CACHE_KEY = 'ft_dsslab_raw_cache';
     const [window_, setWindow_] = useState<5 | 10>(5);
     const [isRunning, setIsRunning] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -431,10 +456,14 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
         } catch { /* 快取損壞則忽略 */ }
     }, []);
 
-    /** 匯出目前快取（本機分析結果）為 JSON，供另一台裝置匯入 */
+    /** 匯出目前快取（本機分析結果 + 原始股價/籌碼/融資資料）為 JSON，供另一台裝置匯入 */
     const handleExportCache = () => {
         if (!results?.length) return;
-        const payload = { results, timestamp: cacheTs ?? Date.now(), window: window_ };
+        let rawCache: Record<string, RawCacheEntry> = {};
+        try {
+            rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}');
+        } catch { /* 忽略損壞的原始快取 */ }
+        const payload = { results, timestamp: cacheTs ?? Date.now(), window: window_, rawCache };
         const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -444,7 +473,7 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
         URL.revokeObjectURL(url);
     };
 
-    /** 匯入其他裝置匯出的快取 JSON，直接覆蓋目前結果 */
+    /** 匯入其他裝置匯出的快取 JSON（含原始資料），直接覆蓋目前結果 */
     const handleImportCache = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -453,7 +482,10 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
             try {
                 const parsed = JSON.parse(ev.target?.result as string);
                 if (!Array.isArray(parsed.results)) throw new Error('invalid');
-                localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ results: parsed.results, timestamp: parsed.timestamp, window: parsed.window }));
+                if (parsed.rawCache) {
+                    try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(parsed.rawCache)); } catch { /* 空間不足則跳過原始資料，結果本身仍匯入成功 */ }
+                }
                 setResults(parsed.results);
                 setCacheTs(parsed.timestamp ?? Date.now());
                 setWindow_(parsed.window ?? 5);
@@ -476,12 +508,27 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
         const total = symbols.length;
         let done = 0;
 
+        // 原始資料快取：同一批交易 + 同一視窗天數再次分析時（如修完 bug 重跑驗證），直接重用，不再重打 FinMind
+        let rawCache: Record<string, RawCacheEntry> = {};
+        try { rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}'); } catch { /* 忽略損壞快取 */ }
+
         // 1. 每個 symbol 的 kline + 籌碼(外資/投信)+ 融資（涵蓋整個交易範圍 ± 視窗天數）
         for (const sym of symbols) {
             setProgress({ done, total });
             const symTrades = completedTrades.filter(t => t.symbol === sym);
             const minDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
             const maxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
+            const cacheKey = `${sym}|${minDate}|${maxDate}|${window_}`;
+            const cached = rawCache[cacheKey];
+
+            if (cached) {
+                klineCache.set(sym, cached.kline);
+                instCache.set(sym, cached.inst);
+                marginCache.set(sym, cached.margin);
+                done++;
+                continue;
+            }
+
             const full = await fetchKlineWindow(sym, minDate, window_ + 5, daysBetween2(minDate, maxDate) + window_ + 5);
             if (full) klineCache.set(sym, full);
 
@@ -495,9 +542,12 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
             ]);
             if (instRows) instCache.set(sym, instRows);
             if (marginRows) marginCache.set(sym, marginRows);
+
+            rawCache[cacheKey] = { kline: full ?? [], inst: instRows ?? [], margin: marginRows ?? [] };
             done++;
         }
         setProgress({ done: total, total });
+        try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(rawCache)); } catch { /* 空間不足則不快取原始資料，不影響本次分析結果 */ }
 
         // 2. 每筆交易找最佳進場日（以報酬最大化評估，非單純最低價）
         const windowResults: WindowResult[] = [];
@@ -737,13 +787,17 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
                                                 }`}>
                                                 {tab}
-                                                {s ? <span className="ml-1 text-slate-500">({s.n})</span>
+                                                {s ? <span className="ml-1 text-slate-500">({s.n}/{s.rawN})</span>
                                                    : <span className="ml-1 text-slate-600">(不足)</span>}
                                             </button>
                                         );
                                     })}
                                 </div>
                                 {optimalCatStats[optimalCatTab] ? (
+                                    <>
+                                    <div className="text-xs text-slate-500">
+                                        優質數據篩選：改善幅度前 70%（{optimalCatStats[optimalCatTab]!.rawN} 筆中保留 {optimalCatStats[optimalCatTab]!.n} 筆，門檻 ≥ {optimalCatStats[optimalCatTab]!.qualityCutoff.toFixed(1)}%）
+                                    </div>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         <StatCard label="RSI 中位數" value={optimalCatStats[optimalCatTab]!.medRsi?.toFixed(1) ?? '-'} color="text-amber-300" />
                                         <StatCard label="Bias5 中位數" value={optimalCatStats[optimalCatTab]!.medBias5 !== null ? `${optimalCatStats[optimalCatTab]!.medBias5!.toFixed(1)}%` : '-'} color="text-sky-400" />
@@ -754,6 +808,7 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                                         <StatCard label="投信連買天數中位數" value={optimalCatStats[optimalCatTab]!.medTrustConsecBuy !== null ? `${optimalCatStats[optimalCatTab]!.medTrustConsecBuy}天` : '-'} color="text-amber-300" />
                                         <StatCard label="融資連增天數中位數" value={optimalCatStats[optimalCatTab]!.medMarginConsecIncrease !== null ? `${optimalCatStats[optimalCatTab]!.medMarginConsecIncrease}天` : '-'} color="text-amber-300" />
                                     </div>
+                                    </>
                                 ) : (
                                     <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
                                 )}
@@ -795,6 +850,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     const [sortKey, setSortKey] = useState<SortKey>('trades');
     const [sortAsc, setSortAsc] = useState(false);
     const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+    const [activeSection, setActiveSection] = useState<'winrate' | 'entry' | 'optimal'>('winrate');
 
     const allCompleted = useMemo(() => buildCompletedTrades(stockTransactions), [stockTransactions]);
 
@@ -890,7 +946,22 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                         </div>
                     )}
 
+                    {/* Section Tabs */}
+                    <div className="flex gap-2 border-b border-slate-800">
+                        {([
+                            { key: 'winrate', label: '標的勝率排行', icon: Trophy },
+                            { key: 'entry', label: '進場條件分析', icon: BarChart2 },
+                            { key: 'optimal', label: '±N日最佳進場分析', icon: Zap },
+                        ] as const).map(({ key, label, icon: Icon }) => (
+                            <button key={key} onClick={() => setActiveSection(key)}
+                                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeSection === key ? 'bg-slate-800/50 text-violet-400 border-b-2 border-violet-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                                <Icon size={16} /> {label}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Symbol Stats Table */}
+                    {activeSection === 'winrate' && (
                     <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
                         <div className="p-4 border-b border-slate-700 flex items-center gap-2">
                             <Trophy size={16} className="text-amber-400" />
@@ -996,9 +1067,10 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                             </table>
                         </div>
                     </div>
+                    )}
 
-                    <SignalQualitySection completedTrades={filteredTrades} nameMap={nameMap} />
-                    <OptimalEntrySection completedTrades={filteredTrades} nameMap={nameMap} />
+                    {activeSection === 'entry' && <SignalQualitySection completedTrades={filteredTrades} nameMap={nameMap} />}
+                    {activeSection === 'optimal' && <OptimalEntrySection completedTrades={filteredTrades} nameMap={nameMap} />}
                 </>
             )}
         </div>
