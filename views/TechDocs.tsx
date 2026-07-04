@@ -35,6 +35,9 @@ const DSSLabParamGuide: React.FC = () => (
                 <p className="text-sm text-slate-400 leading-relaxed">
                     把股票交易紀錄用 FIFO 配對成完整的「買進→賣出」交易，排除當沖（持倉 0 天），並依 ETF / 上市 / 上櫃分類、算出每檔標的的勝率、損益統計。這是後面三步的資料基礎。
                 </p>
+                <div className="mt-2 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs text-emerald-300">
+                    ✅ 修正重大資料正確性 bug：原本 FIFO 配對是「一筆買進對一筆賣出」，完全沒處理股數。當一筆賣出同時平掉多筆買進（或一筆買進被分批賣出）時，會配對到錯誤的買賣組合，算出離譜的持倉天數與報酬率（實測案例：錯誤配對出 313 天持倉、+559% 報酬，修正後正確應為 18 天、+20%）。現已改成依實際股數拆分/合併，損益也依比例正確分攤。
+                </div>
             </div>
 
             {/* Step 2 */}
@@ -45,7 +48,7 @@ const DSSLabParamGuide: React.FC = () => (
                     <StepBadge status="done" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed mb-2">
-                    對每筆完整交易，在實際進場日前後 ±5 或 ±10 個交易日的範圍內，用<b className="text-slate-300">報酬最大化</b>（固定賣出價格下，找 (賣價-買價)/買價 最大的那天）找出「最佳進場日」，並在實際進場日與最佳進場日兩邊，都計算：
+                    對每筆完整交易，在實際進場日前後 ±10 個交易日的範圍內，用<b className="text-slate-300">報酬最大化</b>（固定賣出價格下，找 (賣價-買價)/買價 最大的那天）找出「最佳進場日」，並在實際進場日與最佳進場日兩邊，都計算：
                 </p>
                 <ul className="text-sm text-slate-400 list-disc list-inside space-y-0.5">
                     <li>Bias5 / Bias10 / Bias20（乖離率）</li>
@@ -53,22 +56,32 @@ const DSSLabParamGuide: React.FC = () => (
                     <li>斜率連續上升天數（呼應設定頁的 xxxBuySlopeDays 概念）</li>
                     <li>外資 / 投信連買天數、融資連增天數</li>
                 </ul>
-                <p className="text-xs text-slate-500 mt-2">實作重用了 DSS 回測分析的核心計算函式（computeDSSForDate），確保跟現有回測邏輯算法一致，不是另外兜一套。</p>
+                <p className="text-xs text-slate-500 mt-2">實作重用了 DSS 回測分析的核心計算函式（computeDSSForDate），確保跟現有回測邏輯算法一致，不是另外兜一套。視窗天數已簡化為固定 ±10 日（原本 ±5/±10 可切換，拿掉是為了讓進場/出場分析的原始資料快取鍵一致、可互相重用）。</p>
+            </div>
+
+            {/* Step 2.5 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">+</span>
+                    <h4 className="font-bold text-slate-200">出場分析（對稱於 Step2，找最佳「出場」日）</h4>
+                    <StepBadge status="done" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed mb-2">
+                    邏輯與 Step2 對稱但方向相反：固定買入價，在實際出場日前後 ±10 個交易日內找報酬最大化（等同<b className="text-slate-300">最高價</b>）的出場點，同樣計算 RSI/斜率/籌碼等指標。搜尋範圍限制<b className="text-slate-300">不早於實際買入日</b>，避免短持倉交易的進場/出場視窗互相打架。
+                </p>
+                <p className="text-xs text-slate-500 mt-2">與 Step2 共用同一份原始資料快取（symbol+日期範圍+視窗天數相同即可重用），已跑過 Step2 的話，出場分析幾乎零額外 FinMind 呼叫。畫面上「開始分析／匯出快取／匯入快取」已整合成單一工具列，一次跑完進場+出場兩組結果、一次匯出/匯入。</p>
             </div>
 
             {/* Step 3 */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">3</span>
-                    <h4 className="font-bold text-slate-200">依分類取中位數</h4>
-                    <StepBadge status="partial" />
+                    <h4 className="font-bold text-slate-200">依分類取中位數（進場+出場皆有）</h4>
+                    <StepBadge status="done" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                    把 Step2 每筆交易「最佳進場日」的各項指標，依 ETF / 上市 / 上櫃分類分組，取中位數，做為該分類的建議參數。畫面上已有分類頁籤 + 統計卡呈現。
+                    把 Step2／出場分析每筆交易「最佳日」的各項指標，先套用<b className="text-slate-300">優質數據篩選</b>：依分類（ETF/上市/上櫃）分組後，依改善幅度排序，僅保留前 70%（排除改善幅度最低的 30%，這類樣本代表視窗內價格幾乎沒波動、最佳日跟實際日指標雷同，沒有學習價值），篩完才取中位數。畫面上會顯示篩選前後樣本數與門檻值，不是黑箱。
                 </p>
-                <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300">
-                    ⚠️ 目前是「全部交易直接取中位數」，還沒有先篩選「優質數據」再算。哪些交易該被排除（例如：改善幅度太小、樣本數太少的標的、虧損交易要不要排除等）尚未定案，見下方「待確認事項」。
-                </div>
             </div>
 
             {/* Step 4 */}
@@ -107,7 +120,6 @@ const DSSLabParamGuide: React.FC = () => (
                 <HelpCircle className="text-amber-400" size={18} /> 待確認事項
             </h3>
             <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
-                <li>「優質數據」的篩選標準還沒定案——用改善幅度門檻？持倉天數範圍？排除虧損交易？單一標的最少樣本數？需要先討論定義，Step3 才能在取中位數前先篩選。</li>
                 <li>目前分析是 ETF / 上市 / 上櫃「混在一起跑」，事後才依分類統計中位數，如果要「先分類、各分類獨立跑」是另一個架構調整，目前未採用此方向。</li>
             </ul>
         </div>
@@ -123,9 +135,6 @@ const DSSLabParamGuide: React.FC = () => (
                 <li>
                     <b className="text-slate-300">匯入交易紀錄自動觸發分析</b>：目前「標的勝率排行」與「DSS 回測分析」都要手動點按鈕才會跑。未來希望匯入股票交易 CSV 後就自動觸發這兩項分析，資料一進來就能立刻檢視每一筆交易目前落在哪個環節/狀態，不用額外操作。
                 </li>
-                <li>
-                    <b className="text-slate-300">DSS 實驗室版面改用分頁</b>：目前「標的勝率排行」「進場條件分析」「±N日最佳進場分析」三個區塊是全部往下堆疊，頁面拉得很長。未來想改成分頁切換顯示，一次只看一個區塊，畫面更乾淨。
-                </li>
             </ul>
         </div>
 
@@ -134,9 +143,10 @@ const DSSLabParamGuide: React.FC = () => (
                 <ShieldAlert className="text-red-400" size={18} /> 已知限制
             </h3>
             <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
-                <li>Step2 一次分析要對每檔標的打 3 種 FinMind 資料（股價/籌碼/融資），交易筆數多時請求量很大，容易撞到 FinMind 額度限制（曾實測出現 402 Requests reach the upper limit，甚至更嚴重的連線被拒）。帳號後台「API 使用量」顯示的用量，跟實際資料查詢端點的限制不一定同步，數字看起來夠用也可能還是打不通。</li>
-                <li>因應額度問題，DSS 實驗室的「±N日最佳進場分析」新增了<b className="text-slate-300">匯出快取 / 匯入快取</b>按鈕，可以在額度充足的裝置上先跑完分析、匯出 JSON，再拿到別的裝置匯入使用，不用重打 API。</li>
+                <li>分析要對每檔標的打 3 種 FinMind 資料（股價/籌碼/融資），交易筆數多時請求量很大，容易撞到 FinMind 額度限制（曾實測出現 402 Requests reach the upper limit，甚至更嚴重的連線被拒）。帳號後台「API 使用量」顯示的用量，跟實際資料查詢端點的限制不一定同步，數字看起來夠用也可能還是打不通。</li>
+                <li>因應額度問題：(1) 進場分析與出場分析共用同一份<b className="text-slate-300">原始資料快取</b>（`ft_dsslab_raw_cache`，鍵值為 symbol+日期範圍+視窗天數），只要交易組合與視窗天數相同就直接重用，不重打 API；(2) 新增<b className="text-slate-300">匯出快取 / 匯入快取</b>按鈕（已整合成一個統一工具列），可在額度充足的裝置上跑完分析、匯出 JSON，再拿到別的裝置匯入使用。</li>
                 <li>標的名稱顯示（中文股票名）依賴 FinMind 的 TaiwanStockInfo 查詢，若額度/連線有問題，畫面上會退回顯示股票代號，屬正常降級行為，非程式錯誤。</li>
+                <li>修正 FIFO 配對後，同一份交易紀錄算出的「完整交易」筆數會變多（因為一筆賣出可能拆成對應多筆買進的多筆紀錄），且部分標的的「最早買入日～最晚賣出日」範圍可能改變，導致原始資料快取鍵對不上、該標的需要重新向 FinMind 抓取（實測約 10-15% 標的會受影響，其餘可正常吃快取）。</li>
             </ul>
         </div>
     </div>

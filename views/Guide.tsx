@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ListTree, GitMerge, Sparkles, Activity, ShieldCheck, Cpu,
-  Settings2, Eye, LayoutTemplate, TrendingUp, Zap, RefreshCw, BarChart2, GitBranch
+  Settings2, Eye, LayoutTemplate, TrendingUp, Zap, RefreshCw, BarChart2, GitBranch, Target, FlaskConical
 } from 'lucide-react';
 
 const FeatureSection = ({ title, date, color, children }: { title: string; date?: string; color: string; children?: React.ReactNode }) => (
@@ -39,7 +39,16 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.7.3 DSS 回測分析" date="Latest" color="text-sky-400">
+        <FeatureSection title="V7.8.0 DSS 實驗室：參數提取機制 + 重大資料修正" date="Latest" color="text-violet-400">
+            <FeatureItem icon={ShieldCheck} title="修正 FIFO 配對股數 bug（重大資料正確性修正）" description="標的勝率排行原本用「一筆買進對一筆賣出」配對，未處理股數，導致一筆賣出同時平掉多筆買進時配錯組合，算出離譜的持倉天數與報酬率（實測案例：錯配出 313 天持倉、+559% 報酬，修正後為 18 天、+20%）。現已改依實際股數 FIFO 拆分/合併，損益依比例正確分攤。" />
+            <FeatureItem icon={Zap} title="±N日最佳進場/出場分析" description="對每筆完整交易，於實際進場日/出場日前後 ±10 個交易日內找報酬最大化的最佳進場（最低價）/出場（最高價）日，並計算 Bias5/10/20、RSI、斜率連升天數、外資/投信/融資等指標，重用 DSS 回測分析核心算法。" />
+            <FeatureItem icon={BarChart2} title="優質數據篩選 + 依分類取中位數" description="依 ETF/上市/上櫃分類後，依改善幅度排序僅保留前 70%（排除視窗內價格幾乎無波動、缺乏學習價值的樣本），再取 RSI/Bias/斜率/籌碼中位數，作為建議參數門檻，畫面揭露篩選前後樣本數與門檻值。" />
+            <FeatureItem icon={RefreshCw} title="原始資料快取 + 統一分析工具列" description="進場與出場分析共用同一份股價/籌碼/融資原始資料快取，相同交易組合+視窗天數重跑不必重打 FinMind；開始分析/匯出快取/匯入快取整合成單一工具列，一次跑完兩組分析、一次匯出入。" />
+            <FeatureItem icon={Cpu} title="TWSE 批次查詢加固 + 觀察名單代號驗證" description="Cloudflare Worker 批次查詢加上防快取時間戳與逐檔失敗重試；觀察名單加入代號格式驗證，避免非法字元混入批次請求拖垮整批查詢；Investments 頁批次全失敗時不再併發爆量重試。" />
+            <FeatureItem icon={FlaskConical} title="DSS 實驗室版面改分頁" description="標的勝率排行/進場條件分析/±N日最佳進場分析/出場分析四區塊改為分頁切換，篩選器與統計卡片固定於最上方共用，避免頁面過長。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.7.3 DSS 回測分析" color="text-sky-400">
             <FeatureItem icon={BarChart2} title="歷史交易 vs DSS 訊號吻合度" description="回測引擎將所有歷史交易紀錄逐筆套用 DSS V5.0 公式，計算當時乖離、RSI、法人籌碼，與實際買賣方向對比，輸出 MATCH / PARTIAL / DIVERGE 吻合標記。" />
             <FeatureItem icon={GitMerge} title="嵌入交易記錄頁" description="回測面板整合於「交易記錄」頁籤下方，自動繼承日期範圍與搜尋篩選條件，支援按吻合度二次篩選與操作方向過濾。" />
             <FeatureItem icon={Activity} title="距離指標（距買進 / 距停利）" description="每筆交易同步顯示 gapToBuyBias（負值表示已在買進區間）與 gapToSellBias（正值表示已超過停利區間），量化當時距離訊號的遠近。" />
