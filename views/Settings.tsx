@@ -50,9 +50,18 @@ const DSSProfilesCard: React.FC<{ onApply: (p: DSSProfile) => void }> = ({ onApp
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                                 <span className="text-xs text-slate-500">{new Date(p.createdAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                 <span className="text-xs text-slate-500">比對 {p.source.matched}/{p.source.total} 筆</span>
-                                {p.categories.ETF && <span className="text-xs text-cyan-400/70">ETF: RSI&lt;{p.categories.ETF.rsi.toFixed(1)} B20&lt;{p.categories.ETF.bias20.toFixed(1)}%</span>}
-                                {p.categories['上市'] && <span className="text-xs text-emerald-400/70">上市: RSI&lt;{p.categories['上市'].rsi.toFixed(1)} B20&lt;{p.categories['上市'].bias20.toFixed(1)}%</span>}
-                                {p.categories['上櫃'] && <span className="text-xs text-amber-400/70">上櫃: RSI&lt;{p.categories['上櫃'].rsi.toFixed(1)} B20&lt;{p.categories['上櫃'].bias20.toFixed(1)}%</span>}
+                                {(['ETF', '上市', '上櫃'] as const).map(cat => {
+                                    const c = p.categories[cat];
+                                    if (!c) return null;
+                                    const color = cat === 'ETF' ? 'text-cyan-400/70' : cat === '上市' ? 'text-emerald-400/70' : 'text-amber-400/70';
+                                    return (
+                                        <span key={cat} className={`text-xs ${color}`}>
+                                            {cat}: 進場 RSI&lt;{c.rsi.toFixed(1)} B20&lt;{c.bias20.toFixed(1)}%
+                                            {c.slopeUpDays !== undefined && ` 斜率≥${c.slopeUpDays}天`}
+                                            {c.exitBias20 !== undefined && ` ｜出場 B20≥${c.exitBias20.toFixed(1)}%`}
+                                        </span>
+                                    );
+                                })}
                             </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -585,14 +594,20 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
           if (p.categories.ETF) {
               next.etfBuyRsi   = p.categories.ETF.rsi;
               next.etfBuyBias  = p.categories.ETF.bias20;
+              if (p.categories.ETF.slopeUpDays !== undefined) next.etfBuySlopeDays = p.categories.ETF.slopeUpDays;
+              if (p.categories.ETF.exitBias20 !== undefined) next.etfPartialSellBias = p.categories.ETF.exitBias20;
           }
           if (p.categories['上市']) {
               next.largeCapBuyRsi  = p.categories['上市'].rsi;
               next.largeCapBuyBias = p.categories['上市'].bias20;
+              if (p.categories['上市'].slopeUpDays !== undefined) next.largeCapBuySlopeDays = p.categories['上市'].slopeUpDays;
+              if (p.categories['上市'].exitBias20 !== undefined) next.largeCapPartialSellBias = p.categories['上市'].exitBias20;
           }
           if (p.categories['上櫃']) {
               next.smallCapBuyRsi  = p.categories['上櫃'].rsi;
               next.smallCapBuyBias = p.categories['上櫃'].bias20;
+              if (p.categories['上櫃'].slopeUpDays !== undefined) next.smallCapBuySlopeDays = p.categories['上櫃'].slopeUpDays;
+              if (p.categories['上櫃'].exitBias20 !== undefined) next.smallCapPartialSellBias = p.categories['上櫃'].exitBias20;
           }
           saveTechParameters(next);
           setTechParams(next);

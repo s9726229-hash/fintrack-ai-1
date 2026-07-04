@@ -932,6 +932,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     const [analysisRunning, setAnalysisRunning] = useState(false);
     const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
     const [analysisTs, setAnalysisTs] = useState<number | null>(null);
+    const [savedProfileMsg, setSavedProfileMsg] = useState('');
 
     const allCompleted = useMemo(() => buildCompletedTrades(stockTransactions), [stockTransactions]);
 
@@ -1130,6 +1131,49 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
         e.target.value = '';
     };
 
+    /** 把進場(最佳進場日)+出場(最佳出場日)的分類中位數合併存成一份 DSS 設定檔 */
+    const handleSaveOptimalProfile = () => {
+        if (!optimalResults?.length && !exitResults?.length) return;
+        const cats: DSSProfile['categories'] = {};
+        (['ETF', '上市', '上櫃'] as const).forEach(cat => {
+            const entryStats = optimalResults?.length ? buildOptimalCatStats(optimalResults, cat) : null;
+            const exitStats = exitResults?.length ? buildExitCatStats(exitResults, cat) : null;
+            if (!entryStats && !exitStats) return;
+            cats[cat] = {
+                rsi: entryStats?.medRsi ?? 0,
+                bias20: entryStats?.medBias20 ?? 0,
+                n: entryStats?.n ?? 0,
+                slopeUpDays: entryStats?.medSlopeUpDays ?? undefined,
+                bias5: entryStats?.medBias5 ?? undefined,
+                bias10: entryStats?.medBias10 ?? undefined,
+                foreignConsecBuy: entryStats?.medForeignConsecBuy ?? undefined,
+                trustConsecBuy: entryStats?.medTrustConsecBuy ?? undefined,
+                marginConsecIncrease: entryStats?.medMarginConsecIncrease ?? undefined,
+                exitRsi: exitStats?.medRsi ?? undefined,
+                exitBias5: exitStats?.medBias5 ?? undefined,
+                exitBias10: exitStats?.medBias10 ?? undefined,
+                exitBias20: exitStats?.medBias20 ?? undefined,
+                exitSlopeUpDays: exitStats?.medSlopeUpDays ?? undefined,
+                exitForeignConsecBuy: exitStats?.medForeignConsecBuy ?? undefined,
+                exitTrustConsecBuy: exitStats?.medTrustConsecBuy ?? undefined,
+                exitMarginConsecIncrease: exitStats?.medMarginConsecIncrease ?? undefined,
+                exitN: exitStats?.n ?? undefined,
+            };
+        });
+        if (Object.keys(cats).length === 0) return;
+        const profile: DSSProfile = {
+            id: crypto.randomUUID(),
+            name: `優化參數 ${new Date().toLocaleDateString('zh-TW')}`,
+            createdAt: Date.now(),
+            source: { total: filteredTrades.length, matched: optimalResults?.length ?? exitResults?.length ?? 0 },
+            categories: cats,
+        };
+        const profiles = getDSSProfiles();
+        saveDSSProfiles([...profiles, profile]);
+        setSavedProfileMsg('已儲存！可至系統設定套用');
+        setTimeout(() => setSavedProfileMsg(''), 3000);
+    };
+
     const symbolStats = useMemo(() => {
         const stats = buildSymbolStats(filteredTrades);
         return [...stats].sort((a, b) => {
@@ -1244,6 +1288,13 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                             {analysisProgress && <span className="text-xs text-slate-400">{analysisProgress.done}/{analysisProgress.total} 標的</span>}
                             {analysisTs && !analysisRunning && <span className="text-xs text-slate-500">上次分析：{new Date(analysisTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
                             <div className="ml-auto flex items-center gap-2">
+                                {savedProfileMsg && <span className="text-xs text-emerald-400">{savedProfileMsg}</span>}
+                                {(optimalResults?.length || exitResults?.length) ? (
+                                    <button onClick={handleSaveOptimalProfile}
+                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">
+                                        <Save size={12} />儲存為設定檔
+                                    </button>
+                                ) : null}
                                 {(optimalResults?.length || exitResults?.length) ? (
                                     <button onClick={handleExportAnalysis}
                                         className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors">

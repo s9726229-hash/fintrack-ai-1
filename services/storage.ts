@@ -168,15 +168,39 @@ export const saveTechParameters = (params: import('../types').TechParameters) =>
 };
 
 // ── DSS 設定檔 ────────────────────────────────────────────────────────────────
+export interface DSSProfileCategoryStats {
+    // 進場（可自動套用至 xxxBuyRsi / xxxBuyBias / xxxBuySlopeDays）
+    rsi: number;
+    bias20: number;
+    n: number;
+    slopeUpDays?: number;
+    // 進場（僅供參考，技術面參數設定無對應欄位可自動套用）
+    bias5?: number;
+    bias10?: number;
+    foreignConsecBuy?: number;
+    trustConsecBuy?: number;
+    marginConsecIncrease?: number;
+    // 出場（exitBias20 可自動套用至 xxxPartialSellBias，其餘僅供參考）
+    exitRsi?: number;
+    exitBias5?: number;
+    exitBias10?: number;
+    exitBias20?: number;
+    exitSlopeUpDays?: number;
+    exitForeignConsecBuy?: number;
+    exitTrustConsecBuy?: number;
+    exitMarginConsecIncrease?: number;
+    exitN?: number;
+}
+
 export interface DSSProfile {
     id: string;
     name: string;
     createdAt: number;
     source: { total: number; matched: number };
     categories: {
-        ETF?:  { rsi: number; bias20: number; n: number };
-        上市?: { rsi: number; bias20: number; n: number };
-        上櫃?: { rsi: number; bias20: number; n: number };
+        ETF?:  DSSProfileCategoryStats;
+        上市?: DSSProfileCategoryStats;
+        上櫃?: DSSProfileCategoryStats;
     };
 }
 
