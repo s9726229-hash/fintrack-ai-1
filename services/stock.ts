@@ -1414,12 +1414,15 @@ export const runBacktest = async (
         const buyBias  = isETF ? params.etfBuyBias  : sizeCategory === 'LARGE_CAP' ? params.largeCapBuyBias  : params.smallCapBuyBias;
         const sellBias = isETF ? params.etfPartialSellBias : sizeCategory === 'LARGE_CAP' ? params.largeCapPartialSellBias : params.smallCapPartialSellBias;
 
-        // 找 DSS 實驗室快取裡，同一檔股票、實際資料範圍涵蓋 [klineStart, maxDate] 的項目（不要求快取鍵完全相同）
+        // 找 DSS 實驗室快取裡，同一檔股票、實際資料範圍涵蓋 [klineStart, maxDate] 的項目（不要求快取鍵完全相同）。
+        // 容許起始日 ±10 天誤差：日曆天換算交易日本來就有落差(遇假日/非交易日)，只要落在合理範圍內，
+        // 歷史資料量足夠算 MA20/RSI 即可，不需要精確對到同一天。
+        const klineStartTolerant = new Date(new Date(klineStart).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const cachedKey = Object.keys(dsslabRawCache).find(k => {
             if (!k.startsWith(`${symbol}|`)) return false;
             const entry = dsslabRawCache[k];
             if (!entry?.kline?.length) return false;
-            return entry.kline[0].date <= klineStart && entry.kline[entry.kline.length - 1].date >= maxDate;
+            return entry.kline[0].date <= klineStartTolerant && entry.kline[entry.kline.length - 1].date >= maxDate;
         });
 
         let klineRows: { date: string; close: number }[] | null;
