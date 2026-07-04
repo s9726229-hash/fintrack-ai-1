@@ -8,6 +8,9 @@ interface Props {
     stockTransactions: StockTransaction[];
 }
 
+/** ±N日進出場分析統一視窗天數（買入分析/出場分析共用，也讓原始資料快取可互相重用）*/
+const WINDOW_DAYS = 10;
+
 interface CompletedTrade {
     symbol: string;
     name?: string;
@@ -61,27 +64,38 @@ const buildCompletedTrades = (transactions: StockTransaction[]): CompletedTrade[
     const result: CompletedTrade[] = [];
     for (const [symbol, txns] of Object.entries(bySymbol)) {
         const sorted = [...txns].sort((a, b) => a.date.localeCompare(b.date));
-        const buyQueue: StockTransaction[] = [];
+        // FIFO 依股數配對，而非「一筆買進對一筆賣出」；一筆賣出可能同時平掉多筆買進，
+        // 一筆買進也可能被多筆賣出分批出清，需依實際股數拆分/合併才能算出正確的持倉天數與報酬率。
+        const lots: { date: string; price: number; name?: string; remaining: number }[] = [];
         for (const t of sorted) {
             if (t.side === 'BUY') {
-                buyQueue.push(t);
+                lots.push({ date: t.date, price: t.price, name: t.name, remaining: t.shares });
             } else if (t.side === 'SELL' && t.realizedProfit !== undefined) {
-                const buy = buyQueue.shift();
-                if (!buy) continue;
-                const returnPct = buy.price > 0 ? ((t.price - buy.price) / buy.price) * 100 : 0;
-                result.push({
-                    symbol,
-                    name: t.name ?? buy.name,
-                    category: guessCategory(symbol),
-                    buyDate: buy.date,
-                    sellDate: t.date,
-                    buyPrice: buy.price,
-                    sellPrice: t.price,
-                    shares: t.shares,
-                    realizedProfit: t.realizedProfit,
-                    returnPct,
-                    holdingDays: daysBetween(buy.date, t.date),
-                });
+                const totalSellShares = t.shares;
+                let remainingToMatch = t.shares;
+                while (remainingToMatch > 0 && lots.length > 0) {
+                    const lot = lots[0];
+                    const matchedShares = Math.min(lot.remaining, remainingToMatch);
+                    const allocatedProfit = totalSellShares > 0 ? t.realizedProfit * (matchedShares / totalSellShares) : 0;
+                    const returnPct = lot.price > 0 ? ((t.price - lot.price) / lot.price) * 100 : 0;
+                    result.push({
+                        symbol,
+                        name: t.name ?? lot.name,
+                        category: guessCategory(symbol),
+                        buyDate: lot.date,
+                        sellDate: t.date,
+                        buyPrice: lot.price,
+                        sellPrice: t.price,
+                        shares: matchedShares,
+                        realizedProfit: allocatedProfit,
+                        returnPct,
+                        holdingDays: daysBetween(lot.date, t.date),
+                    });
+                    lot.remaining -= matchedShares;
+                    remainingToMatch -= matchedShares;
+                    if (lot.remaining <= 0) lots.shift();
+                }
+                // remainingToMatch > 0 代表賣出股數超過已知買進紀錄（資料不完整），無買進紀錄可配對的部分直接略過
             }
         }
     }
@@ -387,7 +401,7 @@ const notNull = (v: number | null): v is number => v !== null;
 
 /** 優質數據篩選：依改善幅度(improvement)排序，僅保留該分類前70%（排除改善幅度最低的30%）*/
 const KEEP_RATIO = 0.7;
-const filterQualityTrades = (list: WindowResult[]): { kept: WindowResult[]; cutoff: number } => {
+const filterQualityTrades = <T extends { improvement: number }>(list: T[]): { kept: T[]; cutoff: number } => {
     if (list.length === 0) return { kept: [], cutoff: 0 };
     const sorted = [...list].sort((a, b) => a.improvement - b.improvement);
     const cutoffIdx = Math.floor(sorted.length * (1 - KEEP_RATIO));
@@ -425,14 +439,7 @@ interface RawCacheEntry {
     margin: { date: string; balance: number }[];
 }
 
-const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades, nameMap }) => {
-    const CACHE_KEY = 'ft_dsslab_optimal_cache';
-    const RAW_CACHE_KEY = 'ft_dsslab_raw_cache';
-    const [window_, setWindow_] = useState<5 | 10>(5);
-    const [isRunning, setIsRunning] = useState(false);
-    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-    const [results, setResults] = useState<WindowResult[] | null>(null);
-    const [cacheTs, setCacheTs] = useState<number | null>(null);
+const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ results }) => {
     const [optimalCatTab, setOptimalCatTab] = useState<'ETF' | '上市' | '上櫃'>('上市');
 
     const optimalCatStats = useMemo(() => {
@@ -443,179 +450,6 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
         if (!etf && !listed && !otc) return null;
         return { ETF: etf, 上市: listed, 上櫃: otc };
     }, [results]);
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(CACHE_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                setResults(parsed.results);
-                setCacheTs(parsed.timestamp);
-                setWindow_(parsed.window ?? 5);
-            }
-        } catch { /* 快取損壞則忽略 */ }
-    }, []);
-
-    /** 匯出目前快取（本機分析結果 + 原始股價/籌碼/融資資料）為 JSON，供另一台裝置匯入 */
-    const handleExportCache = () => {
-        if (!results?.length) return;
-        let rawCache: Record<string, RawCacheEntry> = {};
-        try {
-            rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}');
-        } catch { /* 忽略損壞的原始快取 */ }
-        const payload = { results, timestamp: cacheTs ?? Date.now(), window: window_, rawCache };
-        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `dsslab_optimal_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    /** 匯入其他裝置匯出的快取 JSON（含原始資料），直接覆蓋目前結果 */
-    const handleImportCache = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            try {
-                const parsed = JSON.parse(ev.target?.result as string);
-                if (!Array.isArray(parsed.results)) throw new Error('invalid');
-                localStorage.setItem(CACHE_KEY, JSON.stringify({ results: parsed.results, timestamp: parsed.timestamp, window: parsed.window }));
-                if (parsed.rawCache) {
-                    try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(parsed.rawCache)); } catch { /* 空間不足則跳過原始資料，結果本身仍匯入成功 */ }
-                }
-                setResults(parsed.results);
-                setCacheTs(parsed.timestamp ?? Date.now());
-                setWindow_(parsed.window ?? 5);
-            } catch {
-                alert('匯入失敗：檔案格式不正確');
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    };
-
-    const handleRun = async () => {
-        setIsRunning(true);
-        setResults(null);
-        const params = getTechParameters();
-        const symbols = [...new Set(completedTrades.map(t => t.symbol))];
-        const klineCache = new Map<string, { date: string; close: number }[]>();
-        const instCache = new Map<string, { date: string; foreign: number; trust: number }[]>();
-        const marginCache = new Map<string, { date: string; balance: number }[]>();
-        const total = symbols.length;
-        let done = 0;
-
-        // 原始資料快取：同一批交易 + 同一視窗天數再次分析時（如修完 bug 重跑驗證），直接重用，不再重打 FinMind
-        let rawCache: Record<string, RawCacheEntry> = {};
-        try { rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}'); } catch { /* 忽略損壞快取 */ }
-
-        // 1. 每個 symbol 的 kline + 籌碼(外資/投信)+ 融資（涵蓋整個交易範圍 ± 視窗天數）
-        for (const sym of symbols) {
-            setProgress({ done, total });
-            const symTrades = completedTrades.filter(t => t.symbol === sym);
-            const minDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
-            const maxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
-            const cacheKey = `${sym}|${minDate}|${maxDate}|${window_}`;
-            const cached = rawCache[cacheKey];
-
-            if (cached) {
-                klineCache.set(sym, cached.kline);
-                instCache.set(sym, cached.inst);
-                marginCache.set(sym, cached.margin);
-                done++;
-                continue;
-            }
-
-            const full = await fetchKlineWindow(sym, minDate, window_ + 5, daysBetween2(minDate, maxDate) + window_ + 5);
-            if (full) klineCache.set(sym, full);
-
-            const rangeStart = new Date(minDate); rangeStart.setDate(rangeStart.getDate() - window_ - 10);
-            const rangeEnd = new Date(maxDate); rangeEnd.setDate(rangeEnd.getDate() + window_ + 10);
-            const rangeStartStr = rangeStart.toISOString().slice(0, 10);
-            const rangeEndStr = rangeEnd.toISOString().slice(0, 10);
-            const [instRows, marginRows] = await Promise.all([
-                fetchHistoricalInstForBacktest(sym, rangeStartStr, rangeEndStr),
-                fetchHistoricalMarginForBacktest(sym, rangeStartStr, rangeEndStr),
-            ]);
-            if (instRows) instCache.set(sym, instRows);
-            if (marginRows) marginCache.set(sym, marginRows);
-
-            rawCache[cacheKey] = { kline: full ?? [], inst: instRows ?? [], margin: marginRows ?? [] };
-            done++;
-        }
-        setProgress({ done: total, total });
-        try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(rawCache)); } catch { /* 空間不足則不快取原始資料，不影響本次分析結果 */ }
-
-        // 2. 每筆交易找最佳進場日（以報酬最大化評估，非單純最低價）
-        const windowResults: WindowResult[] = [];
-        for (const trade of completedTrades) {
-            const kline = klineCache.get(trade.symbol);
-            if (!kline) continue;
-            // 取 [buyDate - window_, buyDate + window_] 內的交易日收盤
-            const candidates = kline.filter(r => {
-                const diff = daysBetween2(r.date, trade.buyDate); // positive = r before buyDate
-                return diff >= -window_ && diff <= window_;
-            });
-            if (!candidates.length) continue;
-            // 找報酬最大化的進場點（固定 sellPrice 下，等同最低收盤價，但用報酬明確表達意圖）
-            const withReturns = candidates.map(c => ({
-                ...c,
-                ret: trade.sellPrice > 0 ? ((trade.sellPrice - c.close) / c.close) * 100 : -Infinity,
-            }));
-            const best = withReturns.reduce((m, c) => c.ret > m.ret ? c : m, withReturns[0]);
-            const bestReturn = best.ret === -Infinity ? 0 : best.ret;
-            const actualBias = computeMultiBias(kline, trade.buyDate);
-            const bestBias   = computeMultiBias(kline, best.date);
-
-            const instRows = instCache.get(trade.symbol) ?? [];
-            const marginRows = marginCache.get(trade.symbol) ?? [];
-            const sizeCategory = trade.category === 'ETF' ? 'ETF' : trade.category === '上櫃' ? 'SMALL_CAP' : 'LARGE_CAP';
-            const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.buyDate, params, sizeCategory);
-            const bestDss   = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
-
-            windowResults.push({
-                symbol: trade.symbol,
-                name: nameMap.get(trade.symbol),
-                category: trade.category,
-                buyDate: trade.buyDate,
-                sellDate: trade.sellDate,
-                sellPrice: trade.sellPrice,
-                actualBuyPrice: trade.buyPrice,
-                actualReturn: trade.returnPct,
-                actualBias5:  actualBias.bias5,
-                actualBias10: actualBias.bias10,
-                actualBias20: actualBias.bias20,
-                bestDate: best.date,
-                bestPrice: best.close,
-                bestReturn,
-                bestBias5:  bestBias.bias5,
-                bestBias10: bestBias.bias10,
-                bestBias20: bestBias.bias20,
-                improvement: bestReturn - trade.returnPct,
-                dayOffset: daysBetween2(best.date, trade.buyDate),
-                actualRsi: actualDss?.rsi ?? null,
-                actualSlopeUpDays: actualDss ? slopeConsecUp(actualDss.biasSlopes) : null,
-                actualForeignConsecBuy: actualDss?.foreignConsecBuy ?? null,
-                actualTrustConsecBuy: actualDss?.trustConsecBuy ?? null,
-                actualMarginConsecIncrease: actualDss?.marginConsecIncrease ?? null,
-                bestRsi: bestDss?.rsi ?? null,
-                bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
-                bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null,
-                bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
-                bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
-            });
-        }
-        const sorted = windowResults.sort((a, b) => b.improvement - a.improvement);
-        const ts = Date.now();
-        setResults(sorted);
-        setCacheTs(ts);
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ results: sorted, timestamp: ts, window: window_ })); } catch { /* 空間不足忽略 */ }
-        setIsRunning(false);
-        setProgress(null);
-    };
 
     const avgImprovement = results?.length ? avg(results.map(r => r.improvement)) : null;
     const couldImprove = results?.filter(r => r.improvement > 0.5).length ?? 0;
@@ -631,34 +465,9 @@ const OptimalEntrySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap
                 <span className="text-xs text-slate-500 ml-1">若改在附近最低價入場，報酬率可提升多少？</span>
             </div>
             <div className="p-4 space-y-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-400">視窗範圍：</span>
-                    {([5, 10] as const).map(n => (
-                        <button key={n} onClick={() => setWindow_(n)}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${window_ === n ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'text-slate-400 border-slate-700 hover:text-white'}`}>
-                            ±{n} 日
-                        </button>
-                    ))}
-                    <button onClick={handleRun} disabled={isRunning}
-                        className="ml-4 px-4 py-1.5 rounded-lg text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white border border-violet-500 disabled:opacity-50 flex items-center gap-2 transition-all">
-                        {isRunning ? <><Loader2 size={14} className="animate-spin" />分析中…</> : '開始分析'}
-                    </button>
-                    {progress && <span className="text-xs text-slate-400">{progress.done}/{progress.total} 標的</span>}
-                    {cacheTs && !isRunning && <span className="text-xs text-slate-500 ml-2">上次分析：{new Date(cacheTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
-                    <div className="ml-auto flex items-center gap-2">
-                        {results && results.length > 0 && (
-                            <button onClick={handleExportCache}
-                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors">
-                                <Download size={12} />匯出快取
-                            </button>
-                        )}
-                        <label className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors cursor-pointer">
-                            <Upload size={12} />匯入快取
-                            <input type="file" accept="application/json" className="hidden" onChange={handleImportCache} />
-                        </label>
-                    </div>
-                </div>
-
+                {!results && (
+                    <div className="text-center py-12 text-slate-500 text-sm">尚未執行分析，請至上方點擊「開始分析」</div>
+                )}
                 {results && (
                     <>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -826,6 +635,269 @@ const daysBetween2 = (d1: string, d2: string) => {
     return Math.round(diff / 86400000);
 };
 
+// ── Section 4：出場分析（對稱於 ±N日最佳進場分析，改找最佳「出場」日）────────
+interface ExitWindowResult {
+    symbol: string;
+    name?: string;
+    category: 'ETF' | '上市' | '上櫃';
+    buyDate: string;
+    sellDate: string;
+    buyPrice: number;
+    actualSellPrice: number;
+    actualReturn: number;
+    actualBias5: number | null;
+    actualBias10: number | null;
+    actualBias20: number | null;
+    bestDate: string;
+    bestPrice: number;
+    bestReturn: number;
+    bestBias5: number | null;
+    bestBias10: number | null;
+    bestBias20: number | null;
+    improvement: number;
+    dayOffset: number;
+    actualRsi: number | null;
+    actualSlopeUpDays: number | null;
+    actualForeignConsecBuy: number | null;
+    actualTrustConsecBuy: number | null;
+    actualMarginConsecIncrease: number | null;
+    bestRsi: number | null;
+    bestSlopeUpDays: number | null;
+    bestForeignConsecBuy: number | null;
+    bestTrustConsecBuy: number | null;
+    bestMarginConsecIncrease: number | null;
+}
+
+interface ExitCatStats {
+    cat: 'ETF' | '上市' | '上櫃';
+    n: number;
+    rawN: number;
+    qualityCutoff: number;
+    medRsi: number | null;
+    medBias5: number | null;
+    medBias10: number | null;
+    medBias20: number | null;
+    medSlopeUpDays: number | null;
+    medForeignConsecBuy: number | null;
+    medTrustConsecBuy: number | null;
+    medMarginConsecIncrease: number | null;
+}
+
+const buildExitCatStats = (results: ExitWindowResult[], cat: 'ETF' | '上市' | '上櫃'): ExitCatStats | null => {
+    const minN = cat === 'ETF' ? 1 : 3;
+    const catList = results.filter(r => r.category === cat);
+    if (catList.length < minN) return null;
+
+    const { kept: list, cutoff } = filterQualityTrades(catList);
+    if (list.length < minN) return null;
+
+    return {
+        cat,
+        n: list.length,
+        rawN: catList.length,
+        qualityCutoff: cutoff,
+        medRsi: median(list.map(r => r.bestRsi).filter(notNull)),
+        medBias5: median(list.map(r => r.bestBias5).filter(notNull)),
+        medBias10: median(list.map(r => r.bestBias10).filter(notNull)),
+        medBias20: median(list.map(r => r.bestBias20).filter(notNull)),
+        medSlopeUpDays: median(list.map(r => r.bestSlopeUpDays).filter(notNull)),
+        medForeignConsecBuy: median(list.map(r => r.bestForeignConsecBuy).filter(notNull)),
+        medTrustConsecBuy: median(list.map(r => r.bestTrustConsecBuy).filter(notNull)),
+        medMarginConsecIncrease: median(list.map(r => r.bestMarginConsecIncrease).filter(notNull)),
+    };
+};
+
+const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({ results }) => {
+    const [exitCatTab, setExitCatTab] = useState<'ETF' | '上市' | '上櫃'>('上市');
+
+    const exitCatStats = useMemo(() => {
+        if (!results?.length) return null;
+        const etf = buildExitCatStats(results, 'ETF');
+        const listed = buildExitCatStats(results, '上市');
+        const otc = buildExitCatStats(results, '上櫃');
+        if (!etf && !listed && !otc) return null;
+        return { ETF: etf, 上市: listed, 上櫃: otc };
+    }, [results]);
+
+    const avgImprovement = results?.length ? avg(results.map(r => r.improvement)) : null;
+    const couldImprove = results?.filter(r => r.improvement > 0.5).length ?? 0;
+    const losers = results?.filter(r => r.actualReturn < 0) ?? [];
+    const avgLossReduction = losers.length ? avg(losers.map(r => r.improvement)) : null;
+    const lossAvoided = losers.filter(r => r.bestReturn >= 0).length;
+
+    return (
+        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-700 flex items-center gap-2">
+                <Target size={16} className="text-amber-400" />
+                <h3 className="text-sm font-bold text-slate-200">出場分析</h3>
+                <span className="text-xs text-slate-500 ml-1">若改在附近最高價出場，報酬率可提升多少？</span>
+            </div>
+            <div className="p-4 space-y-4">
+                {!results && (
+                    <div className="text-center py-12 text-slate-500 text-sm">尚未執行分析，請至上方點擊「開始分析」</div>
+                )}
+                {results && (
+                    <>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div className="bg-slate-900/60 rounded-xl p-3 text-center">
+                                <div className="text-xs text-slate-400 mb-1">平均可改善報酬</div>
+                                <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                    {avgImprovement !== null ? `+${avgImprovement.toFixed(2)}%` : '-'}
+                                </div>
+                                <div className="text-[10px] text-slate-500">全部交易</div>
+                            </div>
+                            <div className="bg-slate-900/60 rounded-xl p-3 text-center">
+                                <div className="text-xs text-slate-400 mb-1">可顯著改善筆數</div>
+                                <div className="text-lg font-bold text-amber-400">{couldImprove} / {results.length}</div>
+                                <div className="text-[10px] text-slate-500">改善 &gt; 0.5%</div>
+                            </div>
+                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-red-400 mb-1">虧損交易筆數</div>
+                                <div className="text-lg font-bold text-red-400">{losers.length}</div>
+                                <div className="text-[10px] text-slate-500">實際負報酬</div>
+                            </div>
+                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-red-400 mb-1">虧損平均可減少</div>
+                                <div className={`text-lg font-bold ${(avgLossReduction ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    {avgLossReduction !== null ? `+${avgLossReduction.toFixed(2)}%` : '-'}
+                                </div>
+                                <div className="text-[10px] text-slate-500">提早/延後出場</div>
+                            </div>
+                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-red-400 mb-1">可轉為獲利</div>
+                                <div className="text-lg font-bold text-emerald-400">{lossAvoided} 筆</div>
+                                <div className="text-[10px] text-slate-500">最佳日報酬 ≥ 0</div>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead><tr className="text-xs text-slate-400 border-b border-slate-700">
+                                    <th className="py-2 px-3">標的</th>
+                                    <th className="py-2 px-3 text-center">進場日</th>
+                                    <th className="py-2 px-3 text-center">出場日</th>
+                                    <th className="py-2 px-3 text-right">實際賣出</th>
+                                    <th className="py-2 px-3 text-right">實際報酬</th>
+                                    <th className="py-2 px-3 text-center text-sky-400">B5</th>
+                                    <th className="py-2 px-3 text-center text-violet-400">B10</th>
+                                    <th className="py-2 px-3 text-center text-slate-400">B20</th>
+                                    <th className="py-2 px-3 text-center">最佳日（偏移）</th>
+                                    <th className="py-2 px-3 text-right">最佳價格</th>
+                                    <th className="py-2 px-3 text-right">最佳報酬</th>
+                                    <th className="py-2 px-3 text-center text-sky-400">最佳B5</th>
+                                    <th className="py-2 px-3 text-center text-violet-400">最佳B10</th>
+                                    <th className="py-2 px-3 text-center text-slate-400">最佳B20</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳RSI</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳斜率</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳外資</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳投信</th>
+                                    <th className="py-2 px-3 text-center text-amber-400">最佳融資</th>
+                                    <th className="py-2 px-3 text-right">可改善</th>
+                                </tr></thead>
+                                <tbody>
+                                    {results.slice(0, 50).map((r, i) => (
+                                        <tr key={i} className={`border-t border-slate-700/30 transition-colors ${r.actualReturn < 0 ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-slate-700/10'}`}>
+                                            <td className="py-2 px-3 text-sm">
+                                                <div className="font-medium text-white">{r.name ?? r.symbol}</div>
+                                                <div className="text-xs text-slate-500">{r.symbol}</div>
+                                            </td>
+                                            <td className="py-2 px-3 text-center text-xs text-slate-400">{r.buyDate}</td>
+                                            <td className="py-2 px-3 text-center text-xs text-slate-400">{r.sellDate}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.actualSellPrice}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm">
+                                                <span className={r.actualReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                    {r.actualReturn >= 0 ? '+' : ''}{r.actualReturn.toFixed(2)}%
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-sky-400">{r.actualBias5 !== null ? `${r.actualBias5.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-violet-400">{r.actualBias10 !== null ? `${r.actualBias10.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-slate-400">{r.actualBias20 !== null ? `${r.actualBias20.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center text-xs">
+                                                <span className="text-slate-300">{r.bestDate}</span>
+                                                <span className={`ml-1 ${r.dayOffset > 0 ? 'text-sky-400' : r.dayOffset < 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                                                    {r.dayOffset > 0 ? `(早 ${r.dayOffset}天)` : r.dayOffset < 0 ? `(晚 ${Math.abs(r.dayOffset)}天)` : '(同日)'}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.bestPrice}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm">
+                                                <span className={r.bestReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                    {r.bestReturn >= 0 ? '+' : ''}{r.bestReturn.toFixed(2)}%
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-sky-400">{r.bestBias5 !== null ? `${r.bestBias5.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-violet-400">{r.bestBias10 !== null ? `${r.bestBias10.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-slate-400">{r.bestBias20 !== null ? `${r.bestBias20.toFixed(1)}%` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestRsi != null ? r.bestRsi.toFixed(1) : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestSlopeUpDays != null ? `${r.bestSlopeUpDays}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestForeignConsecBuy != null ? `${r.bestForeignConsecBuy}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestTrustConsecBuy != null ? `${r.bestTrustConsecBuy}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-center font-mono text-xs text-amber-300">{r.bestMarginConsecIncrease != null ? `${r.bestMarginConsecIncrease}天` : '-'}</td>
+                                            <td className="py-2 px-3 text-right font-mono text-sm font-bold">
+                                                <span className={r.improvement > 0.5 ? 'text-amber-400' : r.improvement > 0 ? 'text-slate-300' : 'text-slate-500'}>
+                                                    {r.improvement > 0 ? '+' : ''}{r.improvement.toFixed(2)}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {exitCatStats && (
+                            <div className="pt-4 border-t border-slate-700 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-bold text-slate-200">最佳出場點參數中位數</h4>
+                                    <span className="text-xs text-slate-500">依分類彙總 — 供停利/停損門檻參考</span>
+                                </div>
+                                <div className="flex gap-1">
+                                    {(['ETF', '上市', '上櫃'] as const).map(tab => {
+                                        const s = exitCatStats[tab];
+                                        const disabled = !s;
+                                        return (
+                                            <button key={tab} onClick={() => !disabled && setExitCatTab(tab)}
+                                                disabled={disabled}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                                    exitCatTab === tab && !disabled
+                                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                                        : disabled
+                                                            ? 'text-slate-600 cursor-not-allowed'
+                                                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+                                                }`}>
+                                                {tab}
+                                                {s ? <span className="ml-1 text-slate-500">({s.n}/{s.rawN})</span>
+                                                   : <span className="ml-1 text-slate-600">(不足)</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {exitCatStats[exitCatTab] ? (
+                                    <>
+                                    <div className="text-xs text-slate-500">
+                                        優質數據篩選：改善幅度前 70%（{exitCatStats[exitCatTab]!.rawN} 筆中保留 {exitCatStats[exitCatTab]!.n} 筆，門檻 ≥ {exitCatStats[exitCatTab]!.qualityCutoff.toFixed(1)}%）
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <StatCard label="RSI 中位數" value={exitCatStats[exitCatTab]!.medRsi?.toFixed(1) ?? '-'} color="text-amber-300" />
+                                        <StatCard label="Bias5 中位數" value={exitCatStats[exitCatTab]!.medBias5 !== null ? `${exitCatStats[exitCatTab]!.medBias5!.toFixed(1)}%` : '-'} color="text-sky-400" />
+                                        <StatCard label="Bias10 中位數" value={exitCatStats[exitCatTab]!.medBias10 !== null ? `${exitCatStats[exitCatTab]!.medBias10!.toFixed(1)}%` : '-'} color="text-violet-400" />
+                                        <StatCard label="Bias20 中位數" value={exitCatStats[exitCatTab]!.medBias20 !== null ? `${exitCatStats[exitCatTab]!.medBias20!.toFixed(1)}%` : '-'} color="text-slate-300" />
+                                        <StatCard label="斜率連升天數中位數" value={exitCatStats[exitCatTab]!.medSlopeUpDays !== null ? `${exitCatStats[exitCatTab]!.medSlopeUpDays}天` : '-'} color="text-amber-300" />
+                                        <StatCard label="外資連買天數中位數" value={exitCatStats[exitCatTab]!.medForeignConsecBuy !== null ? `${exitCatStats[exitCatTab]!.medForeignConsecBuy}天` : '-'} color="text-amber-300" />
+                                        <StatCard label="投信連買天數中位數" value={exitCatStats[exitCatTab]!.medTrustConsecBuy !== null ? `${exitCatStats[exitCatTab]!.medTrustConsecBuy}天` : '-'} color="text-amber-300" />
+                                        <StatCard label="融資連增天數中位數" value={exitCatStats[exitCatTab]!.medMarginConsecIncrease !== null ? `${exitCatStats[exitCatTab]!.medMarginConsecIncrease}天` : '-'} color="text-amber-300" />
+                                    </div>
+                                    </>
+                                ) : (
+                                    <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const StatCard = ({ label, value, sub, color = 'text-white' }: { label: string; value: string; sub?: string; color?: string }) => (
     <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
         <div className="text-xs text-slate-400 mb-1">{label}</div>
@@ -850,13 +922,213 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     const [sortKey, setSortKey] = useState<SortKey>('trades');
     const [sortAsc, setSortAsc] = useState(false);
     const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
-    const [activeSection, setActiveSection] = useState<'winrate' | 'entry' | 'optimal'>('winrate');
+    const [activeSection, setActiveSection] = useState<'winrate' | 'entry' | 'optimal' | 'exit'>('winrate');
+
+    const OPTIMAL_CACHE_KEY = 'ft_dsslab_optimal_cache';
+    const EXIT_CACHE_KEY = 'ft_dsslab_exit_cache';
+    const RAW_CACHE_KEY = 'ft_dsslab_raw_cache';
+    const [optimalResults, setOptimalResults] = useState<WindowResult[] | null>(null);
+    const [exitResults, setExitResults] = useState<ExitWindowResult[] | null>(null);
+    const [analysisRunning, setAnalysisRunning] = useState(false);
+    const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
+    const [analysisTs, setAnalysisTs] = useState<number | null>(null);
 
     const allCompleted = useMemo(() => buildCompletedTrades(stockTransactions), [stockTransactions]);
 
     const filteredTrades = useMemo(() =>
         categoryFilter === 'ALL' ? allCompleted : allCompleted.filter(t => t.category === categoryFilter),
         [allCompleted, categoryFilter]);
+
+    useEffect(() => {
+        try {
+            const rawOpt = localStorage.getItem(OPTIMAL_CACHE_KEY);
+            if (rawOpt) { const p = JSON.parse(rawOpt); setOptimalResults(p.results); setAnalysisTs(p.timestamp); }
+        } catch { /* 快取損壞則忽略 */ }
+        try {
+            const rawExit = localStorage.getItem(EXIT_CACHE_KEY);
+            if (rawExit) { const p = JSON.parse(rawExit); setExitResults(p.results); }
+        } catch { /* 快取損壞則忽略 */ }
+    }, []);
+
+    /** 統一分析：進場+出場一次跑完，共用同一份原始資料抓取（kline/籌碼/融資只抓一次）*/
+    const handleRunAnalysis = async () => {
+        setAnalysisRunning(true);
+        setOptimalResults(null);
+        setExitResults(null);
+        const params = getTechParameters();
+        const symbols = [...new Set(filteredTrades.map(t => t.symbol))];
+        const klineCache = new Map<string, { date: string; close: number }[]>();
+        const instCache = new Map<string, { date: string; foreign: number; trust: number }[]>();
+        const marginCache = new Map<string, { date: string; balance: number }[]>();
+        const total = symbols.length;
+        let done = 0;
+
+        let rawCache: Record<string, RawCacheEntry> = {};
+        try { rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}'); } catch { /* 忽略損壞快取 */ }
+
+        for (const sym of symbols) {
+            setAnalysisProgress({ done, total });
+            const symTrades = filteredTrades.filter(t => t.symbol === sym);
+            const minDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
+            const maxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
+            const cacheKey = `${sym}|${minDate}|${maxDate}|${WINDOW_DAYS}`;
+            const cached = rawCache[cacheKey];
+
+            if (cached) {
+                klineCache.set(sym, cached.kline);
+                instCache.set(sym, cached.inst);
+                marginCache.set(sym, cached.margin);
+                done++;
+                continue;
+            }
+
+            const full = await fetchKlineWindow(sym, minDate, WINDOW_DAYS + 5, daysBetween2(minDate, maxDate) + WINDOW_DAYS + 5);
+            if (full) klineCache.set(sym, full);
+
+            const rangeStart = new Date(minDate); rangeStart.setDate(rangeStart.getDate() - WINDOW_DAYS - 10);
+            const rangeEnd = new Date(maxDate); rangeEnd.setDate(rangeEnd.getDate() + WINDOW_DAYS + 10);
+            const rangeStartStr = rangeStart.toISOString().slice(0, 10);
+            const rangeEndStr = rangeEnd.toISOString().slice(0, 10);
+            const [instRows, marginRows] = await Promise.all([
+                fetchHistoricalInstForBacktest(sym, rangeStartStr, rangeEndStr),
+                fetchHistoricalMarginForBacktest(sym, rangeStartStr, rangeEndStr),
+            ]);
+            if (instRows) instCache.set(sym, instRows);
+            if (marginRows) marginCache.set(sym, marginRows);
+
+            rawCache[cacheKey] = { kline: full ?? [], inst: instRows ?? [], margin: marginRows ?? [] };
+            done++;
+        }
+        setAnalysisProgress({ done: total, total });
+        try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(rawCache)); } catch { /* 空間不足則不快取原始資料 */ }
+
+        const optResults: WindowResult[] = [];
+        const extResults: ExitWindowResult[] = [];
+        for (const trade of filteredTrades) {
+            const kline = klineCache.get(trade.symbol);
+            if (!kline) continue;
+            const instRows = instCache.get(trade.symbol) ?? [];
+            const marginRows = marginCache.get(trade.symbol) ?? [];
+            const sizeCategory = trade.category === 'ETF' ? 'ETF' : trade.category === '上櫃' ? 'SMALL_CAP' : 'LARGE_CAP';
+
+            // 進場：買入日 ±WINDOW_DAYS 內找報酬最大化（等同最低價）的一天
+            const buyCandidates = kline.filter(r => {
+                const diff = daysBetween2(r.date, trade.buyDate);
+                return diff >= -WINDOW_DAYS && diff <= WINDOW_DAYS;
+            });
+            if (buyCandidates.length) {
+                const withReturns = buyCandidates.map(c => ({ ...c, ret: trade.sellPrice > 0 ? ((trade.sellPrice - c.close) / c.close) * 100 : -Infinity }));
+                const best = withReturns.reduce((m, c) => c.ret > m.ret ? c : m, withReturns[0]);
+                const bestReturn = best.ret === -Infinity ? 0 : best.ret;
+                const actualBias = computeMultiBias(kline, trade.buyDate);
+                const bestBias = computeMultiBias(kline, best.date);
+                const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.buyDate, params, sizeCategory);
+                const bestDss = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
+                optResults.push({
+                    symbol: trade.symbol, name: nameMap.get(trade.symbol), category: trade.category,
+                    buyDate: trade.buyDate, sellDate: trade.sellDate, sellPrice: trade.sellPrice,
+                    actualBuyPrice: trade.buyPrice, actualReturn: trade.returnPct,
+                    actualBias5: actualBias.bias5, actualBias10: actualBias.bias10, actualBias20: actualBias.bias20,
+                    bestDate: best.date, bestPrice: best.close, bestReturn,
+                    bestBias5: bestBias.bias5, bestBias10: bestBias.bias10, bestBias20: bestBias.bias20,
+                    improvement: bestReturn - trade.returnPct, dayOffset: daysBetween2(best.date, trade.buyDate),
+                    actualRsi: actualDss?.rsi ?? null, actualSlopeUpDays: actualDss ? slopeConsecUp(actualDss.biasSlopes) : null,
+                    actualForeignConsecBuy: actualDss?.foreignConsecBuy ?? null, actualTrustConsecBuy: actualDss?.trustConsecBuy ?? null,
+                    actualMarginConsecIncrease: actualDss?.marginConsecIncrease ?? null,
+                    bestRsi: bestDss?.rsi ?? null, bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
+                    bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null, bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
+                    bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
+                });
+            }
+
+            // 出場：賣出日 ±WINDOW_DAYS 內（不早於買入日）找報酬最大化（等同最高價）的一天
+            const sellCandidates = kline.filter(r => {
+                const diff = daysBetween2(r.date, trade.sellDate);
+                return diff >= -WINDOW_DAYS && diff <= WINDOW_DAYS && r.date >= trade.buyDate;
+            });
+            if (sellCandidates.length) {
+                const withReturns = sellCandidates.map(c => ({ ...c, ret: trade.buyPrice > 0 ? ((c.close - trade.buyPrice) / trade.buyPrice) * 100 : -Infinity }));
+                const best = withReturns.reduce((m, c) => c.ret > m.ret ? c : m, withReturns[0]);
+                const bestReturn = best.ret === -Infinity ? 0 : best.ret;
+                const actualBias = computeMultiBias(kline, trade.sellDate);
+                const bestBias = computeMultiBias(kline, best.date);
+                const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.sellDate, params, sizeCategory);
+                const bestDss = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
+                extResults.push({
+                    symbol: trade.symbol, name: nameMap.get(trade.symbol), category: trade.category,
+                    buyDate: trade.buyDate, sellDate: trade.sellDate, buyPrice: trade.buyPrice,
+                    actualSellPrice: trade.sellPrice, actualReturn: trade.returnPct,
+                    actualBias5: actualBias.bias5, actualBias10: actualBias.bias10, actualBias20: actualBias.bias20,
+                    bestDate: best.date, bestPrice: best.close, bestReturn,
+                    bestBias5: bestBias.bias5, bestBias10: bestBias.bias10, bestBias20: bestBias.bias20,
+                    improvement: bestReturn - trade.returnPct, dayOffset: daysBetween2(best.date, trade.sellDate),
+                    actualRsi: actualDss?.rsi ?? null, actualSlopeUpDays: actualDss ? slopeConsecUp(actualDss.biasSlopes) : null,
+                    actualForeignConsecBuy: actualDss?.foreignConsecBuy ?? null, actualTrustConsecBuy: actualDss?.trustConsecBuy ?? null,
+                    actualMarginConsecIncrease: actualDss?.marginConsecIncrease ?? null,
+                    bestRsi: bestDss?.rsi ?? null, bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
+                    bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null, bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
+                    bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
+                });
+            }
+        }
+        const sortedOpt = optResults.sort((a, b) => b.improvement - a.improvement);
+        const sortedExt = extResults.sort((a, b) => b.improvement - a.improvement);
+        const ts = Date.now();
+        setOptimalResults(sortedOpt);
+        setExitResults(sortedExt);
+        setAnalysisTs(ts);
+        try { localStorage.setItem(OPTIMAL_CACHE_KEY, JSON.stringify({ results: sortedOpt, timestamp: ts, window: WINDOW_DAYS })); } catch { /* 空間不足忽略 */ }
+        try { localStorage.setItem(EXIT_CACHE_KEY, JSON.stringify({ results: sortedExt, timestamp: ts, window: WINDOW_DAYS })); } catch { /* 空間不足忽略 */ }
+        setAnalysisRunning(false);
+        setAnalysisProgress(null);
+    };
+
+    /** 匯出進場+出場分析結果與原始資料快取，一起打包成一份 JSON */
+    const handleExportAnalysis = () => {
+        if (!optimalResults?.length && !exitResults?.length) return;
+        let rawCache: Record<string, RawCacheEntry> = {};
+        try { rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}'); } catch { /* 忽略損壞快取 */ }
+        const payload = { optimalResults, exitResults, timestamp: analysisTs ?? Date.now(), window: WINDOW_DAYS, rawCache };
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dsslab_analysis_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    /** 匯入進場+出場打包 JSON，兩邊結果與原始資料快取一起還原 */
+    const handleImportAnalysis = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const parsed = JSON.parse(ev.target?.result as string);
+                const hasOpt = Array.isArray(parsed.optimalResults);
+                const hasExt = Array.isArray(parsed.exitResults);
+                if (!hasOpt && !hasExt) throw new Error('invalid');
+                const ts = parsed.timestamp ?? Date.now();
+                if (hasOpt) {
+                    localStorage.setItem(OPTIMAL_CACHE_KEY, JSON.stringify({ results: parsed.optimalResults, timestamp: ts, window: parsed.window }));
+                    setOptimalResults(parsed.optimalResults);
+                }
+                if (hasExt) {
+                    localStorage.setItem(EXIT_CACHE_KEY, JSON.stringify({ results: parsed.exitResults, timestamp: ts, window: parsed.window }));
+                    setExitResults(parsed.exitResults);
+                }
+                if (parsed.rawCache) {
+                    try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(parsed.rawCache)); } catch { /* 空間不足則跳過原始資料 */ }
+                }
+                setAnalysisTs(ts);
+            } catch {
+                alert('匯入失敗：檔案格式不正確');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
 
     const symbolStats = useMemo(() => {
         const stats = buildSymbolStats(filteredTrades);
@@ -952,6 +1224,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                             { key: 'winrate', label: '標的勝率排行', icon: Trophy },
                             { key: 'entry', label: '進場條件分析', icon: BarChart2 },
                             { key: 'optimal', label: '±N日最佳進場分析', icon: Zap },
+                            { key: 'exit', label: '出場分析', icon: Target },
                         ] as const).map(({ key, label, icon: Icon }) => (
                             <button key={key} onClick={() => setActiveSection(key)}
                                 className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeSection === key ? 'bg-slate-800/50 text-violet-400 border-b-2 border-violet-400' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -959,6 +1232,31 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                             </button>
                         ))}
                     </div>
+
+                    {/* 統一分析工具列：進場+出場一起跑、一起匯出/匯入，避免各分頁分開操作 */}
+                    {(activeSection === 'optimal' || activeSection === 'exit') && (
+                        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
+                            <span className="text-sm text-slate-400">視窗範圍：±{WINDOW_DAYS} 日（進場+出場一起分析）</span>
+                            <button onClick={handleRunAnalysis} disabled={analysisRunning}
+                                className="px-4 py-1.5 rounded-lg text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white border border-violet-500 disabled:opacity-50 flex items-center gap-2 transition-all">
+                                {analysisRunning ? <><Loader2 size={14} className="animate-spin" />分析中…</> : '開始分析'}
+                            </button>
+                            {analysisProgress && <span className="text-xs text-slate-400">{analysisProgress.done}/{analysisProgress.total} 標的</span>}
+                            {analysisTs && !analysisRunning && <span className="text-xs text-slate-500">上次分析：{new Date(analysisTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
+                            <div className="ml-auto flex items-center gap-2">
+                                {(optimalResults?.length || exitResults?.length) ? (
+                                    <button onClick={handleExportAnalysis}
+                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors">
+                                        <Download size={12} />匯出快取
+                                    </button>
+                                ) : null}
+                                <label className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors cursor-pointer">
+                                    <Upload size={12} />匯入快取
+                                    <input type="file" accept="application/json" className="hidden" onChange={handleImportAnalysis} />
+                                </label>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Symbol Stats Table */}
                     {activeSection === 'winrate' && (
@@ -1070,7 +1368,8 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                     )}
 
                     {activeSection === 'entry' && <SignalQualitySection completedTrades={filteredTrades} nameMap={nameMap} />}
-                    {activeSection === 'optimal' && <OptimalEntrySection completedTrades={filteredTrades} nameMap={nameMap} />}
+                    {activeSection === 'optimal' && <OptimalEntrySection results={optimalResults} />}
+                    {activeSection === 'exit' && <ExitAnalysisSection results={exitResults} />}
                 </>
             )}
         </div>
