@@ -11,6 +11,10 @@ interface Props {
 /** ±N日進出場分析統一視窗天數（買入分析/出場分析共用，也讓原始資料快取可互相重用）*/
 const WINDOW_DAYS = 10;
 
+/** 最早交易日前至少緩衝這麼多天的歷史資料，讓 MA20/RSI14 等指標算得出來，
+ *  同時對齊 DSS 回測分析(runBacktest)的 95 天緩衝需求，讓兩邊可共用同一份原始資料快取 */
+const MIN_HISTORY_BUFFER_DAYS = 95;
+
 interface CompletedTrade {
     symbol: string;
     name?: string;
@@ -983,10 +987,10 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                 continue;
             }
 
-            const full = await fetchKlineWindow(sym, minDate, WINDOW_DAYS + 5, daysBetween2(minDate, maxDate) + WINDOW_DAYS + 5);
+            const full = await fetchKlineWindow(sym, minDate, MIN_HISTORY_BUFFER_DAYS - 35, daysBetween2(minDate, maxDate) + WINDOW_DAYS + 5);
             if (full) klineCache.set(sym, full);
 
-            const rangeStart = new Date(minDate); rangeStart.setDate(rangeStart.getDate() - WINDOW_DAYS - 10);
+            const rangeStart = new Date(minDate); rangeStart.setDate(rangeStart.getDate() - MIN_HISTORY_BUFFER_DAYS);
             const rangeEnd = new Date(maxDate); rangeEnd.setDate(rangeEnd.getDate() + WINDOW_DAYS + 10);
             const rangeStartStr = rangeStart.toISOString().slice(0, 10);
             const rangeEndStr = rangeEnd.toISOString().slice(0, 10);
@@ -1134,29 +1138,30 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     /** 把進場(最佳進場日)+出場(最佳出場日)的分類中位數合併存成一份 DSS 設定檔 */
     const handleSaveOptimalProfile = () => {
         if (!optimalResults?.length && !exitResults?.length) return;
+        const round2 = (v: number | null | undefined): number | undefined => v == null ? undefined : Math.round(v * 100) / 100;
         const cats: DSSProfile['categories'] = {};
         (['ETF', '上市', '上櫃'] as const).forEach(cat => {
             const entryStats = optimalResults?.length ? buildOptimalCatStats(optimalResults, cat) : null;
             const exitStats = exitResults?.length ? buildExitCatStats(exitResults, cat) : null;
             if (!entryStats && !exitStats) return;
             cats[cat] = {
-                rsi: entryStats?.medRsi ?? 0,
-                bias20: entryStats?.medBias20 ?? 0,
+                rsi: round2(entryStats?.medRsi) ?? 0,
+                bias20: round2(entryStats?.medBias20) ?? 0,
                 n: entryStats?.n ?? 0,
-                slopeUpDays: entryStats?.medSlopeUpDays ?? undefined,
-                bias5: entryStats?.medBias5 ?? undefined,
-                bias10: entryStats?.medBias10 ?? undefined,
-                foreignConsecBuy: entryStats?.medForeignConsecBuy ?? undefined,
-                trustConsecBuy: entryStats?.medTrustConsecBuy ?? undefined,
-                marginConsecIncrease: entryStats?.medMarginConsecIncrease ?? undefined,
-                exitRsi: exitStats?.medRsi ?? undefined,
-                exitBias5: exitStats?.medBias5 ?? undefined,
-                exitBias10: exitStats?.medBias10 ?? undefined,
-                exitBias20: exitStats?.medBias20 ?? undefined,
-                exitSlopeUpDays: exitStats?.medSlopeUpDays ?? undefined,
-                exitForeignConsecBuy: exitStats?.medForeignConsecBuy ?? undefined,
-                exitTrustConsecBuy: exitStats?.medTrustConsecBuy ?? undefined,
-                exitMarginConsecIncrease: exitStats?.medMarginConsecIncrease ?? undefined,
+                slopeUpDays: round2(entryStats?.medSlopeUpDays),
+                bias5: round2(entryStats?.medBias5),
+                bias10: round2(entryStats?.medBias10),
+                foreignConsecBuy: round2(entryStats?.medForeignConsecBuy),
+                trustConsecBuy: round2(entryStats?.medTrustConsecBuy),
+                marginConsecIncrease: round2(entryStats?.medMarginConsecIncrease),
+                exitRsi: round2(exitStats?.medRsi),
+                exitBias5: round2(exitStats?.medBias5),
+                exitBias10: round2(exitStats?.medBias10),
+                exitBias20: round2(exitStats?.medBias20),
+                exitSlopeUpDays: round2(exitStats?.medSlopeUpDays),
+                exitForeignConsecBuy: round2(exitStats?.medForeignConsecBuy),
+                exitTrustConsecBuy: round2(exitStats?.medTrustConsecBuy),
+                exitMarginConsecIncrease: round2(exitStats?.medMarginConsecIncrease),
                 exitN: exitStats?.n ?? undefined,
             };
         });

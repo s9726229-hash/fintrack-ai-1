@@ -1397,6 +1397,10 @@ export const runBacktest = async (
     let doneSymbols = 0;
     const totalSymbols = bySymbol.size;
 
+    // DSS 實驗室的原始資料快取（kline/籌碼/融資），日期範圍若涵蓋本次所需區間可直接重用，不必重打 FinMind
+    let dsslabRawCache: Record<string, { kline: { date: string; close: number }[]; inst: { date: string; foreign: number; trust: number }[]; margin: { date: string; balance: number }[] }> = {};
+    try { dsslabRawCache = JSON.parse(localStorage.getItem('ft_dsslab_raw_cache') || '{}'); } catch { /* 忽略損壞快取 */ }
+
     for (const [symbol, symbolTrades] of bySymbol.entries()) {
         const sortedDates = symbolTrades.map(t => t.date).sort();
         const minDate = sortedDates[0];
@@ -1410,11 +1414,30 @@ export const runBacktest = async (
         const buyBias  = isETF ? params.etfBuyBias  : sizeCategory === 'LARGE_CAP' ? params.largeCapBuyBias  : params.smallCapBuyBias;
         const sellBias = isETF ? params.etfPartialSellBias : sizeCategory === 'LARGE_CAP' ? params.largeCapPartialSellBias : params.smallCapPartialSellBias;
 
-        const [klineRows, instRows, marginRows] = await Promise.all([
-            fetchHistoricalKlineForBacktest(symbol, klineStart, maxDate),
-            fetchHistoricalInstForBacktest(symbol, klineStart, maxDate),
-            fetchHistoricalMarginForBacktest(symbol, klineStart, maxDate),
-        ]);
+        // 找 DSS 實驗室快取裡，同一檔股票、實際資料範圍涵蓋 [klineStart, maxDate] 的項目（不要求快取鍵完全相同）
+        const cachedKey = Object.keys(dsslabRawCache).find(k => {
+            if (!k.startsWith(`${symbol}|`)) return false;
+            const entry = dsslabRawCache[k];
+            if (!entry?.kline?.length) return false;
+            return entry.kline[0].date <= klineStart && entry.kline[entry.kline.length - 1].date >= maxDate;
+        });
+
+        let klineRows: { date: string; close: number }[] | null;
+        let instRows: { date: string; foreign: number; trust: number }[] | null;
+        let marginRows: { date: string; balance: number }[] | null;
+
+        if (cachedKey) {
+            const cached = dsslabRawCache[cachedKey];
+            klineRows = cached.kline;
+            instRows = cached.inst;
+            marginRows = cached.margin;
+        } else {
+            [klineRows, instRows, marginRows] = await Promise.all([
+                fetchHistoricalKlineForBacktest(symbol, klineStart, maxDate),
+                fetchHistoricalInstForBacktest(symbol, klineStart, maxDate),
+                fetchHistoricalMarginForBacktest(symbol, klineStart, maxDate),
+            ]);
+        }
 
         for (const trade of symbolTrades) {
             const baseEntry = {
