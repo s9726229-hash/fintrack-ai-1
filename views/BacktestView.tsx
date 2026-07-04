@@ -2,7 +2,58 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PlayCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, AlertCircle, Clock } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
 import { runBacktest } from '../services/stock';
-import { getBacktestCache, saveBacktestCache } from '../services/storage';
+import { getBacktestCache, saveBacktestCache, getTechParameters } from '../services/storage';
+
+// 依 techSignal 還原「當天技術面判定條件」，呈現方式與籌碼條件一致（✓/✗ + 門檻）
+const buildTechConditions = (row: BacktestResult): { label: string; satisfied: boolean }[] | string => {
+    const params = getTechParameters();
+    const isETF = row.sizeCategory === 'ETF';
+    const isLarge = row.sizeCategory === 'LARGE_CAP';
+    const slopeUp = (row.biasSlopes[0] ?? 0) > 0;
+    const slopeDown = (row.biasSlopes[0] ?? 0) < 0;
+
+    const buyBias  = isETF ? params.etfBuyBias       : isLarge ? params.largeCapBuyBias       : params.smallCapBuyBias;
+    const sbBias   = isETF ? params.etfStrongBuyBias  : isLarge ? params.largeCapStrongBuyBias  : params.smallCapStrongBuyBias;
+    const buyRsi   = isETF ? params.etfBuyRsi         : isLarge ? params.largeCapBuyRsi         : params.smallCapBuyRsi;
+    const sbRsi    = isETF ? params.etfStrongBuyRsi   : isLarge ? params.largeCapStrongBuyRsi   : params.smallCapStrongBuyRsi;
+    const sellBias = isETF ? params.etfPartialSellBias : isLarge ? params.largeCapPartialSellBias : params.smallCapPartialSellBias;
+    const sell2Bias = isETF ? params.etfSecondPartialSellBias : isLarge ? params.largeCapForceSellBias : params.smallCapForceSellBias;
+
+    switch (row.techSignal) {
+        case 'STRONG_BUY':
+            return [
+                { label: `乖離 ≤ ${sbBias}%`, satisfied: row.bias20 <= sbBias },
+                { label: `RSI < ${sbRsi}`, satisfied: row.rsi < sbRsi },
+                { label: '斜率上揚', satisfied: slopeUp },
+            ];
+        case 'BUY':
+            return [
+                { label: `乖離 ≤ ${buyBias}%`, satisfied: row.bias20 <= buyBias },
+                { label: `RSI < ${buyRsi}`, satisfied: row.rsi < buyRsi },
+                { label: '斜率上揚', satisfied: slopeUp },
+            ];
+        case 'PARTIAL_SELL':
+            return [
+                { label: `乖離 ≥ +${sellBias}%`, satisfied: row.bias20 >= sellBias },
+                { label: '斜率下彎', satisfied: slopeDown },
+            ];
+        case 'SECOND_PARTIAL_SELL':
+        case 'FORCE_SELL':
+            return [
+                { label: `乖離 ≥ +${sell2Bias}%`, satisfied: row.bias20 >= sell2Bias },
+            ];
+        case 'STRONG_LAYOUT':
+            return '技術面偏多 + 外資/投信同步連買 → 籌碼共振升級';
+        case 'WATCH_DIVERGE':
+            return '技術面偏多，但外資連賣＋融資連增 → 判定籌碼背離，降級觀察';
+        case 'SELL':
+            return '技術面中性/風險預警，且外資/投信同步連賣 → 判定法人棄守';
+        case 'RISK_ALERT':
+            return '乖離已跌破風險預警門檻，尚未達強制停損';
+        default:
+            return '乖離 / RSI / 斜率皆未達任何門檻，維持觀察';
+    }
+};
 
 interface Props {
     allTransactions: StockTransaction[];       // 全部交易（用於執行回測 + 快取）
@@ -11,16 +62,15 @@ interface Props {
 
 const SIGNAL_LABELS: Record<string, string> = {
     STRONG_BUY: '強力布局', BUY: '適合布局', STRONG_LAYOUT: '籌碼共振',
-    ADDITIONAL_BUY: '積極進場', STRONG_ADDITIONAL_BUY: '超跌布局',
-    TREND_ADD: '順勢加碼', NONE: '觀察中', RISK_ALERT: '風險預警',
+    NONE: '觀察中', RISK_ALERT: '風險預警',
     WATCH_DIVERGE: '籌碼疑慮', PARTIAL_SELL: '高位停利',
     SECOND_PARTIAL_SELL: '嚴重過熱', FORCE_SELL: '強制停利',
     STOP_LOSS_ALERT: '停損預警', SELL: '法人棄守',
 };
 
 const getSignalStyle = (sig: string) => {
-    if (['STRONG_BUY', 'BUY', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(sig)) return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-    if (['STRONG_LAYOUT', 'TREND_ADD'].includes(sig)) return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+    if (['STRONG_BUY', 'BUY'].includes(sig)) return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+    if (sig === 'STRONG_LAYOUT') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
     if (sig === 'NONE') return 'bg-slate-700/50 text-slate-400 border-slate-600/30';
     if (sig === 'RISK_ALERT') return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
     if (sig === 'WATCH_DIVERGE') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
@@ -111,6 +161,11 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
     // filteredTransactions 的 id 集合（日期/搜尋已由上層篩好）
     const filteredIds = useMemo(() => new Set(filteredTransactions.map(t => t.id)), [filteredTransactions]);
 
+    const recurringExcludedCount = useMemo(
+        () => filteredTransactions.filter(t => t.isRecurring).length,
+        [filteredTransactions]
+    );
+
     const displayResults = useMemo(() => {
         if (!results) return [];
         let list = results.filter(r => filteredIds.has(r.tradeId));
@@ -165,11 +220,16 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                     <TrendingUp size={16} className="text-sky-400"/>
                     <div>
                         <span className="text-sm font-bold text-white">DSS 回測分析</span>
-                        <span className="text-xs text-slate-500 ml-2">大盤假設 NORMAL，跳過持倉相關訊號</span>
+                        <span className="text-xs text-slate-500 ml-2">大盤假設 NORMAL，跳過持倉相關訊號 · 「動作」是您實際的買賣紀錄，「訊號」是系統重算當天 DSS 會給出的判斷，兩者不同即為背離</span>
                     </div>
                     {cacheTimestamp && (
                         <span className="flex items-center gap-1 text-xs text-slate-500">
                             <Clock size={11}/> {formatTimestamp(cacheTimestamp)}
+                        </span>
+                    )}
+                    {recurringExcludedCount > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-sky-400/80" title="定期定額為排程扣款，非訊號驅動，已排除於吻合率統計之外">
+                            已排除定期定額 {recurringExcludedCount} 筆
                         </span>
                     )}
                 </div>
@@ -273,18 +333,19 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                 {([
                                     { label: '日期',      key: 'date'      as SortKey },
                                     { label: '股票',      key: 'symbol'    as SortKey },
-                                    { label: '動作',      key: null },
-                                    { label: '訊號(技術)', key: null },
-                                    { label: '訊號(籌碼)', key: null },
+                                    { label: '動作',      key: null, title: '您實際下的買賣紀錄' },
+                                    { label: '訊號(技術)', key: null, title: '系統重算當天的技術面 DSS 訊號（與您的動作無關，用來比對是否吻合）' },
+                                    { label: '訊號(籌碼)', key: null, title: '系統重算當天的籌碼面燈號' },
                                     { label: '月乖離%',   key: 'bias20'    as SortKey },
                                     { label: 'RSI',       key: 'rsi'       as SortKey },
-                                    { label: '距買進',    key: null },
-                                    { label: '距停利',    key: null },
+                                    { label: '距買進',    key: null, title: '當天乖離率與「買進」門檻的差距：已入=已達標可買進，差+X%=還差多少才會觸發買進' },
+                                    { label: '距停利',    key: null, title: '當天乖離率與「停利」門檻的差距：超出+X%=已超過停利門檻，差X%=還差多少才會觸發停利' },
                                     { label: '吻合',      key: 'alignment' as SortKey },
                                     { label: '損益',      key: null },
-                                ] as { label: string; key: SortKey | null }[]).map(({ label, key }) => (
+                                ] as { label: string; key: SortKey | null; title?: string }[]).map(({ label, key, title }) => (
                                     <th key={label}
                                         onClick={() => key && toggleSort(key)}
+                                        title={title}
                                         className={`px-3 py-2.5 text-left text-xs text-slate-400 font-bold whitespace-nowrap ${key ? 'cursor-pointer hover:text-white select-none' : ''}`}>
                                         <span className="flex items-center gap-1">{label}{key && <SortIcon k={key}/>}</span>
                                     </th>
@@ -349,7 +410,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                     {expandedRow === row.tradeId && !row.error && (
                                         <tr className="border-b border-slate-800/50 bg-slate-800/20">
                                             <td colSpan={11} className="px-4 py-3">
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                                                     <div>
                                                         <div className="text-slate-500 mb-1">成交明細</div>
                                                         <div className="text-slate-300">價格 <span className="font-mono text-white">{row.price}</span></div>
@@ -357,20 +418,23 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                                         <div className="text-slate-300">分類 <span className="text-slate-400">{row.sizeCategory}</span></div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-slate-500 mb-1">外資 / 投信</div>
-                                                        <div className="text-slate-300">外資連買 <span className="font-mono text-emerald-400">{row.foreignConsecBuy}日</span></div>
-                                                        <div className="text-slate-300">外資連賣 <span className="font-mono text-red-400">{row.foreignConsecSell}日</span></div>
-                                                        <div className="text-slate-300">投信連買 <span className="font-mono text-emerald-400">{row.trustConsecBuy}日</span></div>
-                                                        <div className="text-slate-300">投信連賣 <span className="font-mono text-red-400">{row.trustConsecSell}日</span></div>
+                                                        <div className="text-slate-500 mb-1">
+                                                            「{SIGNAL_LABELS[row.techSignal] ?? row.techSignal}」判定條件
+                                                        </div>
+                                                        {(() => {
+                                                            const tc = buildTechConditions(row);
+                                                            if (typeof tc === 'string') return <div className="text-slate-300">{tc}</div>;
+                                                            return tc.map((c, i) => (
+                                                                <div key={i} className={c.satisfied ? 'text-emerald-400' : 'text-slate-600'}>
+                                                                    {c.satisfied ? '✓' : '✗'} {c.label}
+                                                                </div>
+                                                            ));
+                                                        })()}
                                                     </div>
                                                     <div>
-                                                        <div className="text-slate-500 mb-1">融資 / 斜率</div>
-                                                        <div className="text-slate-300">融資連增 <span className="font-mono text-emerald-400">{row.marginConsecIncrease}日</span></div>
-                                                        <div className="text-slate-300">融資連減 <span className="font-mono text-red-400">{row.marginConsecDecrease}日</span></div>
-                                                        <div className="text-slate-300">斜率[0] <span className={`font-mono ${(row.biasSlopes[0] ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{(row.biasSlopes[0] ?? 0).toFixed(2)}</span></div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-slate-500 mb-1">籌碼條件</div>
+                                                        <div className="text-slate-500 mb-1">
+                                                            {row.chipHint ? `「${row.chipHint.target}」判定條件` : '籌碼條件'}
+                                                        </div>
                                                         {row.chipHint?.conditions.map((c, i) => (
                                                             <div key={i} className={c.satisfied ? 'text-emerald-400' : 'text-slate-600'}>
                                                                 {c.satisfied ? '✓' : '✗'} {c.label}

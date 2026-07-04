@@ -29,6 +29,7 @@ export interface StockTransaction {
   fees: number; // sum of 手續費 + 交易稅 + 二代健保補充費
   realizedProfit?: number; // from '損益', only for sells
   amount: number; // 應收付帳款
+  isRecurring?: boolean; // 定期定額標記：排除於 DSS 回測分析的訊號吻合判定之外（非訊號驅動的交易）
 }
 
 export interface Asset {
@@ -67,7 +68,7 @@ export interface Asset {
 
   // --- V7.1.0 Technical Monitor ---
   rsi?: number;
-  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL' | 'STRONG_LAYOUT' | 'WATCH_DIVERGE';
+  techSignal?: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'SECOND_PARTIAL_SELL' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL' | 'STRONG_LAYOUT' | 'WATCH_DIVERGE';
   biasSlopes?: number[]; // Index 0: today's slope, 1: yesterday's, 2: day before yesterday
   ma20Slope?: number;
   ma60?: number;
@@ -109,8 +110,6 @@ export interface TechParameters {
     // ETF
     etfBuyBias: number;
     etfStrongBuyBias: number;
-    etfAdditionalBuyBias: number;
-    etfStrongAdditionalBuyBias: number;
     etfBuyRsi: number;
     etfStrongBuyRsi: number;
     etfPartialSellBias: number;
@@ -132,11 +131,6 @@ export interface TechParameters {
     largeCapBuySlopeDays: number;             // 新增：買進時需連幾天斜率向上
     largeCapStrongBuySlopeDays: number;       // 新增：強買時需連幾天斜率向上
     largeCapPartialSellSlopeDays: number;     // 新增：停利時需連幾天斜率向下
-    largeCapTrendAddCoolDownDays: number;     // 新增：加碼冷卻天數
-    largeCapTrendAddBiasMin: number;          // 順勢加碼乖離下限
-    largeCapTrendAddBiasMax: number;          // 順勢加碼乖離上限
-    largeCapTrendAddRsiMin: number;           // 順勢加碼 RSI 下限
-    largeCapTrendAddRsiMax: number;           // 順勢加碼 RSI 上限
 
     // 小型股
     smallCapBuyBias: number;
@@ -151,11 +145,6 @@ export interface TechParameters {
     smallCapBuySlopeDays: number;
     smallCapStrongBuySlopeDays: number;
     smallCapPartialSellSlopeDays: number; // 新增：停利時需連幾天斜率向下
-    smallCapTrendAddCoolDownDays: number;
-    smallCapTrendAddBiasMin: number;          // 順勢加碼乖離下限
-    smallCapTrendAddBiasMax: number;          // 順勢加碼乖離上限
-    smallCapTrendAddRsiMin: number;           // 順勢加碼 RSI 下限
-    smallCapTrendAddRsiMax: number;           // 順勢加碼 RSI 上限
 
     // 籌碼面
     chipInstDays: number;     // 法人累積天數
@@ -170,7 +159,6 @@ export enum MarketRegime {
 
 export interface RiskAlerts {
     stopLossAlert: boolean; // Bias20 繼續惡化 -5% 或達到停損門檻
-    conservativeLock: boolean; // 連續3筆虧損鎖定
 }
 
 export interface SignalCondition {
@@ -209,7 +197,7 @@ export interface TechDataResult {
     dailyChangeRatio: number | null;
     dailyChange: number | null;
     sizeCategory: 'LARGE_CAP' | 'SMALL_CAP' | 'ETF' | 'UNKNOWN';
-    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'ADDITIONAL_BUY' | 'STRONG_ADDITIONAL_BUY' | 'SECOND_PARTIAL_SELL' | 'TREND_ADD' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL' | 'STRONG_LAYOUT' | 'WATCH_DIVERGE';
+    techSignal: 'STRONG_BUY' | 'BUY' | 'PARTIAL_SELL' | 'FORCE_SELL' | 'STOP_LOSS' | 'NONE' | 'SECOND_PARTIAL_SELL' | 'FINAL_ADD' | 'STOP_LOSS_ALERT' | 'RISK_ALERT' | 'WATCH' | 'SELL' | 'STRONG_LAYOUT' | 'WATCH_DIVERGE';
     currentPrice?: number;
     marketRegime?: MarketRegime;
     riskAlerts?: RiskAlerts;

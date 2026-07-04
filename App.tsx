@@ -187,6 +187,21 @@ export default function App() {
       setTimeout(() => setToast(null), 3000);
   };
   
+  const handleToggleRecurringTransaction = (id: string) => {
+      const updatedTxs = stockTransactions.map(tx => tx.id === id ? { ...tx, isRecurring: !tx.isRecurring } : tx);
+      setStockTransactions(updatedTxs);
+      storage.saveStockTransactions(updatedTxs);
+  };
+
+  const handleBulkMarkRecurringTransactions = (ids: string[]) => {
+      const idSet = new Set(ids);
+      const updatedTxs = stockTransactions.map(tx => idSet.has(tx.id) ? { ...tx, isRecurring: true } : tx);
+      setStockTransactions(updatedTxs);
+      storage.saveStockTransactions(updatedTxs);
+      setToast({ message: `已標記 ${ids.length} 筆定期定額交易`, count: ids.length });
+      setTimeout(() => setToast(null), 3000);
+  };
+
   const handleImportTransactions = (newlyParsedTxs: StockTransaction[]) => {
       const currentTxs = storage.getStockTransactions();
       const existingTxSignatures = new Set(currentTxs.map(tx => 
@@ -315,7 +330,7 @@ export default function App() {
       {view === 'ASSETS' && <Assets assets={assets} onAdd={addAsset} onUpdate={updateAsset} onDelete={deleteAsset} />}
       {/* FIX: Pass the correct props to the Investments component as per its definition in types.ts. */}
       <div className={view === 'INVESTMENTS' ? 'block' : 'hidden'}>
-        <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} isActiveView={view === 'INVESTMENTS'} />
+        <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} onToggleRecurringTransaction={handleToggleRecurringTransaction} onBulkMarkRecurringTransactions={handleBulkMarkRecurringTransactions} isActiveView={view === 'INVESTMENTS'} />
       </div>
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}

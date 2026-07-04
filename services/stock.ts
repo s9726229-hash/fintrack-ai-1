@@ -459,20 +459,6 @@ export const fetchMarketRegime = async (forceRefresh: boolean = false): Promise<
         : { regime: MarketRegime.NORMAL, bias20: 0, lastClose: 0, dailyChange: 0, changeAmount: 0 };
 };
 
-// 判斷是否連續 3 筆交易虧損
-export const checkConsecutiveLossLock = (transactions?: StockTransaction[]): boolean => {
-    if (!transactions || transactions.length === 0) return false;
-    
-    // 找出所有賣出且有已實現損益的紀錄，依日期反向排序 (最新的在前)
-    const sells = transactions
-        .filter(t => t.side === 'SELL' && t.realizedProfit !== undefined)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-    if (sells.length < 3) return false;
-    
-    // 檢查最近 3 筆是否皆為負數
-    return sells[0].realizedProfit! < 0 && sells[1].realizedProfit! < 0 && sells[2].realizedProfit! < 0;
-};
 export const fetchFinMindUsage = async (): Promise<{ user_count: number, api_request_limit: number } | null> => {
     const token = getFinMindToken();
     if (!token) return null;
@@ -800,55 +786,22 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
         };
         
         let marketRegime = MarketRegime.NORMAL;
-        let twiiBias20 = 0;
         if (symbol !== '^TWII') {
             const mRegimeData = await fetchMarketRegime();
             marketRegime = mRegimeData.regime;
-            twiiBias20 = mRegimeData.bias20;
-        }
-        
-        const isConsecutiveLossLock = checkConsecutiveLossLock(transactions);
-        if (isConsecutiveLossLock) {
-            marketRegime = MarketRegime.CONSERVATIVE; // 強制進入保守模式
-        }
-        
-        if (marketRegime === MarketRegime.CONSERVATIVE) {
-            // 保守模式不再扣分，僅作為加碼限制
         }
 
         // 庫存判斷
         const heldAsset = assets?.find(a => a.symbol === symbol || a.name.includes(symbol) || symbol.includes(a.name));
         const isHeld = !!heldAsset;
-        const lastBuyTransaction = transactions?.filter(t => (t.symbol === symbol || t.name === symbol) && t.side === 'BUY').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        let daysSinceLastBuy = 0;
-        if (lastBuyTransaction) {
-             const msDiff = Date.now() - new Date(lastBuyTransaction.date).getTime();
-             daysSinceLastBuy = msDiff / (1000 * 60 * 60 * 24);
-        }
 
-        // ETF 豁免大盤單日跌幅機制 (若大盤Bias20未達-10%，則豁免防禦模式)
-        let effectiveRegimeForBuy = marketRegime;
-        if (sizeCategory === 'ETF') {
-            if (twiiBias20 <= -10) {
-                effectiveRegimeForBuy = MarketRegime.DEFENSIVE;
-            } else if (twiiBias20 <= -5) {
-                effectiveRegimeForBuy = MarketRegime.CONSERVATIVE;
-            } else {
-                effectiveRegimeForBuy = MarketRegime.NORMAL;
-            }
-        }
-
-        const canBuy = effectiveRegimeForBuy !== MarketRegime.DEFENSIVE && currentBias20 <= 0;
+        const canBuy = marketRegime !== MarketRegime.DEFENSIVE && currentBias20 <= 0;
 
         if (sizeCategory === 'ETF') {
             if (currentBias20 >= params.etfSecondPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) {
                 techSignal = 'SECOND_PARTIAL_SELL';
             } else if (currentBias20 >= params.etfPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (currentBias20 <= params.etfStrongAdditionalBuyBias) {
-                techSignal = 'STRONG_ADDITIONAL_BUY';
-            } else if (currentBias20 <= params.etfAdditionalBuyBias) {
-                techSignal = 'ADDITIONAL_BUY';
             } else if (canBuy && currentBias20 <= params.etfStrongBuyBias && checkSlopeImproved(params.etfStrongBuySlopeDays) && rsi < params.etfStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
             } else if (canBuy && currentBias20 <= params.etfBuyBias && checkSlopeImproved(params.etfBuySlopeDays) && rsi < params.etfBuyRsi) {
@@ -859,8 +812,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.largeCapPartialSellBias && checkSlopeDeteriorated(params.largeCapPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > params.largeCapTrendAddBiasMin && currentBias20 <= params.largeCapTrendAddBiasMax && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= params.largeCapTrendAddRsiMin && rsi <= params.largeCapTrendAddRsiMax && daysSinceLastBuy >= params.largeCapTrendAddCoolDownDays) {
-                techSignal = 'TREND_ADD';
             } else if (canBuy && currentBias20 <= params.largeCapStrongBuyBias && checkSlopeImproved(params.largeCapStrongBuySlopeDays) && rsi < params.largeCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
             } else if (canBuy && currentBias20 <= params.largeCapBuyBias && checkSlopeImproved(params.largeCapBuySlopeDays) && rsi < params.largeCapBuyRsi) {
@@ -872,8 +823,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
                 techSignal = 'FORCE_SELL';
             } else if (currentBias20 >= params.smallCapPartialSellBias && checkSlopeDeteriorated(params.smallCapPartialSellSlopeDays)) {
                 techSignal = 'PARTIAL_SELL';
-            } else if (marketRegime === MarketRegime.NORMAL && isHeld && currentBias20 > params.smallCapTrendAddBiasMin && currentBias20 <= params.smallCapTrendAddBiasMax && ma20Slope > 0 && biasSlopes[0] > 0 && rsi >= params.smallCapTrendAddRsiMin && rsi <= params.smallCapTrendAddRsiMax && daysSinceLastBuy >= params.smallCapTrendAddCoolDownDays) {
-                techSignal = 'TREND_ADD';
             } else if (canBuy && currentBias20 <= params.smallCapStrongBuyBias && checkSlopeImproved(params.smallCapStrongBuySlopeDays) && rsi < params.smallCapStrongBuyRsi) {
                 techSignal = 'STRONG_BUY';
             } else if (canBuy && currentBias20 <= params.smallCapBuyBias && checkSlopeImproved(params.smallCapBuySlopeDays) && rsi < params.smallCapBuyRsi) {
@@ -892,7 +841,7 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             const instTrustBuy    = instData.trustConsecBuy    >= instThresh;
             const instTrustSell   = instData.trustConsecSell   >= instThresh;
 
-            const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
+            const isBullishSignal = ['STRONG_BUY', 'BUY'].includes(techSignal);
             const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL'].includes(techSignal);
 
             // 籌碼共振：原訊號偏多 && 外資+投信連買 ≥ chipInstDays → 升級強力布局
@@ -912,7 +861,6 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
 
         const riskAlerts: RiskAlerts = {
             stopLossAlert: false, // 將由下方雙層停損邏輯動態判斷
-            conservativeLock: isConsecutiveLossLock
         };
 
         // 雙層停損與預警機制 (ETF 不適用)
@@ -965,20 +913,11 @@ export const fetchTechnicalData = async (symbol: string, assets?: Asset[], trans
             if (sizeCategory === 'ETF') {
                 if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(`乖離 ≤ ${sbBias}%`, true), cond(`RSI < ${sbRsi}`, true), cond(`斜率連增 ≥ ${sbSlopD}棒`, true)] };
                 if (techSignal === 'BUY')        return { target: '', type: 'BUY', conditions: [cond(`乖離 ≤ ${buyBias}%`, true), cond(`RSI < ${buyRsi}`, true), cond(`斜率連增 ≥ ${buySlopD}棒`, true)] };
-                if (techSignal === 'ADDITIONAL_BUY')        return { target: '', type: 'BUY', conditions: [cond(`乖離 ≤ ${params.etfAdditionalBuyBias}%`, true)] };
-                if (techSignal === 'STRONG_ADDITIONAL_BUY') return { target: '', type: 'BUY', conditions: [cond(`乖離 ≤ ${params.etfStrongAdditionalBuyBias}%`, true)] };
                 if (techSignal === 'PARTIAL_SELL')        return { target: '', type: 'SELL', conditions: [cond(`乖離 ≥ +${sellBias}%`, true), cond(`斜率連跌 ≥ ${sellSlopD}棒`, true)] };
                 if (techSignal === 'SECOND_PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(`乖離 ≥ +${sell2Bias}%`, true), cond(`斜率連跌 ≥ ${sellSlopD}棒`, true)] };
             } else if (sizeCategory === 'LARGE_CAP' || sizeCategory === 'SMALL_CAP') {
                 if (techSignal === 'STRONG_BUY') return { target: '', type: 'BUY', conditions: [cond(`乖離 ≤ ${sbBias}%`, true), cond(`RSI < ${sbRsi}`, true), cond(`斜率連增 ≥ ${sbSlopD}棒`, true)] };
                 if (techSignal === 'BUY')        return { target: '', type: 'BUY', conditions: [cond(`乖離 ≤ ${buyBias}%`, true), cond(`RSI < ${buyRsi}`, true), cond(`斜率連增 ≥ ${buySlopD}棒`, true)] };
-                if (techSignal === 'TREND_ADD') {
-                    const taBiasMin = isLarge ? params.largeCapTrendAddBiasMin : params.smallCapTrendAddBiasMin;
-                    const taBiasMax = isLarge ? params.largeCapTrendAddBiasMax : params.smallCapTrendAddBiasMax;
-                    const taRsiMin  = isLarge ? params.largeCapTrendAddRsiMin  : params.smallCapTrendAddRsiMin;
-                    const taRsiMax  = isLarge ? params.largeCapTrendAddRsiMax  : params.smallCapTrendAddRsiMax;
-                    return { target: '', type: 'BUY', conditions: [cond('持倉中', true), cond(`乖離 ${taBiasMin}%～${taBiasMax}%`, true), cond('MA20↑', ma20Slope > 0), cond(`RSI ${taRsiMin}～${taRsiMax}`, true)] };
-                }
                 if (techSignal === 'PARTIAL_SELL') return { target: '', type: 'SELL', conditions: [cond(`乖離 ≥ +${sellBias}%`, true), cond(`斜率連跌 ≥ ${sellSlopD}棒`, true)] };
                 if (techSignal === 'FORCE_SELL') {
                     const forceConds = [cond(`乖離 ≥ +${sell2Bias}%`, true)];
@@ -1205,7 +1144,7 @@ export interface DSSAtDateResult {
     institutionalTrust: number | null;
 }
 
-// 純 DSS 計算（大盤假設 NORMAL、跳過持倉相關的 TREND_ADD / 停損層）
+// 純 DSS 計算（大盤假設 NORMAL、跳過持倉相關的停損層）
 export const computeDSSForDate = (
     klineRows: { date: string; close: number }[],
     instRows: { date: string; foreign: number; trust: number }[],
@@ -1293,8 +1232,6 @@ export const computeDSSForDate = (
     if (sizeCategory === 'ETF') {
         if      (currentBias20 >= params.etfSecondPartialSellBias && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) techSignal = 'SECOND_PARTIAL_SELL';
         else if (currentBias20 >= params.etfPartialSellBias        && checkSlopeDeteriorated(params.etfPartialSellSlopeDays)) techSignal = 'PARTIAL_SELL';
-        else if (currentBias20 <= params.etfStrongAdditionalBuyBias) techSignal = 'STRONG_ADDITIONAL_BUY';
-        else if (currentBias20 <= params.etfAdditionalBuyBias)       techSignal = 'ADDITIONAL_BUY';
         else if (canBuy && currentBias20 <= params.etfStrongBuyBias && checkSlopeImproved(params.etfStrongBuySlopeDays) && rsi < params.etfStrongBuyRsi) techSignal = 'STRONG_BUY';
         else if (canBuy && currentBias20 <= params.etfBuyBias       && checkSlopeImproved(params.etfBuySlopeDays)       && rsi < params.etfBuyRsi)       techSignal = 'BUY';
     } else if (sizeCategory === 'LARGE_CAP') {
@@ -1316,7 +1253,7 @@ export const computeDSSForDate = (
         const instForeignSell = foreignConsecSell >= instThresh;
         const instTrustBuy    = trustConsecBuy    >= instThresh;
         const instTrustSell   = trustConsecSell   >= instThresh;
-        const isBullishSignal = ['STRONG_BUY', 'BUY', 'TREND_ADD', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal);
+        const isBullishSignal = ['STRONG_BUY', 'BUY'].includes(techSignal);
         const isWeakOrNeutral = ['NONE', 'RISK_ALERT', 'PARTIAL_SELL'].includes(techSignal);
         if      (isBullishSignal && instForeignBuy  && instTrustBuy)                                         techSignal = 'STRONG_LAYOUT';
         else if (isBullishSignal && instForeignSell && marginConsecIncrease >= params.chipMarginDays)         techSignal = 'WATCH_DIVERGE';
@@ -1380,6 +1317,47 @@ export const computeMultiBias = (
     return { bias5: ma(5), bias10: ma(10), bias20: ma(20) };
 };
 
+/**
+ * 依「同標的、間隔約一個月、扣款日相近、金額相近」的規律，偵測疑似定期定額的 BUY 交易。
+ * 僅回傳候選清單供使用者確認勾選，不會自動套用標記。
+ */
+export const detectRecurringCandidates = (transactions: StockTransaction[]): StockTransaction[] => {
+    const buysBySymbol = new Map<string, StockTransaction[]>();
+    for (const t of transactions) {
+        if (t.side !== 'BUY') continue;
+        if (!buysBySymbol.has(t.symbol)) buysBySymbol.set(t.symbol, []);
+        buysBySymbol.get(t.symbol)!.push(t);
+    }
+
+    const candidates: StockTransaction[] = [];
+    for (const list of buysBySymbol.values()) {
+        if (list.length < 3) continue;
+        const sorted = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let run: StockTransaction[] = [sorted[0]];
+        const flushRun = () => { if (run.length >= 3) candidates.push(...run); };
+
+        for (let i = 1; i < sorted.length; i++) {
+            const prev = run[run.length - 1];
+            const cur = sorted[i];
+            const dayDiff = (new Date(cur.date).getTime() - new Date(prev.date).getTime()) / (1000 * 60 * 60 * 24);
+            const isMonthlyGap = dayDiff >= 20 && dayDiff <= 40;
+            const sameDayOfMonth = Math.abs(new Date(cur.date).getDate() - new Date(prev.date).getDate()) <= 3;
+            const prevAmount = Math.abs(prev.amount);
+            const amountClose = prevAmount > 0 && Math.abs(Math.abs(cur.amount) - prevAmount) / prevAmount <= 0.08;
+
+            if (isMonthlyGap && sameDayOfMonth && amountClose) {
+                run.push(cur);
+            } else {
+                flushRun();
+                run = [cur];
+            }
+        }
+        flushRun();
+    }
+    return candidates;
+};
+
 export const runBacktest = async (
     trades: StockTransaction[],
     onProgress?: (done: number, total: number, currentSymbol: string) => void
@@ -1387,8 +1365,11 @@ export const runBacktest = async (
     await loadStockInfoMap();
     const params = getTechParameters();
 
+    // 定期定額為排程扣款，非訊號驅動，排除於 DSS 訊號吻合判定之外
+    const signalDrivenTrades = trades.filter(t => !t.isRecurring);
+
     const bySymbol = new Map<string, StockTransaction[]>();
-    for (const trade of trades) {
+    for (const trade of signalDrivenTrades) {
         if (!bySymbol.has(trade.symbol)) bySymbol.set(trade.symbol, []);
         bySymbol.get(trade.symbol)!.push(trade);
     }
@@ -1444,7 +1425,7 @@ export const runBacktest = async (
 
         for (const trade of symbolTrades) {
             const baseEntry = {
-                tradeId: trade.id, symbol, name: trade.name, date: trade.date,
+                tradeId: trade.id, symbol, name: trade.name || stockNameMap.get(symbol) || symbol, date: trade.date,
                 side: trade.side, price: trade.price, shares: trade.shares,
                 realizedProfit: trade.realizedProfit, amount: trade.amount,
                 sizeCategory,
@@ -1463,12 +1444,12 @@ export const runBacktest = async (
             const { techSignal } = dss;
             let alignment: 'MATCH' | 'DIVERGE' | 'PARTIAL';
             if (trade.side === 'BUY') {
-                if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY', 'TREND_ADD'].includes(techSignal)) alignment = 'MATCH';
+                if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT'].includes(techSignal)) alignment = 'MATCH';
                 else if (['WATCH_DIVERGE', 'SELL', 'PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT'].includes(techSignal)) alignment = 'DIVERGE';
                 else alignment = 'PARTIAL';
             } else {
                 if (['PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT', 'SELL'].includes(techSignal)) alignment = 'MATCH';
-                else if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT', 'ADDITIONAL_BUY', 'STRONG_ADDITIONAL_BUY'].includes(techSignal)) alignment = 'DIVERGE';
+                else if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT'].includes(techSignal)) alignment = 'DIVERGE';
                 else alignment = 'PARTIAL';
             }
 

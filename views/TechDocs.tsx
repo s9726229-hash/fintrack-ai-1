@@ -278,7 +278,6 @@ export const TechDocs: React.FC = () => {
                             <tr>
                                 <th className="p-2 border border-slate-700 w-20">分類</th>
                                 <th className="p-2 border border-slate-700">🟢 買進 / 強買</th>
-                                <th className="p-2 border border-slate-700">🔵 加碼方式</th>
                                 <th className="p-2 border border-slate-700">🟡 停利 / 🔴 強制停利</th>
                                 <th className="p-2 border border-slate-700">⚠️ 停損防護</th>
                             </tr>
@@ -292,12 +291,6 @@ export const TechDocs: React.FC = () => {
                                     <span className="text-slate-500 text-[10px]">防禦模式下阻斷普通買進</span>
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    <b className="text-cyan-400">左側攤平（不限大盤）</b><br/>
-                                    Bias ≤ {p.etfAdditionalBuyBias}% → 加碼<br/>
-                                    Bias ≤ {p.etfStrongAdditionalBuyBias}% → 強加碼<br/>
-                                    <span className="text-slate-500 text-[10px]">防禦模式下仍可觸發</span>
-                                </td>
-                                <td className="p-2 border border-slate-700">
                                     分批停利：Bias ≥ +{p.etfPartialSellBias}%<br/>
                                     第二批：Bias ≥ +{p.etfSecondPartialSellBias}%<br/>
                                     <span className="text-slate-500 text-[10px]">需斜率連降確認</span>
@@ -309,12 +302,6 @@ export const TechDocs: React.FC = () => {
                                 <td className="p-2 border border-slate-700">
                                     Bias ≤ {p.largeCapBuyBias}%（普）/ ≤ {p.largeCapStrongBuyBias}%（強）<br/>
                                     <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; {p.largeCapBuyRsi}/{p.largeCapStrongBuyRsi}
-                                </td>
-                                <td className="p-2 border border-slate-700">
-                                    <b className="text-cyan-400">順勢加碼（需大盤平穩）</b><br/>
-                                    持倉中 &amp;&amp; Bias {p.largeCapTrendAddBiasMin}% ~ {p.largeCapTrendAddBiasMax}%<br/>
-                                    MA20↑ &amp;&amp; RSI {p.largeCapTrendAddRsiMin}~{p.largeCapTrendAddRsiMax}<br/>
-                                    距上次買進 ≥ <b className="text-white">{p.largeCapTrendAddCoolDownDays} 日</b>
                                 </td>
                                 <td className="p-2 border border-slate-700">
                                     分批停利：Bias ≥ +{p.largeCapPartialSellBias}%<br/>
@@ -333,12 +320,6 @@ export const TechDocs: React.FC = () => {
                                     <b className="text-white">且</b> 斜率反轉 <b className="text-white">且</b> RSI &lt; {p.smallCapBuyRsi}/{p.smallCapStrongBuyRsi}
                                 </td>
                                 <td className="p-2 border border-slate-700">
-                                    <b className="text-cyan-400">順勢加碼（需大盤平穩）</b><br/>
-                                    持倉中 &amp;&amp; Bias {p.smallCapTrendAddBiasMin}% ~ {p.smallCapTrendAddBiasMax}%<br/>
-                                    MA20↑ &amp;&amp; RSI {p.smallCapTrendAddRsiMin}~{p.smallCapTrendAddRsiMax}<br/>
-                                    距上次買進 ≥ <b className="text-white">{p.smallCapTrendAddCoolDownDays} 日</b>
-                                </td>
-                                <td className="p-2 border border-slate-700">
                                     分批停利：Bias ≥ +{p.smallCapPartialSellBias}%<br/>
                                     強制停利：Bias ≥ +{p.smallCapForceSellBias}%
                                 </td>
@@ -351,6 +332,9 @@ export const TechDocs: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+                <p className="text-xs text-slate-500 mt-3">
+                    <b className="text-slate-300">V7.9.0 簡化：</b>移除 ETF 的獨立加碼層（ADDITIONAL_BUY / STRONG_ADDITIONAL_BUY）與上市/上櫃的順勢加碼層（TREND_ADD），不再有專屬的「加碼」正式燈號。「該不該加碼」改由下方<b className="text-slate-300">醞釀買進</b>提示涵蓋——中波段操作下正式買進燈號本就不易觸發，加碼判斷交給醞釀訊號的乖離/RSI/斜率條件追蹤即可，邏輯更單純。同時移除「連續3筆虧損鎖進保守模式」的特殊規則，以及 ETF 原本獨立於大盤模式之外、自行依乖離率判斷防禦與否的例外機制——三種資產分類現在共用同一套大盤模式（NORMAL/CONSERVATIVE/DEFENSIVE）判斷 canBuy，僅保留「ETF 無停損層」這個既有的不對稱設計。
+                </p>
             </div>
 
             {/* ── 4. 醞釀訊號 ── */}

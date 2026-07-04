@@ -7,6 +7,8 @@ import { BadgePercent, ArrowRightLeft, Repeat, Calculator, TrendingUp } from 'lu
 interface TransactionAnalysisViewProps {
     transactions: StockTransaction[];
     stockNameMap: Record<string, string>;
+    onToggleRecurring?: (id: string) => void;
+    onBulkMarkRecurring?: (ids: string[]) => void;
 }
 
 const StatCard = ({ title, value, icon: Icon, colorClass, isCurrency = true, unit = '', isHighlight = false }: { title: string, value: number, icon: any, colorClass:string, isCurrency?: boolean, unit?: string, isHighlight?: boolean }) => {
@@ -45,6 +47,8 @@ const StatCard = ({ title, value, icon: Icon, colorClass, isCurrency = true, uni
 export const TransactionAnalysisView: React.FC<TransactionAnalysisViewProps> = ({
     transactions,
     stockNameMap,
+    onToggleRecurring,
+    onBulkMarkRecurring,
 }) => {
     
     const stats = useMemo(() => {
@@ -83,7 +87,7 @@ export const TransactionAnalysisView: React.FC<TransactionAnalysisViewProps> = (
                 <StatCard title="總交易次數" value={stats.tradeCount} icon={Repeat} isCurrency={false} colorClass="text-slate-400" unit="筆"/>
             </div>
 
-            <TransactionHistoryList transactions={transactions} stockNameMap={stockNameMap} />
+            <TransactionHistoryList transactions={transactions} stockNameMap={stockNameMap} onToggleRecurring={onToggleRecurring} onBulkMarkRecurring={onBulkMarkRecurring} />
         </div>
     );
 };

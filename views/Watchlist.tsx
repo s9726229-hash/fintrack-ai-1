@@ -470,10 +470,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             switch (signal) {
                 case 'STRONG_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力進場 (&lt;={targetBuyPrice})</span>);
                 case 'BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 進場訊號 (&lt;={targetBuyPrice})</span>);
-                case 'ADDITIONAL_BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 積極進場 (&lt;={targetBuyPrice})</span>);
-                case 'STRONG_ADDITIONAL_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 超跌布局 (&lt;={targetBuyPrice})</span>);
                 case 'STRONG_LAYOUT': return withChips(<span className="bg-emerald-600/40 text-emerald-300 border border-emerald-400/60 px-2 py-1 rounded text-xs font-bold">🚀 強力布局（籌碼共振）</span>);
-                case 'TREND_ADD': return withChips(<span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢進場</span>);
                 case 'FINAL_ADD': return withChips(<span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後進場</span>);
                 case 'PARTIAL_SELL': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 高位過熱 (勿追 &gt;={targetSellPrice})</span>);
                 case 'FORCE_SELL': return withChips(<span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 嚴重過熱 (切勿追高)</span>);
@@ -515,7 +512,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             : sig === 'PARTIAL_SELL' || sig === 'SECOND_PARTIAL_SELL' ? 'bg-amber-500/10'
             : sig === 'RISK_ALERT' ? 'bg-orange-500/10'
             : sig === 'STRONG_BUY' || sig === 'BUY' ? 'bg-emerald-500/10'
-            : sig === 'TREND_ADD' || sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
+            : sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
             : '';
 
         const currentSlope = data.biasSlopes && data.biasSlopes[0] !== undefined ? data.biasSlopes[0] : null;

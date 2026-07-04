@@ -103,8 +103,6 @@ export const saveWatchlists = (watchlists: import('../types').WatchlistGroup[]) 
 export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     etfBuyBias: -7,
     etfStrongBuyBias: -10,
-    etfAdditionalBuyBias: -15,
-    etfStrongAdditionalBuyBias: -20,
     etfBuyRsi: 45,
     etfStrongBuyRsi: 40,
     etfPartialSellBias: 15,
@@ -125,11 +123,6 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     largeCapBuySlopeDays: 1,
     largeCapStrongBuySlopeDays: 2,
     largeCapPartialSellSlopeDays: 2,
-    largeCapTrendAddCoolDownDays: 5,
-    largeCapTrendAddBiasMin: -10,
-    largeCapTrendAddBiasMax: 0,
-    largeCapTrendAddRsiMin: 40,
-    largeCapTrendAddRsiMax: 65,
 
     // 小型股預設
     smallCapBuyBias: -10,
@@ -144,11 +137,6 @@ export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     smallCapBuySlopeDays: 2,
     smallCapStrongBuySlopeDays: 3,
     smallCapPartialSellSlopeDays: 2,
-    smallCapTrendAddCoolDownDays: 5,
-    smallCapTrendAddBiasMin: -15,
-    smallCapTrendAddBiasMax: 0,
-    smallCapTrendAddRsiMin: 40,
-    smallCapTrendAddRsiMax: 60,
 
     // 籌碼面
     chipInstDays: 3,

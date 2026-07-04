@@ -29,6 +29,8 @@ interface InvestmentsProps {
     
     onImportTransactions: (transactions: StockTransaction[]) => void;
     onImportInventory: (assets: Partial<Asset>[]) => void;
+    onToggleRecurringTransaction?: (id: string) => void;
+    onBulkMarkRecurringTransactions?: (ids: string[]) => void;
     isActiveView?: boolean;
 }
 
@@ -62,7 +64,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
     assets, stockHistory, stockTransactions, transactions,
     onAdd, onUpdate, onUpdateMultiple, onDelete,
     enrichStatus, onUpdatePrices, onUpdateDividends,
-    onImportTransactions, onImportInventory, isActiveView = true
+    onImportTransactions, onImportInventory, onToggleRecurringTransaction, onBulkMarkRecurringTransactions, isActiveView = true
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
@@ -543,9 +545,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             case 'PARTIAL_SELL': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 部分停利 (&gt;={targetSellPrice})</span>);
                             case 'FORCE_SELL': return withChips(<span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 強制停利 (&gt;={targetSellPrice})</span>);
                             case 'STOP_LOSS': return withChips(<span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 停損警示 (&lt;={targetStopPrice})</span>);
-                            case 'ADDITIONAL_BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">💰 加碼訊號 (&lt;={targetBuyPrice})</span>);
-                            case 'STRONG_ADDITIONAL_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🔥 強力加碼 (&lt;={targetBuyPrice})</span>);
-                            case 'TREND_ADD': return withChips(<span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs font-bold">🔵 順勢加碼</span>);
                             case 'FINAL_ADD': return withChips(<span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後加碼</span>);
                             case 'STOP_LOSS_ALERT': return withChips(<span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 停損警示 (&lt;={targetStopPrice})</span>);
                             case 'RISK_ALERT': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意風險</span>);
@@ -585,7 +584,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         : sig === 'PARTIAL_SELL' || sig === 'SECOND_PARTIAL_SELL' ? 'bg-amber-500/10'
                         : sig === 'RISK_ALERT' ? 'bg-orange-500/10'
                         : sig === 'STRONG_BUY' || sig === 'BUY' ? 'bg-emerald-500/10'
-                        : sig === 'TREND_ADD' || sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
+                        : sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
                         : '';
                     const currentSlope = pos.biasSlopes && pos.biasSlopes[0] !== undefined ? pos.biasSlopes[0] : null;
                     const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
@@ -761,7 +760,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     {historySubTab === 'DETAIL' && (
                         <>
                             <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
-                            <TransactionAnalysisView transactions={filteredStockTransactions} stockNameMap={stockNameMap} />
+                            <TransactionAnalysisView transactions={filteredStockTransactions} stockNameMap={stockNameMap} onToggleRecurring={onToggleRecurringTransaction} onBulkMarkRecurring={onBulkMarkRecurringTransactions} />
                         </>
                     )}
                     {historySubTab === 'BACKTEST' && (
