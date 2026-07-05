@@ -7,7 +7,6 @@ import { InvestmentInputModal } from '../components/investments/InvestmentInputM
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime, fetchTWSEBatch } from '../services/stock';
 import { getApiKey, getTechParameters, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
-import { BacktestView } from './BacktestView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
 interface InvestmentsProps {
@@ -69,7 +68,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
-    const [historySubTab, setHistorySubTab] = useState<'DETAIL' | 'BACKTEST'>('DETAIL');
     const [isUpdatingBias, setIsUpdatingBias] = useState(false);
     const [priceSource, setPriceSource] = useState<'TWSE' | 'TWSE_FAILED'>('TWSE');
     const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
@@ -753,22 +751,8 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
             {activeTab === 'HISTORY' && (
                 <div className="space-y-4 animate-fade-in">
-                    <div className="flex items-center gap-4 border-b border-slate-700/60">
-                        <button onClick={() => setHistorySubTab('DETAIL')} className={`px-1 py-2.5 text-sm font-semibold border-b-2 transition-all ${historySubTab === 'DETAIL' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>歷史交易明細</button>
-                        <button onClick={() => setHistorySubTab('BACKTEST')} className={`px-1 py-2.5 text-sm font-semibold border-b-2 transition-all ${historySubTab === 'BACKTEST' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>DSS 回測分析</button>
-                    </div>
-                    {historySubTab === 'DETAIL' && (
-                        <>
-                            <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
-                            <TransactionAnalysisView transactions={filteredStockTransactions} stockNameMap={stockNameMap} onToggleRecurring={onToggleRecurringTransaction} onBulkMarkRecurring={onBulkMarkRecurringTransactions} />
-                        </>
-                    )}
-                    {historySubTab === 'BACKTEST' && (
-                        <>
-                            <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
-                            <BacktestView allTransactions={stockTransactions} filteredTransactions={filteredStockTransactions} />
-                        </>
-                    )}
+                    <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
+                    <TransactionAnalysisView transactions={filteredStockTransactions} stockNameMap={stockNameMap} onToggleRecurring={onToggleRecurringTransaction} onBulkMarkRecurring={onBulkMarkRecurringTransactions} />
                 </div>
             )}
             <InvestmentInputModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingAsset(null); }} onSave={handleSaveAsset} editingAsset={editingAsset} />

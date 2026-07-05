@@ -69,7 +69,7 @@ const DSSLabParamGuide: React.FC = () => (
                 <p className="text-sm text-slate-400 leading-relaxed mb-2">
                     邏輯與 Step2 對稱但方向相反：固定買入價，在實際出場日前後 ±10 個交易日內找報酬最大化（等同<b className="text-slate-300">最高價</b>）的出場點，同樣計算 RSI/斜率/籌碼等指標。搜尋範圍限制<b className="text-slate-300">不早於實際買入日</b>，避免短持倉交易的進場/出場視窗互相打架。
                 </p>
-                <p className="text-xs text-slate-500 mt-2">與 Step2 共用同一份原始資料快取（symbol+日期範圍+視窗天數相同即可重用），已跑過 Step2 的話，出場分析幾乎零額外 FinMind 呼叫。畫面上「開始分析／匯出快取／匯入快取」已整合成單一工具列，一次跑完進場+出場兩組結果、一次匯出/匯入。</p>
+                <p className="text-xs text-slate-500 mt-2">與 Step2 共用同一份原始資料快取（symbol+日期範圍+視窗天數相同即可重用），已跑過 Step2 的話，出場分析幾乎零額外 FinMind 呼叫。畫面上「開始分析／匯出全域數據／匯入全域數據」已整合成單一工具列，常駐在 DSS 實驗室頁面最上方（不論切到哪個分頁都看得到），一次跑完進場+出場兩組結果；匯出/匯入則只針對原始資料快取本身，與分析結果無關（詳見下方「已知限制」）。</p>
             </div>
 
             {/* Step 3 */}
@@ -89,12 +89,12 @@ const DSSLabParamGuide: React.FC = () => (
                 <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">4</span>
                     <h4 className="font-bold text-slate-200">進場條件分析（提取優化後參數 → 存成設定檔）</h4>
-                    <StepBadge status="todo" />
+                    <StepBadge status="done" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                    把 Step3 算出來的「最佳進場日」中位數，取代目前進場條件分析所用的「實際進場日」資料，並擴充 DSS 設定檔（DSSProfile）結構，把斜率／外資／投信／融資的建議門檻一起存進去（現在的設定檔只存 RSI + Bias20），存檔後可在系統設定頁套用回技術面參數。
+                    把 Step3 算出來的「最佳進場日／出場日」中位數，擴充進 DSS 設定檔（DSSProfile）結構一起存起來，存檔後可在系統設定頁一鍵套用回技術面參數。刻意不動原本既有的「進場條件分析」（Winner/Loser）機制，改在工具列新增一顆並列的「儲存為設定檔」按鈕，兩套機制平行存在。
                 </p>
-                <p className="text-xs text-slate-500 mt-2">尚未開始動工。程式碼本身不受資料/額度問題影響，可以先寫、用合成資料驗證邏輯，但要看真實跑出來的參數合不合理，需要等下方「已知限制」解決。</p>
+                <p className="text-xs text-slate-500 mt-2">已完成（2026-07-04）。乖離/RSI/斜率會自動套用；外資/投信/融資與出場 RSI/斜率因為技術面參數目前沒有對應欄位（籌碼門檻是全域值、非分類；也沒有 xxxPartialSellRsi 欄位），僅顯示為參考數值、不自動套用。數值皆四捨五入至小數點後 2 位再存檔。</p>
             </div>
 
             {/* Step 5 */}
@@ -102,16 +102,22 @@ const DSSLabParamGuide: React.FC = () => (
                 <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">5</span>
                     <h4 className="font-bold text-slate-200">套用新參數 → 驗證命中率（Match Rate）與燈號分布</h4>
-                    <StepBadge status="todo" />
+                    <StepBadge status="partial" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed mb-2">
-                    最後一步，把 Step4 存好的設定檔套用回技術面參數後，用新參數重跑一次 DSS 回測分析，用兩個指標驗證「換參數是不是真的變好」，而不是存了就當作結束：
+                    把 Step4 存好的設定檔套用回技術面參數後，用新參數重跑一次 DSS 回測分析，用兩個指標驗證「換參數是不是真的變好」，而不是存了就當作結束：
                 </p>
                 <ul className="text-sm text-slate-400 list-disc list-inside space-y-0.5">
                     <li><b className="text-slate-300">命中率（Match Rate）</b>：重用 DSS 回測分析既有的 MATCH / DIVERGE / PARTIAL 吻合度判斷，比較套用新參數前後，歷史交易的吻合度有沒有實際提升。</li>
                     <li><b className="text-slate-300">燈號分布</b>：統計新參數下，各檔標的落在 STRONG_BUY／BUY／WATCH_DIVERGE／SELL 等各訊號燈號的筆數分布，避免出現「新參數太寬鬆變成全部強買」或「太嚴苛完全不觸發」這種失真結果，當作換參數前的健檢。</li>
                 </ul>
-                <p className="text-xs text-slate-500 mt-2">尚未開始動工，需等 Step4 完成後才能接續。</p>
+                <p className="text-xs text-slate-500 mt-2">
+                    進行中，尚未有乾淨的結論。目前卡住的不是參數本身，而是三個交疊的干擾因素：
+                    (1) FinMind 額度常在批次回測中途用盡，導致大量標的顯示「K線資料無法取得」，樣本不完整；
+                    (2) 早期發現 BUY 背離裡有 60% 其實是「加碼」被誤判成進場失敗（已藉由簡化 V5.0 訊號層級處理，但沒有改變回測本身的吻合率數字，因為回測引擎本來就沒有加碼訊號可比對）；
+                    (3) 定期定額交易會稀釋吻合率統計，已新增排除機制。
+                    下一步規劃：用 DSS 實驗室的最佳進場/出場點模擬「虛擬交易」，跑出虛擬命中率跟實際命中率並排比較，並檢視「買進背離但賣出仍獲利」的案例，才能判斷新參數是否真的有效。
+                </p>
             </div>
         </div>
 
@@ -135,6 +141,12 @@ const DSSLabParamGuide: React.FC = () => (
                 <li>
                     <b className="text-slate-300">匯入交易紀錄自動觸發分析</b>：目前「標的勝率排行」與「DSS 回測分析」都要手動點按鈕才會跑。未來希望匯入股票交易 CSV 後就自動觸發這兩項分析，資料一進來就能立刻檢視每一筆交易目前落在哪個環節/狀態，不用額外操作。
                 </li>
+                <li>
+                    <b className="text-slate-300">DSS 回測分析加入「虛擬交易」比對</b>：把 Step2/3 找到的最佳進場日/出場日當作模擬交易，跑一次 Match Rate，跟實際交易的 Match Rate 並排比較「實際命中率 vs 虛擬（最佳）命中率」，藉此判斷新參數是否真的有效，而不是被雜訊（額度不足、定期定額、加碼誤判等）干擾。
+                </li>
+                <li>
+                    <b className="text-slate-300">買進背離 × 實際賣出損益 交叉檢視</b>：目前「BUY 背離」只看進場當下的訊號吻合度，但如果該筆交易配對的賣出其實有賺錢，代表訊號背離不一定是壞事。未來想把 DSS 回測分析的逐筆結果，跟「標的勝率排行」FIFO 配對後的已實現損益串起來看。
+                </li>
             </ul>
         </div>
 
@@ -144,9 +156,10 @@ const DSSLabParamGuide: React.FC = () => (
             </h3>
             <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
                 <li>分析要對每檔標的打 3 種 FinMind 資料（股價/籌碼/融資），交易筆數多時請求量很大，容易撞到 FinMind 額度限制（曾實測出現 402 Requests reach the upper limit，甚至更嚴重的連線被拒）。帳號後台「API 使用量」顯示的用量，跟實際資料查詢端點的限制不一定同步，數字看起來夠用也可能還是打不通。</li>
-                <li>因應額度問題：(1) 進場分析與出場分析共用同一份<b className="text-slate-300">原始資料快取</b>（`ft_dsslab_raw_cache`，鍵值為 symbol+日期範圍+視窗天數），只要交易組合與視窗天數相同就直接重用，不重打 API；(2) 新增<b className="text-slate-300">匯出快取 / 匯入快取</b>按鈕（已整合成一個統一工具列），可在額度充足的裝置上跑完分析、匯出 JSON，再拿到別的裝置匯入使用。</li>
+                <li>因應額度問題：(1) 進場分析與出場分析共用同一份<b className="text-slate-300">原始資料快取</b>（`ft_dsslab_raw_cache`，鍵值為 symbol+日期範圍+視窗天數），只要交易組合與視窗天數相同就直接重用，不重打 API；(2) <b className="text-slate-300">匯出全域數據 / 匯入全域數據</b>按鈕（常駐於 DSS 實驗室頁面最上方，不需先跑完分析）可在額度充足的裝置上匯出這份原始資料快取 JSON，再拿到別的裝置匯入使用，匯入採<b className="text-slate-300">依 key 合併</b>（覆蓋同標的的舊資料，其餘既有快取保留），不會整包覆蓋清空其他標的的快取；(3) <b className="text-slate-300">DSS 回測分析</b>（已併入 DSS 實驗室，作為第五個分頁）也會先檢查這份快取，日期範圍有涵蓋（含 10 天容許誤差，避免交易日曆換算誤差擋下明明夠用的快取）才直接重用，不夠新才回頭打 FinMind——實測涵蓋率從 0/75 提升到 47/75 檔，FinMind 呼叫量下降約 43%。但快取終究會過期：只要快取的資料日期沒涵蓋到最新交易日，還是得重新打 API，額度用盡時該檔就會顯示「K線資料無法取得」。</li>
                 <li>標的名稱顯示（中文股票名）依賴 FinMind 的 TaiwanStockInfo 查詢，若額度/連線有問題，畫面上會退回顯示股票代號，屬正常降級行為，非程式錯誤。</li>
                 <li>修正 FIFO 配對後，同一份交易紀錄算出的「完整交易」筆數會變多（因為一筆賣出可能拆成對應多筆買進的多筆紀錄），且部分標的的「最早買入日～最晚賣出日」範圍可能改變，導致原始資料快取鍵對不上、該標的需要重新向 FinMind 抓取（實測約 10-15% 標的會受影響，其餘可正常吃快取）。</li>
+                <li><b className="text-slate-300">定期定額（定期定額扣款）交易</b>非訊號驅動，若混在一起算 Match Rate 會拉低統計意義。已在「歷史交易明細」新增手動標記 + 依金額/日期規律的自動偵測按鈕，標記後 DSS 回測分析會自動排除這些交易。</li>
             </ul>
         </div>
     </div>

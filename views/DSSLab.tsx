@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Save, Download, Upload } from 'lucide-react';
+import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Save, Download, Upload, History } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
 import { lookupStockName, fetchKlineWindow, computeMultiBias, computeDSSForDate, fetchHistoricalInstForBacktest, fetchHistoricalMarginForBacktest } from '../services/stock';
 import { getBacktestCache, getDSSProfiles, saveDSSProfiles, DSSProfile, getTechParameters } from '../services/storage';
+import { BacktestView } from './BacktestView';
 
 interface Props {
     stockTransactions: StockTransaction[];
@@ -926,7 +927,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     const [sortKey, setSortKey] = useState<SortKey>('trades');
     const [sortAsc, setSortAsc] = useState(false);
     const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
-    const [activeSection, setActiveSection] = useState<'winrate' | 'entry' | 'optimal' | 'exit'>('winrate');
+    const [activeSection, setActiveSection] = useState<'winrate' | 'entry' | 'optimal' | 'exit' | 'backtest'>('winrate');
 
     const OPTIMAL_CACHE_KEY = 'ft_dsslab_optimal_cache';
     const EXIT_CACHE_KEY = 'ft_dsslab_exit_cache';
@@ -974,8 +975,12 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
         for (const sym of symbols) {
             setAnalysisProgress({ done, total });
             const symTrades = filteredTrades.filter(t => t.symbol === sym);
-            const minDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
-            const maxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
+            const completedMinDate = symTrades.reduce((m, t) => t.buyDate < m ? t.buyDate : m, symTrades[0].buyDate);
+            const completedMaxDate = symTrades.reduce((m, t) => t.sellDate > m ? t.sellDate : m, symTrades[0].sellDate);
+            // 抓取範圍延伸涵蓋該標的「全部交易」日期（不只完整交易），讓這份快取也能滿足 DSS 回測分析（涵蓋未平倉/後續加碼）所需範圍
+            const allSymDates = stockTransactions.filter(t => t.symbol === sym).map(t => t.date);
+            const minDate = allSymDates.reduce((m, d) => d < m ? d : m, completedMinDate);
+            const maxDate = allSymDates.reduce((m, d) => d > m ? d : m, completedMaxDate);
             const cacheKey = `${sym}|${minDate}|${maxDate}|${WINDOW_DAYS}`;
             const cached = rawCache[cacheKey];
 
@@ -1088,22 +1093,22 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
         setAnalysisProgress(null);
     };
 
-    /** 匯出進場+出場分析結果與原始資料快取，一起打包成一份 JSON */
+    /** 匯出全域原始資料快取（K線/籌碼/融資），與分析結果無關，供進場/出場/DSS回測分析三處共用，可帶到其他裝置匯入使用 */
     const handleExportAnalysis = () => {
-        if (!optimalResults?.length && !exitResults?.length) return;
         let rawCache: Record<string, RawCacheEntry> = {};
         try { rawCache = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}'); } catch { /* 忽略損壞快取 */ }
-        const payload = { optimalResults, exitResults, timestamp: analysisTs ?? Date.now(), window: WINDOW_DAYS, rawCache };
+        if (Object.keys(rawCache).length === 0) { alert('目前尚無任何原始資料快取可匯出'); return; }
+        const payload = { rawCache, exportedAt: Date.now() };
         const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `dsslab_analysis_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `dsslab_rawcache_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
 
-    /** 匯入進場+出場打包 JSON，兩邊結果與原始資料快取一起還原 */
+    /** 匯入全域原始資料快取，依 key 合併（匯入項目覆蓋同 key，其餘既有快取保留），避免整包覆蓋清空其他標的的快取 */
     const handleImportAnalysis = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -1111,22 +1116,13 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
         reader.onload = (ev) => {
             try {
                 const parsed = JSON.parse(ev.target?.result as string);
-                const hasOpt = Array.isArray(parsed.optimalResults);
-                const hasExt = Array.isArray(parsed.exitResults);
-                if (!hasOpt && !hasExt) throw new Error('invalid');
-                const ts = parsed.timestamp ?? Date.now();
-                if (hasOpt) {
-                    localStorage.setItem(OPTIMAL_CACHE_KEY, JSON.stringify({ results: parsed.optimalResults, timestamp: ts, window: parsed.window }));
-                    setOptimalResults(parsed.optimalResults);
-                }
-                if (hasExt) {
-                    localStorage.setItem(EXIT_CACHE_KEY, JSON.stringify({ results: parsed.exitResults, timestamp: ts, window: parsed.window }));
-                    setExitResults(parsed.exitResults);
-                }
-                if (parsed.rawCache) {
-                    try { localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(parsed.rawCache)); } catch { /* 空間不足則跳過原始資料 */ }
-                }
-                setAnalysisTs(ts);
+                const incoming = parsed.rawCache && typeof parsed.rawCache === 'object' ? parsed.rawCache : parsed;
+                if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('invalid');
+                let existing: Record<string, RawCacheEntry> = {};
+                try { existing = JSON.parse(localStorage.getItem(RAW_CACHE_KEY) || '{}'); } catch { /* 忽略損壞快取 */ }
+                const merged = { ...existing, ...incoming };
+                localStorage.setItem(RAW_CACHE_KEY, JSON.stringify(merged));
+                alert(`已匯入 ${Object.keys(incoming).length} 筆原始資料快取`);
             } catch {
                 alert('匯入失敗：檔案格式不正確');
             }
@@ -1235,7 +1231,53 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                 </div>
             </div>
 
-            {allCompleted.length === 0 ? (
+            {/* Section Tabs - 常駐，不受完整交易紀錄多寡影響，DSS 回測分析不需配對交易也能使用 */}
+            <div className="flex gap-2 border-b border-slate-800">
+                {([
+                    { key: 'winrate', label: '標的勝率排行', icon: Trophy },
+                    { key: 'entry', label: '進場條件分析', icon: BarChart2 },
+                    { key: 'optimal', label: '±N日最佳進場分析', icon: Zap },
+                    { key: 'exit', label: '出場分析', icon: Target },
+                    { key: 'backtest', label: 'DSS 回測分析', icon: History },
+                ] as const).map(({ key, label, icon: Icon }) => (
+                    <button key={key} onClick={() => setActiveSection(key)}
+                        className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeSection === key ? 'bg-slate-800/50 text-violet-400 border-b-2 border-violet-400' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <Icon size={16} /> {label}
+                    </button>
+                ))}
+            </div>
+
+            {/* 全域數據工具列：分析 + 儲存為設定檔 + 匯出/匯入全域數據，常駐於上方，供進場/出場/DSS回測分析三處共用 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
+                <span className="text-sm text-slate-400">視窗範圍：±{WINDOW_DAYS} 日（進場+出場一起分析）</span>
+                <button onClick={handleRunAnalysis} disabled={analysisRunning}
+                    className="px-4 py-1.5 rounded-lg text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white border border-violet-500 disabled:opacity-50 flex items-center gap-2 transition-all">
+                    {analysisRunning ? <><Loader2 size={14} className="animate-spin" />分析中…</> : '開始分析'}
+                </button>
+                {analysisProgress && <span className="text-xs text-slate-400">{analysisProgress.done}/{analysisProgress.total} 標的</span>}
+                {analysisTs && !analysisRunning && <span className="text-xs text-slate-500">上次分析：{new Date(analysisTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
+                <div className="ml-auto flex items-center gap-2">
+                    {savedProfileMsg && <span className="text-xs text-emerald-400">{savedProfileMsg}</span>}
+                    {(optimalResults?.length || exitResults?.length) ? (
+                        <button onClick={handleSaveOptimalProfile}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">
+                            <Save size={12} />儲存為設定檔
+                        </button>
+                    ) : null}
+                    <button onClick={handleExportAnalysis}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors">
+                        <Download size={12} />匯出全域數據
+                    </button>
+                    <label className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors cursor-pointer">
+                        <Upload size={12} />匯入全域數據
+                        <input type="file" accept="application/json" className="hidden" onChange={handleImportAnalysis} />
+                    </label>
+                </div>
+            </div>
+
+            {activeSection === 'backtest' ? (
+                <BacktestView allTransactions={stockTransactions} filteredTransactions={stockTransactions} />
+            ) : allCompleted.length === 0 ? (
                 <div className="text-center py-20 text-slate-500">
                     <FlaskConical size={40} className="mx-auto mb-3 opacity-30" />
                     <p>尚無完整交易紀錄（需有買入對應的賣出資料）</p>
@@ -1264,53 +1306,6 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                             <StatCard label="平均報酬率" value={`${summary.avgReturn >= 0 ? '+' : ''}${summary.avgReturn.toFixed(2)}%`}
                                 color={summary.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400'} />
                             <StatCard label="平均持倉天數" value={`${summary.avgHolding.toFixed(1)} 天`} color="text-slate-200" />
-                        </div>
-                    )}
-
-                    {/* Section Tabs */}
-                    <div className="flex gap-2 border-b border-slate-800">
-                        {([
-                            { key: 'winrate', label: '標的勝率排行', icon: Trophy },
-                            { key: 'entry', label: '進場條件分析', icon: BarChart2 },
-                            { key: 'optimal', label: '±N日最佳進場分析', icon: Zap },
-                            { key: 'exit', label: '出場分析', icon: Target },
-                        ] as const).map(({ key, label, icon: Icon }) => (
-                            <button key={key} onClick={() => setActiveSection(key)}
-                                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeSection === key ? 'bg-slate-800/50 text-violet-400 border-b-2 border-violet-400' : 'text-slate-500 hover:text-slate-300'}`}>
-                                <Icon size={16} /> {label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* 統一分析工具列：進場+出場一起跑、一起匯出/匯入，避免各分頁分開操作 */}
-                    {(activeSection === 'optimal' || activeSection === 'exit') && (
-                        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
-                            <span className="text-sm text-slate-400">視窗範圍：±{WINDOW_DAYS} 日（進場+出場一起分析）</span>
-                            <button onClick={handleRunAnalysis} disabled={analysisRunning}
-                                className="px-4 py-1.5 rounded-lg text-sm font-bold bg-violet-600 hover:bg-violet-500 text-white border border-violet-500 disabled:opacity-50 flex items-center gap-2 transition-all">
-                                {analysisRunning ? <><Loader2 size={14} className="animate-spin" />分析中…</> : '開始分析'}
-                            </button>
-                            {analysisProgress && <span className="text-xs text-slate-400">{analysisProgress.done}/{analysisProgress.total} 標的</span>}
-                            {analysisTs && !analysisRunning && <span className="text-xs text-slate-500">上次分析：{new Date(analysisTs).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>}
-                            <div className="ml-auto flex items-center gap-2">
-                                {savedProfileMsg && <span className="text-xs text-emerald-400">{savedProfileMsg}</span>}
-                                {(optimalResults?.length || exitResults?.length) ? (
-                                    <button onClick={handleSaveOptimalProfile}
-                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">
-                                        <Save size={12} />儲存為設定檔
-                                    </button>
-                                ) : null}
-                                {(optimalResults?.length || exitResults?.length) ? (
-                                    <button onClick={handleExportAnalysis}
-                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors">
-                                        <Download size={12} />匯出快取
-                                    </button>
-                                ) : null}
-                                <label className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg transition-colors cursor-pointer">
-                                    <Upload size={12} />匯入快取
-                                    <input type="file" accept="application/json" className="hidden" onChange={handleImportAnalysis} />
-                                </label>
-                            </div>
                         </div>
                     )}
 

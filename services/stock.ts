@@ -1381,6 +1381,7 @@ export const runBacktest = async (
     // DSS 實驗室的原始資料快取（kline/籌碼/融資），日期範圍若涵蓋本次所需區間可直接重用，不必重打 FinMind
     let dsslabRawCache: Record<string, { kline: { date: string; close: number }[]; inst: { date: string; foreign: number; trust: number }[]; margin: { date: string; balance: number }[] }> = {};
     try { dsslabRawCache = JSON.parse(localStorage.getItem('ft_dsslab_raw_cache') || '{}'); } catch { /* 忽略損壞快取 */ }
+    let rawCacheDirty = false;
 
     for (const [symbol, symbolTrades] of bySymbol.entries()) {
         const sortedDates = symbolTrades.map(t => t.date).sort();
@@ -1421,6 +1422,11 @@ export const runBacktest = async (
                 fetchHistoricalInstForBacktest(symbol, klineStart, maxDate),
                 fetchHistoricalMarginForBacktest(symbol, klineStart, maxDate),
             ]);
+            // 寫回共用原始資料快取，避免下次重新分析/回測時對同一標的重複打 FinMind
+            if (klineRows?.length) {
+                dsslabRawCache[`${symbol}|${klineStart}|${maxDate}|10`] = { kline: klineRows, inst: instRows ?? [], margin: marginRows ?? [] };
+                rawCacheDirty = true;
+            }
         }
 
         for (const trade of symbolTrades) {
@@ -1464,6 +1470,10 @@ export const runBacktest = async (
 
         doneSymbols++;
         onProgress?.(doneSymbols, totalSymbols, symbol);
+    }
+
+    if (rawCacheDirty) {
+        try { localStorage.setItem('ft_dsslab_raw_cache', JSON.stringify(dsslabRawCache)); } catch { /* 空間不足則不快取 */ }
     }
 
     return results.sort((a, b) => b.date.localeCompare(a.date));
