@@ -5,6 +5,7 @@ import { WatchlistGroup, MarketRegime } from '../types';
 import * as storage from '../services/storage';
 import { getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { fetchTechnicalData, fetchMarketRegime, loadStockInfoMap, fetchTWSEBatch } from '../services/stock';
+import { TECH_SIGNAL_BADGE_CLASS, brewingBadgeClass, conditionChipClass, chipHintBadgeClass, THRESHOLD_BUY_HIT_BG, THRESHOLD_SELL_HIT_BG, THRESHOLD_BUY_HIT_TEXT, THRESHOLD_SELL_HIT_TEXT, CONSEC_BUY_BG, CONSEC_SELL_BG, CONSEC_BUY_TEXT, CONSEC_SELL_TEXT } from '../services/signalColors';
 import { Button } from '../components/ui';
 import twStocks from '../src/data/tw_stocks.json';
 
@@ -397,31 +398,31 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
         let biasHighlightClass = '';
         let biasSubtext = null;
         if (stopLossThreshold !== -999 && bias20 !== null && bias20 <= stopLossThreshold) {
-            biasHighlightClass = 'bg-rose-900/30';
-            biasSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">達停損門檻 <span className="scale-90 inline-block">(&lt;={stopLossThreshold}%)</span></div>;
+            biasHighlightClass = THRESHOLD_SELL_HIT_BG;
+            biasSubtext = <div className={`text-[10px] ${THRESHOLD_SELL_HIT_TEXT} mt-0.5 leading-tight`}>達停損門檻 <span className="scale-90 inline-block">(&lt;={stopLossThreshold}%)</span></div>;
         } else if (bias20 !== null && bias20 <= buyBiasThreshold) {
-            biasHighlightClass = 'bg-emerald-900/30';
-            biasSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
+            biasHighlightClass = THRESHOLD_BUY_HIT_BG;
+            biasSubtext = <div className={`text-[10px] ${THRESHOLD_BUY_HIT_TEXT} mt-0.5 leading-tight`}>達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
         } else if (bias20 !== null && bias20 >= partialSellThreshold) {
-            biasHighlightClass = 'bg-rose-900/30';
-            biasSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
+            biasHighlightClass = THRESHOLD_SELL_HIT_BG;
+            biasSubtext = <div className={`text-[10px] ${THRESHOLD_SELL_HIT_TEXT} mt-0.5 leading-tight`}>過熱勿追 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
         }
 
         let slopeHighlightClass = '';
         let slopeSubtext = null;
         if (consecutivePositiveSlopes >= slopeDaysThreshold) {
-            slopeHighlightClass = 'bg-emerald-900/30';
-            slopeSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(連{slopeDaysThreshold}增)</span></div>;
+            slopeHighlightClass = THRESHOLD_BUY_HIT_BG;
+            slopeSubtext = <div className={`text-[10px] ${THRESHOLD_BUY_HIT_TEXT} mt-0.5 leading-tight`}>達買進門檻 <span className="scale-90 inline-block">(連{slopeDaysThreshold}增)</span></div>;
         } else if (consecutiveNegativeSlopes >= partialSellSlopeDaysThreshold) {
-            slopeHighlightClass = 'bg-rose-900/30';
-            slopeSubtext = <div className="text-[10px] text-rose-400/80 mt-0.5 leading-tight">過熱勿追 <span className="scale-90 inline-block">(連{partialSellSlopeDaysThreshold}跌)</span></div>;
+            slopeHighlightClass = THRESHOLD_SELL_HIT_BG;
+            slopeSubtext = <div className={`text-[10px] ${THRESHOLD_SELL_HIT_TEXT} mt-0.5 leading-tight`}>過熱勿追 <span className="scale-90 inline-block">(連{partialSellSlopeDaysThreshold}跌)</span></div>;
         }
 
         let rsiHighlightClass = '';
         let rsiSubtext = null;
         if (data.rsi !== undefined && data.rsi !== null && data.rsi <= rsiThreshold) {
-            rsiHighlightClass = 'bg-emerald-900/30';
-            rsiSubtext = <div className="text-[10px] text-emerald-400/80 mt-0.5 leading-tight">達買進門檻 <span className="scale-90 inline-block">(&lt;={rsiThreshold})</span></div>;
+            rsiHighlightClass = THRESHOLD_BUY_HIT_BG;
+            rsiSubtext = <div className={`text-[10px] ${THRESHOLD_BUY_HIT_TEXT} mt-0.5 leading-tight`}>達買進門檻 <span className="scale-90 inline-block">(&lt;={rsiThreshold})</span></div>;
         }
 
         const targetBuyPrice = data.ma20 ? (data.ma20 * (1 + buyBiasThreshold / 100)).toFixed(2) : '-';
@@ -430,13 +431,10 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
 
         const renderConditionChips = (hint: typeof data.signalHint) => {
             if (!hint?.conditions?.length) return null;
-            const isBuy = hint.type === 'BUY';
-            const activeBg = isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-            const inactiveBg = 'bg-slate-500/20 text-slate-500 opacity-60 border-slate-500/30';
             return (
                 <div className="flex items-center justify-center gap-1 flex-wrap mt-1 max-w-[180px]">
                     {hint.conditions.map((c: any, i: number) => (
-                        <span key={i} className={`text-xs px-1.5 py-0.5 rounded border ${c.satisfied ? activeBg : inactiveBg}`}>
+                        <span key={i} className={`text-xs px-1.5 py-0.5 rounded border ${conditionChipClass(hint.type, c.satisfied)}`}>
                             {c.label}
                         </span>
                     ))}
@@ -457,29 +455,26 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                 if (!data.signalHint) return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
                 const hint = data.signalHint;
                 const target = hint.target;
-                const badgeStyle = hint.type === 'BUY'
-                    ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
-                    : 'bg-amber-500/10 text-amber-400/80 border-amber-500/20';
                 return (
                     <div className="flex flex-col items-center gap-1">
-                        {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
+                        {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${brewingBadgeClass(hint.type)}`}>{target}</span>}
                         {renderConditionChips(hint)}
                     </div>
                 );
             }
             switch (signal) {
-                case 'STRONG_BUY': return withChips(<span className="bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-1 rounded text-xs font-bold">🚀 強力進場 (&lt;={targetBuyPrice})</span>);
-                case 'BUY': return withChips(<span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">🟢 進場訊號 (&lt;={targetBuyPrice})</span>);
-                case 'STRONG_LAYOUT': return withChips(<span className="bg-emerald-600/40 text-emerald-300 border border-emerald-400/60 px-2 py-1 rounded text-xs font-bold">🚀 強力布局（籌碼共振）</span>);
-                case 'FINAL_ADD': return withChips(<span className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-1 rounded text-xs font-bold">🔵🔵 最後進場</span>);
-                case 'PARTIAL_SELL': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 高位過熱 (勿追 &gt;={targetSellPrice})</span>);
-                case 'FORCE_SELL': return withChips(<span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">🔴 嚴重過熱 (切勿追高)</span>);
-                case 'SECOND_PARTIAL_SELL': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 極度過熱 (嚴禁進場)</span>);
-                case 'WATCH_DIVERGE': return withChips(<span className="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-1 rounded text-xs font-bold">🟠 籌碼疑慮 (暫緩進場)</span>);
-                case 'SELL': return withChips(<span className="bg-red-600/30 text-red-400 border border-red-500/50 px-2 py-1 rounded text-xs font-bold">⛔ 法人棄守 (避免進場)</span>);
-                case 'STOP_LOSS': return withChips(<span className="bg-rose-700/30 text-rose-400 border border-rose-500/50 px-2 py-1 rounded text-xs font-bold">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
-                case 'STOP_LOSS_ALERT': return withChips(<span className="bg-rose-700 text-white border border-rose-500 px-2 py-1 rounded text-xs font-bold shadow-lg shadow-rose-900/50">⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
-                case 'RISK_ALERT': return withChips(<span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs font-bold">🟡 留意支撐</span>);
+                case 'STRONG_BUY': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STRONG_BUY} px-2 py-1 rounded text-xs font-bold`}>🚀 強力進場 (&lt;={targetBuyPrice})</span>);
+                case 'BUY': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.BUY} px-2 py-1 rounded text-xs font-bold`}>🔴 進場訊號 (&lt;={targetBuyPrice})</span>);
+                case 'STRONG_LAYOUT': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STRONG_LAYOUT} px-2 py-1 rounded text-xs font-bold`}>🚀 強力布局（籌碼共振）</span>);
+                case 'FINAL_ADD': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.FINAL_ADD} px-2 py-1 rounded text-xs font-bold`}>🔵🔵 最後進場</span>);
+                case 'PARTIAL_SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.PARTIAL_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 高位過熱 (勿追 &gt;={targetSellPrice})</span>);
+                case 'FORCE_SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.FORCE_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 嚴重過熱 (切勿追高)</span>);
+                case 'SECOND_PARTIAL_SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.SECOND_PARTIAL_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 極度過熱 (嚴禁進場)</span>);
+                case 'WATCH_DIVERGE': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.WATCH_DIVERGE} px-2 py-1 rounded text-xs font-bold`}>🟢 籌碼疑慮 (暫緩進場)</span>);
+                case 'SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.SELL} px-2 py-1 rounded text-xs font-bold`}>⛔ 法人棄守 (避免進場)</span>);
+                case 'STOP_LOSS': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STOP_LOSS} px-2 py-1 rounded text-xs font-bold`}>⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
+                case 'STOP_LOSS_ALERT': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STOP_LOSS_ALERT} px-2 py-1 rounded text-xs font-bold`}>⚠️ 深度超跌 (&lt;={targetStopPrice})</span>);
+                case 'RISK_ALERT': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.PARTIAL_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 留意支撐</span>);
                 case 'NONE': return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
                 default: return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
             }
@@ -489,15 +484,9 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
             if (!data.chipHint) return <span className="text-slate-500 text-xs">-</span>;
             const hint = data.chipHint;
             const target = hint.target;
-            const badgeStyle = target.includes('偏多') ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
-                : target.includes('觀察') ? 'bg-sky-500/10 text-sky-400/80 border-sky-500/20'
-                : target.includes('棄守') ? 'bg-red-500/10 text-red-400/80 border-red-500/20'
-                : target.includes('疑慮') ? 'bg-orange-500/10 text-orange-400/80 border-orange-500/20'
-                : target.includes('偏弱') ? 'bg-amber-500/10 text-amber-400/80 border-amber-500/20'
-                : 'bg-slate-500/10 text-slate-400/80 border-slate-500/20';
             return (
                 <div className="flex flex-col items-center gap-1">
-                    {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeStyle}`}>{target}</span>}
+                    {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${chipHintBadgeClass(target)}`}>{target}</span>}
                     {renderConditionChips(hint)}
                 </div>
             );
@@ -505,15 +494,6 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
 
         const techBadge = renderTechBadge(data.techSignal || '');
         const chipBadge = renderChipBadge(data.techSignal || '');
-
-        const sig = data.techSignal || '';
-        const techTdBg = sig === 'STOP_LOSS_ALERT' ? 'bg-rose-500/10'
-            : sig === 'FORCE_SELL' ? 'bg-red-500/10'
-            : sig === 'PARTIAL_SELL' || sig === 'SECOND_PARTIAL_SELL' ? 'bg-amber-500/10'
-            : sig === 'RISK_ALERT' ? 'bg-orange-500/10'
-            : sig === 'STRONG_BUY' || sig === 'BUY' ? 'bg-emerald-500/10'
-            : sig === 'STRONG_LAYOUT' ? 'bg-sky-500/10'
-            : '';
 
         const currentSlope = data.biasSlopes && data.biasSlopes[0] !== undefined ? data.biasSlopes[0] : null;
         const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
@@ -562,35 +542,35 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     {data.rsi?.toFixed(1) || '-'}
                     {rsiSubtext}
                 </td>
-                <td className={`p-3 text-right font-mono transition-colors ${data.foreignConsecBuy >= 3 ? 'bg-emerald-900/30' : data.foreignConsecSell >= 3 ? 'bg-rose-900/30' : ''}`}>
+                <td className={`p-3 text-right font-mono transition-colors ${data.foreignConsecBuy >= 3 ? CONSEC_BUY_BG : data.foreignConsecSell >= 3 ? CONSEC_SELL_BG : ''}`}>
                     {data.institutionalForeign !== undefined && data.institutionalForeign !== null ? (
                         <div>
                             <span className={data.institutionalForeign > 0 ? 'text-red-400' : (data.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
                                 {data.institutionalForeign > 0 ? '+' : ''}{data.institutionalForeign.toLocaleString()}
                             </span>
                             {data.foreignConsecBuy > 0 ? (
-                                <div className={`text-[10px] mt-0.5 ${data.foreignConsecBuy >= 3 ? 'text-emerald-400' : 'text-emerald-400/50'}`}>連買{data.foreignConsecBuy}日</div>
+                                <div className={`text-[10px] mt-0.5 ${CONSEC_BUY_TEXT(data.foreignConsecBuy >= 3)}`}>連買{data.foreignConsecBuy}日</div>
                             ) : data.foreignConsecSell > 0 ? (
-                                <div className={`text-[10px] mt-0.5 ${data.foreignConsecSell >= 3 ? 'text-red-400' : 'text-red-400/50'}`}>連賣{data.foreignConsecSell}日</div>
+                                <div className={`text-[10px] mt-0.5 ${CONSEC_SELL_TEXT(data.foreignConsecSell >= 3)}`}>連賣{data.foreignConsecSell}日</div>
                             ) : null}
                         </div>
                     ) : '-'}
                 </td>
-                <td className={`p-3 text-right font-mono transition-colors ${data.trustConsecBuy >= 3 ? 'bg-emerald-900/30' : data.trustConsecSell >= 3 ? 'bg-rose-900/30' : ''}`}>
+                <td className={`p-3 text-right font-mono transition-colors ${data.trustConsecBuy >= 3 ? CONSEC_BUY_BG : data.trustConsecSell >= 3 ? CONSEC_SELL_BG : ''}`}>
                     {data.institutionalTrust !== undefined && data.institutionalTrust !== null ? (
                         <div>
                             <span className={data.institutionalTrust > 0 ? 'text-red-400' : (data.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
                                 {data.institutionalTrust > 0 ? '+' : ''}{data.institutionalTrust.toLocaleString()}
                             </span>
                             {data.trustConsecBuy > 0 ? (
-                                <div className={`text-[10px] mt-0.5 ${data.trustConsecBuy >= 3 ? 'text-emerald-400' : 'text-emerald-400/50'}`}>連買{data.trustConsecBuy}日</div>
+                                <div className={`text-[10px] mt-0.5 ${CONSEC_BUY_TEXT(data.trustConsecBuy >= 3)}`}>連買{data.trustConsecBuy}日</div>
                             ) : data.trustConsecSell > 0 ? (
-                                <div className={`text-[10px] mt-0.5 ${data.trustConsecSell >= 3 ? 'text-red-400' : 'text-red-400/50'}`}>連賣{data.trustConsecSell}日</div>
+                                <div className={`text-[10px] mt-0.5 ${CONSEC_SELL_TEXT(data.trustConsecSell >= 3)}`}>連賣{data.trustConsecSell}日</div>
                             ) : null}
                         </div>
                     ) : '-'}
                 </td>
-                <td className={`p-3 text-right font-mono transition-colors ${data.marginChangeRatio !== null && data.marginChangeRatio !== undefined && data.marginChangeRatio >= 2 ? 'bg-rose-900/30' : data.marginChange !== null && data.marginChange !== undefined && data.marginChange < 0 ? 'bg-emerald-900/30' : ''}`}>
+                <td className={`p-3 text-right font-mono transition-colors ${data.marginChangeRatio !== null && data.marginChangeRatio !== undefined && data.marginChangeRatio >= 2 ? CONSEC_BUY_BG : data.marginChange !== null && data.marginChange !== undefined && data.marginChange < 0 ? CONSEC_SELL_BG : ''}`}>
                     {data.marginChange !== undefined && data.marginChange !== null ? (
                         <div>
                             <span className={data.marginChange > 0 ? 'text-red-400' : (data.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
@@ -606,7 +586,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({ isActiveView = true }) => 
                     ) : '-'}
                 </td>
 
-                <td className={`p-3 text-center ${techTdBg}`}>{techBadge}</td>
+                <td className="p-3 text-center">{techBadge}</td>
                 <td className="p-3 text-center">{chipBadge}</td>
                 <td className="p-3 text-center">
                     <button onClick={() => handleDeleteSymbol(symbol)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">

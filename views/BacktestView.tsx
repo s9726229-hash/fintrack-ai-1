@@ -3,6 +3,7 @@ import { PlayCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp
 import { StockTransaction, BacktestResult } from '../types';
 import { runBacktest } from '../services/stock';
 import { getBacktestCache, saveBacktestCache, getTechParameters } from '../services/storage';
+import { TECH_SIGNAL_BADGE_CLASS, NEUTRAL_BADGE_CLASS } from '../services/signalColors';
 
 // 依 techSignal 還原「當天技術面判定條件」，呈現方式與籌碼條件一致（✓/✗ + 門檻）
 const buildTechConditions = (row: BacktestResult): { label: string; satisfied: boolean }[] | string => {
@@ -68,25 +69,14 @@ const SIGNAL_LABELS: Record<string, string> = {
     STOP_LOSS_ALERT: '停損預警', SELL: '法人棄守',
 };
 
-const getSignalStyle = (sig: string) => {
-    if (['STRONG_BUY', 'BUY'].includes(sig)) return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-    if (sig === 'STRONG_LAYOUT') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
-    if (sig === 'NONE') return 'bg-slate-700/50 text-slate-400 border-slate-600/30';
-    if (sig === 'RISK_ALERT') return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
-    if (sig === 'WATCH_DIVERGE') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-    if (sig === 'PARTIAL_SELL') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-    if (['SECOND_PARTIAL_SELL', 'FORCE_SELL'].includes(sig)) return 'bg-red-500/20 text-red-400 border-red-500/30';
-    if (sig === 'STOP_LOSS_ALERT') return 'bg-rose-600/20 text-rose-400 border-rose-600/30';
-    if (sig === 'SELL') return 'bg-red-700/20 text-red-400 border-red-700/30';
-    return 'bg-slate-700/50 text-slate-400 border-slate-600/30';
-};
+const getSignalStyle = (sig: string) => TECH_SIGNAL_BADGE_CLASS[sig as keyof typeof TECH_SIGNAL_BADGE_CLASS] ?? NEUTRAL_BADGE_CLASS;
 
 const getChipStyle = (target: string) => {
-    if (target.includes('法人棄守')) return 'text-red-400';
-    if (target.includes('籌碼疑慮')) return 'text-orange-400';
-    if (target.includes('籌碼偏多')) return 'text-emerald-400';
+    if (target.includes('法人棄守')) return 'text-emerald-400';
+    if (target.includes('籌碼疑慮')) return 'text-teal-400';
+    if (target.includes('籌碼偏多')) return 'text-red-400';
     if (target.includes('籌碼觀察')) return 'text-sky-400';
-    if (target.includes('籌碼偏弱')) return 'text-yellow-400';
+    if (target.includes('籌碼偏弱')) return 'text-teal-400';
     return 'text-slate-400';
 };
 
@@ -99,10 +89,10 @@ const AlignmentBadge = ({ alignment }: { alignment: 'MATCH' | 'DIVERGE' | 'PARTI
 const GapDisplay = ({ gap, type }: { gap: number | null; type: 'buy' | 'sell' }) => {
     if (gap === null) return <span className="text-slate-600 text-xs">-</span>;
     if (type === 'buy') {
-        if (gap <= 0) return <span className="text-emerald-400 text-xs font-mono">已入 {Math.abs(gap).toFixed(1)}%</span>;
+        if (gap <= 0) return <span className="text-red-400 text-xs font-mono">已入 {Math.abs(gap).toFixed(1)}%</span>;
         return <span className="text-orange-400 text-xs font-mono">差 +{gap.toFixed(1)}%</span>;
     } else {
-        if (gap >= 0) return <span className="text-red-400 text-xs font-mono">超出 +{gap.toFixed(1)}%</span>;
+        if (gap >= 0) return <span className="text-emerald-400 text-xs font-mono">超出 +{gap.toFixed(1)}%</span>;
         return <span className="text-slate-500 text-xs font-mono">差 {Math.abs(gap).toFixed(1)}%</span>;
     }
 };
@@ -365,7 +355,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                             <div className="text-slate-500 text-[11px]">{row.name}</div>
                                         </td>
                                         <td className="px-3 py-2.5">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-bold border ${row.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-bold border ${row.side === 'BUY' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
                                                 {row.side === 'BUY' ? '買進' : '賣出'}
                                             </span>
                                         </td>
@@ -390,7 +380,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                         </td>
                                         <td className="px-3 py-2.5">
                                             {row.error ? <span className="text-slate-600 text-xs">-</span> :
-                                                <span className={`font-mono text-xs ${row.rsi > 70 ? 'text-red-400' : row.rsi < 30 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                                <span className={`font-mono text-xs ${row.rsi > 70 ? 'text-emerald-400' : row.rsi < 30 ? 'text-red-400' : 'text-slate-300'}`}>
                                                     {row.rsi.toFixed(0)}
                                                 </span>
                                             }
@@ -400,7 +390,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                         <td className="px-3 py-2.5"><AlignmentBadge alignment={row.alignment}/></td>
                                         <td className="px-3 py-2.5">
                                             {row.side === 'SELL' && row.realizedProfit !== undefined && row.realizedProfit !== 0
-                                                ? <span className={`font-mono text-xs font-bold ${row.realizedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                ? <span className={`font-mono text-xs font-bold ${row.realizedProfit >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                                                     {row.realizedProfit >= 0 ? '+' : ''}{(row.realizedProfit / 1000).toFixed(1)}K
                                                   </span>
                                                 : <span className="text-slate-600 text-xs">-</span>

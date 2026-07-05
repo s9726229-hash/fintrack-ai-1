@@ -193,11 +193,11 @@ const CmpRow = ({ label, wVal, lVal, medVal, unit = '', inverse = false }: {
     return (
         <tr className="border-t border-slate-700/40">
             <td className="py-2.5 px-3 text-sm text-slate-300">{label}</td>
-            <td className="py-2.5 px-3 text-center font-mono text-sm text-emerald-400 font-bold">{wVal.toFixed(1)}{unit}</td>
-            <td className="py-2.5 px-3 text-center font-mono text-sm text-red-400 font-bold">{lVal.toFixed(1)}{unit}</td>
+            <td className="py-2.5 px-3 text-center font-mono text-sm text-red-400 font-bold">{wVal.toFixed(1)}{unit}</td>
+            <td className="py-2.5 px-3 text-center font-mono text-sm text-emerald-400 font-bold">{lVal.toFixed(1)}{unit}</td>
             <td className="py-2.5 px-3 text-center text-xs">
                 {winnerBetter
-                    ? <span className="text-emerald-400">Winner 較優 ↑</span>
+                    ? <span className="text-red-400">Winner 較優 ↑</span>
                     : <span className="text-amber-400">差距不明顯</span>}
             </td>
             <td className="py-2.5 px-3 text-right text-xs font-mono text-violet-300">
@@ -213,16 +213,16 @@ const CatPanel: React.FC<{ s: CatStats }> = ({ s }) => (
     <div className="space-y-3">
         <div className="flex items-center gap-4 text-xs text-slate-400">
             <span>已比對 <strong className="text-white">{s.matched}</strong> 筆</span>
-            <span className="text-emerald-400">✓ Winner {s.winners} 筆</span>
-            <span className="text-red-400">✗ Loser {s.losers} 筆</span>
+            <span className="text-red-400">✓ Winner {s.winners} 筆</span>
+            <span className="text-emerald-400">✗ Loser {s.losers} 筆</span>
             <span className="text-slate-500 ml-auto">建議門檻 = Winner 中位數</span>
         </div>
         <table className="w-full">
             <thead>
                 <tr className="text-xs text-slate-400">
                     <th className="py-1.5 px-3 text-left font-medium">指標</th>
-                    <th className="py-1.5 px-3 text-center font-medium text-emerald-400">Winner 均值</th>
-                    <th className="py-1.5 px-3 text-center font-medium text-red-400">Loser 均值</th>
+                    <th className="py-1.5 px-3 text-center font-medium text-red-400">Winner 均值</th>
+                    <th className="py-1.5 px-3 text-center font-medium text-emerald-400">Loser 均值</th>
                     <th className="py-1.5 px-3 text-center font-medium">差異</th>
                     <th className="py-1.5 px-3 text-right font-medium text-violet-300">建議門檻</th>
                 </tr>
@@ -478,7 +478,7 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                             <div className="bg-slate-900/60 rounded-xl p-3 text-center">
                                 <div className="text-xs text-slate-400 mb-1">平均可改善報酬</div>
-                                <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-red-400' : 'text-slate-300'}`}>
                                     {avgImprovement !== null ? `+${avgImprovement.toFixed(2)}%` : '-'}
                                 </div>
                                 <div className="text-[10px] text-slate-500">全部交易</div>
@@ -488,21 +488,21 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                                 <div className="text-lg font-bold text-amber-400">{couldImprove} / {results.length}</div>
                                 <div className="text-[10px] text-slate-500">改善 &gt; 0.5%</div>
                             </div>
-                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
-                                <div className="text-xs text-red-400 mb-1">虧損交易筆數</div>
-                                <div className="text-lg font-bold text-red-400">{losers.length}</div>
+                            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">虧損交易筆數</div>
+                                <div className="text-lg font-bold text-emerald-400">{losers.length}</div>
                                 <div className="text-[10px] text-slate-500">實際負報酬</div>
                             </div>
-                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
-                                <div className="text-xs text-red-400 mb-1">虧損平均可減少</div>
-                                <div className={`text-lg font-bold ${(avgLossReduction ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">虧損平均可減少</div>
+                                <div className={`text-lg font-bold ${(avgLossReduction ?? 0) > 0 ? 'text-red-400' : 'text-slate-400'}`}>
                                     {avgLossReduction !== null ? `+${avgLossReduction.toFixed(2)}%` : '-'}
                                 </div>
                                 <div className="text-[10px] text-slate-500">提早/延後進場</div>
                             </div>
-                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
-                                <div className="text-xs text-red-400 mb-1">可轉為獲利</div>
-                                <div className="text-lg font-bold text-emerald-400">{lossAvoided} 筆</div>
+                            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">可轉為獲利</div>
+                                <div className="text-lg font-bold text-red-400">{lossAvoided} 筆</div>
                                 <div className="text-[10px] text-slate-500">最佳日報酬 ≥ 0</div>
                             </div>
                         </div>
@@ -533,7 +533,7 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                                 </tr></thead>
                                 <tbody>
                                     {results.slice(0, 50).map((r, i) => (
-                                        <tr key={i} className={`border-t border-slate-700/30 transition-colors ${r.actualReturn < 0 ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-slate-700/10'}`}>
+                                        <tr key={i} className={`border-t border-slate-700/30 transition-colors ${r.actualReturn < 0 ? 'bg-emerald-950/20 hover:bg-emerald-950/30' : 'hover:bg-slate-700/10'}`}>
                                             <td className="py-2 px-3 text-sm">
                                                 <div className="font-medium text-white">{r.name ?? r.symbol}</div>
                                                 <div className="text-xs text-slate-500">{r.symbol}</div>
@@ -542,7 +542,7 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                                             <td className="py-2 px-3 text-center text-xs text-slate-400">{r.sellDate}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.actualBuyPrice}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm">
-                                                <span className={r.actualReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                <span className={r.actualReturn >= 0 ? 'text-red-400' : 'text-emerald-400'}>
                                                     {r.actualReturn >= 0 ? '+' : ''}{r.actualReturn.toFixed(2)}%
                                                 </span>
                                             </td>
@@ -557,7 +557,7 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                                             </td>
                                             <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.bestPrice}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm">
-                                                <span className={r.bestReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                <span className={r.bestReturn >= 0 ? 'text-red-400' : 'text-emerald-400'}>
                                                     {r.bestReturn >= 0 ? '+' : ''}{r.bestReturn.toFixed(2)}%
                                                 </span>
                                             </td>
@@ -746,7 +746,7 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                             <div className="bg-slate-900/60 rounded-xl p-3 text-center">
                                 <div className="text-xs text-slate-400 mb-1">平均可改善報酬</div>
-                                <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                <div className={`text-lg font-bold ${(avgImprovement ?? 0) > 0 ? 'text-red-400' : 'text-slate-300'}`}>
                                     {avgImprovement !== null ? `+${avgImprovement.toFixed(2)}%` : '-'}
                                 </div>
                                 <div className="text-[10px] text-slate-500">全部交易</div>
@@ -756,21 +756,21 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                 <div className="text-lg font-bold text-amber-400">{couldImprove} / {results.length}</div>
                                 <div className="text-[10px] text-slate-500">改善 &gt; 0.5%</div>
                             </div>
-                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
-                                <div className="text-xs text-red-400 mb-1">虧損交易筆數</div>
-                                <div className="text-lg font-bold text-red-400">{losers.length}</div>
+                            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">虧損交易筆數</div>
+                                <div className="text-lg font-bold text-emerald-400">{losers.length}</div>
                                 <div className="text-[10px] text-slate-500">實際負報酬</div>
                             </div>
-                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
-                                <div className="text-xs text-red-400 mb-1">虧損平均可減少</div>
-                                <div className={`text-lg font-bold ${(avgLossReduction ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">虧損平均可減少</div>
+                                <div className={`text-lg font-bold ${(avgLossReduction ?? 0) > 0 ? 'text-red-400' : 'text-slate-400'}`}>
                                     {avgLossReduction !== null ? `+${avgLossReduction.toFixed(2)}%` : '-'}
                                 </div>
                                 <div className="text-[10px] text-slate-500">提早/延後出場</div>
                             </div>
-                            <div className="bg-red-900/30 border border-red-800/40 rounded-xl p-3 text-center">
-                                <div className="text-xs text-red-400 mb-1">可轉為獲利</div>
-                                <div className="text-lg font-bold text-emerald-400">{lossAvoided} 筆</div>
+                            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-xl p-3 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">可轉為獲利</div>
+                                <div className="text-lg font-bold text-red-400">{lossAvoided} 筆</div>
                                 <div className="text-[10px] text-slate-500">最佳日報酬 ≥ 0</div>
                             </div>
                         </div>
@@ -801,7 +801,7 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                 </tr></thead>
                                 <tbody>
                                     {results.slice(0, 50).map((r, i) => (
-                                        <tr key={i} className={`border-t border-slate-700/30 transition-colors ${r.actualReturn < 0 ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-slate-700/10'}`}>
+                                        <tr key={i} className={`border-t border-slate-700/30 transition-colors ${r.actualReturn < 0 ? 'bg-emerald-950/20 hover:bg-emerald-950/30' : 'hover:bg-slate-700/10'}`}>
                                             <td className="py-2 px-3 text-sm">
                                                 <div className="font-medium text-white">{r.name ?? r.symbol}</div>
                                                 <div className="text-xs text-slate-500">{r.symbol}</div>
@@ -810,7 +810,7 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                             <td className="py-2 px-3 text-center text-xs text-slate-400">{r.sellDate}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.actualSellPrice}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm">
-                                                <span className={r.actualReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                <span className={r.actualReturn >= 0 ? 'text-red-400' : 'text-emerald-400'}>
                                                     {r.actualReturn >= 0 ? '+' : ''}{r.actualReturn.toFixed(2)}%
                                                 </span>
                                             </td>
@@ -825,7 +825,7 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                             </td>
                                             <td className="py-2 px-3 text-right font-mono text-sm text-slate-300">{r.bestPrice}</td>
                                             <td className="py-2 px-3 text-right font-mono text-sm">
-                                                <span className={r.bestReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                <span className={r.bestReturn >= 0 ? 'text-red-400' : 'text-emerald-400'}>
                                                     {r.bestReturn >= 0 ? '+' : ''}{r.bestReturn.toFixed(2)}%
                                                 </span>
                                             </td>
@@ -1300,11 +1300,11 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <StatCard label="整體勝率" value={`${summary.winRate.toFixed(1)}%`}
                                 sub={`${filteredTrades.filter(t => t.realizedProfit > 0).length} 勝 / ${filteredTrades.filter(t => t.realizedProfit <= 0).length} 敗`}
-                                color={summary.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'} />
+                                color={summary.winRate >= 50 ? 'text-red-400' : 'text-emerald-400'} />
                             <StatCard label="累計損益" value={`${summary.totalPnL >= 0 ? '+' : ''}${summary.totalPnL.toLocaleString()}`}
-                                color={summary.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                                color={summary.totalPnL >= 0 ? 'text-red-400' : 'text-emerald-400'} />
                             <StatCard label="平均報酬率" value={`${summary.avgReturn >= 0 ? '+' : ''}${summary.avgReturn.toFixed(2)}%`}
-                                color={summary.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400'} />
+                                color={summary.avgReturn >= 0 ? 'text-red-400' : 'text-emerald-400'} />
                             <StatCard label="平均持倉天數" value={`${summary.avgHolding.toFixed(1)} 天`} color="text-slate-200" />
                         </div>
                     )}
@@ -1359,19 +1359,19 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                                                     <span className="text-xs text-slate-500 ml-1">筆</span>
                                                 </td>
                                                 <td className="p-3 text-center">
-                                                    <div className={`font-bold text-sm ${s.winRate >= 60 ? 'text-emerald-400' : s.winRate >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                                                    <div className={`font-bold text-sm ${s.winRate >= 60 ? 'text-red-400' : s.winRate >= 40 ? 'text-amber-400' : 'text-emerald-400'}`}>
                                                         {s.winRate.toFixed(0)}%
                                                     </div>
                                                     <div className="text-[10px] text-slate-500">{s.wins}W / {s.losses}L</div>
                                                 </td>
                                                 <td className="p-3 text-right">
-                                                    <span className={`font-mono text-sm font-bold ${s.avgProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    <span className={`font-mono text-sm font-bold ${s.avgProfit >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                                                         {s.avgProfit >= 0 ? '+' : ''}{s.avgProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </span>
                                                     <div className="text-[10px] text-slate-500">{s.avgReturn >= 0 ? '+' : ''}{s.avgReturn.toFixed(2)}%</div>
                                                 </td>
                                                 <td className="p-3 text-right">
-                                                    <span className={`font-mono text-sm font-bold ${s.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    <span className={`font-mono text-sm font-bold ${s.totalPnL >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                                                         {s.totalPnL >= 0 ? '+' : ''}{s.totalPnL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </span>
                                                 </td>
@@ -1379,8 +1379,8 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                                                     {s.avgHoldingDays.toFixed(1)} 天
                                                 </td>
                                                 <td className="p-3 text-right text-xs">
-                                                    {s.maxProfit > 0 && <div className="text-emerald-400">+{s.maxProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>}
-                                                    {s.maxLoss < 0 && <div className="text-red-400">{s.maxLoss.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>}
+                                                    {s.maxProfit > 0 && <div className="text-red-400">+{s.maxProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>}
+                                                    {s.maxLoss < 0 && <div className="text-emerald-400">{s.maxLoss.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>}
                                                 </td>
                                             </tr>
                                             {expandedSymbol === s.symbol && (
@@ -1395,13 +1395,13 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                                                                     <span className="text-slate-500 w-20">{t.sellDate}</span>
                                                                     <span className="text-slate-400 w-10 text-right">{t.holdingDays}天</span>
                                                                     <span className="text-slate-400">買 {t.buyPrice} → 賣 {t.sellPrice}</span>
-                                                                    <span className={`ml-auto font-mono font-bold ${t.realizedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    <span className={`ml-auto font-mono font-bold ${t.realizedProfit >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                                                                         {t.realizedProfit >= 0 ? '+' : ''}{t.realizedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                                     </span>
-                                                                    <span className={`w-14 text-right ${t.returnPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    <span className={`w-14 text-right ${t.returnPct >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                                                                         {t.returnPct >= 0 ? '+' : ''}{t.returnPct.toFixed(2)}%
                                                                     </span>
-                                                                    <span className={`w-6 text-center ${t.realizedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    <span className={`w-6 text-center ${t.realizedProfit >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                                                                         {t.realizedProfit >= 0 ? '✓' : '✗'}
                                                                     </span>
                                                                 </div>
