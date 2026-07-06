@@ -70,18 +70,39 @@ const DSSLabParamGuide: React.FC = () => (
                     邏輯與 Step2 對稱但方向相反：固定買入價，在實際出場日前後 ±10 個交易日內找報酬最大化（等同<b className="text-slate-300">最高價</b>）的出場點，同樣計算 RSI/斜率/籌碼等指標。搜尋範圍限制<b className="text-slate-300">不早於實際買入日</b>，避免短持倉交易的進場/出場視窗互相打架。
                 </p>
                 <p className="text-xs text-slate-500 mt-2">與 Step2 共用同一份原始資料快取（symbol+日期範圍+視窗天數相同即可重用），已跑過 Step2 的話，出場分析幾乎零額外 FinMind 呼叫。畫面上「開始分析／匯出全域數據／匯入全域數據」已整合成單一工具列，常駐在 DSS 實驗室頁面最上方（不論切到哪個分頁都看得到），一次跑完進場+出場兩組結果；匯出/匯入則只針對原始資料快取本身，與分析結果無關（詳見下方「已知限制」）。</p>
+                <p className="text-xs text-slate-500 mt-1">
+                    （2026-07-07 更新）出場分析依這筆完整交易<b className="text-slate-300">最終是獲利還是虧損</b>分流成兩條路，不再混在一起找「最高價」：
+                    獲利交易找窗口內報酬最大化的一天（停利點）；虧損交易同樣找報酬最大化的一天，但意義是「損失最小的停損點」。
+                    同時窗口計算也從「日曆天」改成「交易日」（依 kline 陣列實際位置取 ±N 筆，而非用日期相減），避免最佳日剛好卡在週五、週末不開盤導致鄰近樣本抓不滿。
+                </p>
             </div>
 
             {/* Step 3 */}
             <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">3</span>
-                    <h4 className="font-bold text-slate-200">依分類取中位數（進場+出場皆有）</h4>
+                    <h4 className="font-bold text-slate-200">依分類取中位數（進場+出場皆有，一般買進 vs 強買門檻兩套平行邏輯）</h4>
                     <StepBadge status="done" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed">
                     把 Step2／出場分析每筆交易「最佳日」的各項指標，先套用<b className="text-slate-300">優質數據篩選</b>：依分類（ETF/上市/上櫃）分組後，依改善幅度排序，僅保留前 70%（排除改善幅度最低的 30%，這類樣本代表視窗內價格幾乎沒波動、最佳日跟實際日指標雷同，沒有學習價值），篩完才取中位數。畫面上會顯示篩選前後樣本數與門檻值，不是黑箱。
                 </p>
+                <p className="text-xs text-slate-500 mt-2">
+                    （2026-07-06 更新）中位數樣本改用兩套平行邏輯，服務不同嚴格程度的門檻：
+                    <b className="text-slate-300">一般買進門檻</b>找到最佳日後，再抓該日 ±2 個交易日的技術面/籌碼面指標一起納入樣本池取中位數，樣本從 1 筆擴大到最多 5 筆，避免單一天的極端值主導參數；
+                    <b className="text-slate-300">強買門檻</b>刻意維持只取單一最佳日（不含 ±2 日鄰近樣本），比一般買進更嚴格、更貼近真正的最佳時機。兩者互不影響，畫面上「±N日最佳進場分析」分頁會分開顯示兩組中位數卡片。
+                </p>
+                <p className="text-xs text-slate-500 mt-2">
+                    （2026-07-07 更新）出場端仿照進場的做法，依「Step2.5 的獲利/虧損分流」再各自拆成一般/嚴格兩層，總共形成 <b className="text-slate-300">6 組參數資料庫</b>：
+                </p>
+                <ul className="text-xs text-slate-500 list-disc list-inside space-y-0.5 ml-2">
+                    <li><b className="text-slate-300">BUY / STRONG BUY</b>：進場端，如上所述。</li>
+                    <li><b className="text-slate-300">SELL（停利）</b>：僅取最終獲利交易，±2 日樣本池中位數。</li>
+                    <li><b className="text-slate-300">FORCE SELL（強制停利）</b>：僅取最終獲利交易，單一最佳出場日中位數（不含 ±2 樣本），比 SELL 更嚴格。</li>
+                    <li><b className="text-slate-300">STOP LOSS（停損）</b>：僅取最終虧損交易，找窗口內「損失最小」的停損點，±2 日樣本池中位數。</li>
+                    <li><b className="text-slate-300">FORCE STOP LOSS（強制停損／最危險狀態）</b>：僅取最終虧損交易，找窗口內「損失最大」的一天（跟 STOP LOSS 方向相反），單一日中位數，用來刻畫最危險狀態的指標特徵。</li>
+                </ul>
+                <p className="text-xs text-slate-500 mt-2">「±N日最佳進場分析」分頁顯示 BUY/STRONG BUY 兩組卡片；「出場分析」分頁依序顯示 SELL/FORCE SELL 卡片與 STOP LOSS/FORCE STOP LOSS 卡片（各自的優質數據篩選門檻與樣本數獨立計算，因為獲利/虧損是兩個互斥的母體）。</p>
             </div>
 
             {/* Step 4 */}
@@ -95,6 +116,10 @@ const DSSLabParamGuide: React.FC = () => (
                     把 Step3 算出來的「最佳進場日／出場日」中位數，擴充進 DSS 設定檔（DSSProfile）結構一起存起來，存檔後可在系統設定頁一鍵套用回技術面參數。刻意不動原本既有的「進場條件分析」（Winner/Loser）機制，改在工具列新增一顆並列的「儲存為設定檔」按鈕，兩套機制平行存在。
                 </p>
                 <p className="text-xs text-slate-500 mt-2">已完成（2026-07-04）。乖離/RSI/斜率會自動套用；外資/投信/融資與出場 RSI/斜率因為技術面參數目前沒有對應欄位（籌碼門檻是全域值、非分類；也沒有 xxxPartialSellRsi 欄位），僅顯示為參考數值、不自動套用。數值皆四捨五入至小數點後 2 位再存檔。</p>
+                <p className="text-xs text-slate-500 mt-1">（2026-07-06 更新）新增<b className="text-slate-300">強買門檻</b>自動套用：設定檔多存一組 strongBias20/strongRsi/strongSlopeUpDays（取自 Step3 的單一最佳日中位數），套用時會分別寫入 xxxStrongBuyBias/xxxStrongBuyRsi/xxxStrongBuySlopeDays，與一般買進門檻的欄位互不覆蓋。</p>
+                <p className="text-xs text-slate-500 mt-1">
+                    （2026-07-07 更新）出場端新增 <b className="text-slate-300">FORCE SELL</b>（exitForceBias20，套用至 xxxForceSellBias／ETF 是 etfSecondPartialSellBias）與 <b className="text-slate-300">STOP LOSS</b>（stopLossBias20，套用至 xxxStopLossBias）兩組自動套用欄位；<b className="text-slate-300">ETF 因無停損機制（視為長線持有），STOP LOSS 不套用</b>。<b className="text-slate-300">FORCE STOP LOSS</b>（forceStopLossBias20，最危險狀態特徵）目前技術面參數沒有對應欄位，僅顯示為參考數值、不自動套用。
+                </p>
             </div>
 
             {/* Step 5 */}
@@ -102,21 +127,20 @@ const DSSLabParamGuide: React.FC = () => (
                 <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">5</span>
                     <h4 className="font-bold text-slate-200">套用新參數 → 驗證命中率（Match Rate）與燈號分布</h4>
-                    <StepBadge status="partial" />
+                    <StepBadge status="done" />
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed mb-2">
-                    把 Step4 存好的設定檔套用回技術面參數後，用新參數重跑一次 DSS 回測分析，用兩個指標驗證「換參數是不是真的變好」，而不是存了就當作結束：
+                    把 Step4 存好的設定檔套用回技術面參數後，用新參數重跑一次 DSS 回測分析，用幾個指標驗證「換參數是不是真的變好」，而不是存了就當作結束：
                 </p>
                 <ul className="text-sm text-slate-400 list-disc list-inside space-y-0.5">
                     <li><b className="text-slate-300">命中率（Match Rate）</b>：重用 DSS 回測分析既有的 MATCH / DIVERGE / PARTIAL 吻合度判斷，比較套用新參數前後，歷史交易的吻合度有沒有實際提升。</li>
+                    <li><b className="text-slate-300">虛擬（最佳進出場）命中率比較</b>：把 Step2/3 找到的最佳進場日/出場日當模擬交易，重算訊號吻合度，跟實際交易的命中率並排顯示在同一張卡片裡（BUY/SELL 吻合率卡片下方一行小字）。兩邊樣本母體不同（虛擬命中率是完整交易 FIFO 配對後的樣本，實際命中率是全部訊號驅動交易），只能看趨勢不能直接相減，但可以看出「如果進出場時機抓得更準，理論上命中率能到多高」，藉此排除額度不足/定期定額/加碼誤判等雜訊干擾，判斷新參數本身是否合理。</li>
+                    <li><b className="text-slate-300">買進背離 × 已實現損益交叉檢視</b>：DSS 回測分析的 BUY 列展開詳情，新增「配對已實現損益」——用交易 id 直接串到「標的勝率排行」FIFO 配對後的已實現損益，若「訊號背離」但配對到的賣出其實有賺錢，會特別標註「雖背離但實際獲利」，代表這筆背離不一定是參數的問題。</li>
+                    <li><b className="text-slate-300">賣出 × ±10日最佳賣點</b>：SELL 列展開詳情新增「±10日最佳賣點」，顯示同一筆交易若在 ±10 天內的最佳時機出場，報酬率會是多少，跟實際報酬並排比較，用來評估要不要調整停利門檻。</li>
                     <li><b className="text-slate-300">燈號分布</b>：統計新參數下，各檔標的落在 STRONG_BUY／BUY／WATCH_DIVERGE／SELL 等各訊號燈號的筆數分布，避免出現「新參數太寬鬆變成全部強買」或「太嚴苛完全不觸發」這種失真結果，當作換參數前的健檢。</li>
                 </ul>
                 <p className="text-xs text-slate-500 mt-2">
-                    進行中，尚未有乾淨的結論。目前卡住的不是參數本身，而是三個交疊的干擾因素：
-                    (1) FinMind 額度常在批次回測中途用盡，導致大量標的顯示「K線資料無法取得」，樣本不完整；
-                    (2) 早期發現 BUY 背離裡有 60% 其實是「加碼」被誤判成進場失敗（已藉由簡化 V5.0 訊號層級處理，但沒有改變回測本身的吻合率數字，因為回測引擎本來就沒有加碼訊號可比對）；
-                    (3) 定期定額交易會稀釋吻合率統計，已新增排除機制。
-                    下一步規劃：用 DSS 實驗室的最佳進場/出場點模擬「虛擬交易」，跑出虛擬命中率跟實際命中率並排比較，並檢視「買進背離但賣出仍獲利」的案例，才能判斷新參數是否真的有效。
+                    已知會影響吻合率、但非參數本身問題的干擾因素：(1) FinMind 額度常在批次回測中途用盡，導致部分標的顯示「K線資料無法取得」，樣本不完整（已用共用快取大幅緩解，但無法完全消除）；(2) 早期發現 BUY 背離裡有 60% 其實是「加碼」被誤判成進場失敗（已藉由簡化 V5.0 訊號層級處理，但沒有改變回測本身的吻合率數字，因為回測引擎本來就沒有加碼訊號可比對，這也是新增「買進背離×已實現損益」的原因之一）；(3) 定期定額交易會稀釋吻合率統計，已新增排除機制。
                 </p>
             </div>
         </div>
@@ -140,12 +164,6 @@ const DSSLabParamGuide: React.FC = () => (
                 </li>
                 <li>
                     <b className="text-slate-300">匯入交易紀錄自動觸發分析</b>：目前「標的勝率排行」與「DSS 回測分析」都要手動點按鈕才會跑。未來希望匯入股票交易 CSV 後就自動觸發這兩項分析，資料一進來就能立刻檢視每一筆交易目前落在哪個環節/狀態，不用額外操作。
-                </li>
-                <li>
-                    <b className="text-slate-300">DSS 回測分析加入「虛擬交易」比對</b>：把 Step2/3 找到的最佳進場日/出場日當作模擬交易，跑一次 Match Rate，跟實際交易的 Match Rate 並排比較「實際命中率 vs 虛擬（最佳）命中率」，藉此判斷新參數是否真的有效，而不是被雜訊（額度不足、定期定額、加碼誤判等）干擾。
-                </li>
-                <li>
-                    <b className="text-slate-300">買進背離 × 實際賣出損益 交叉檢視</b>：目前「BUY 背離」只看進場當下的訊號吻合度，但如果該筆交易配對的賣出其實有賺錢，代表訊號背離不一定是壞事。未來想把 DSS 回測分析的逐筆結果，跟「標的勝率排行」FIFO 配對後的已實現損益串起來看。
                 </li>
             </ul>
         </div>

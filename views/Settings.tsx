@@ -58,7 +58,10 @@ const DSSProfilesCard: React.FC<{ onApply: (p: DSSProfile) => void }> = ({ onApp
                                         <span key={cat} className={`text-xs ${color}`}>
                                             {cat}: 進場 RSI&lt;{c.rsi.toFixed(1)} B20&lt;{c.bias20.toFixed(1)}%
                                             {c.slopeUpDays !== undefined && ` 斜率≥${c.slopeUpDays}天`}
-                                            {c.exitBias20 !== undefined && ` ｜出場 B20≥${c.exitBias20.toFixed(1)}%`}
+                                            {c.strongBias20 !== undefined && ` ｜強買 B20&lt;${c.strongBias20.toFixed(1)}%`}
+                                            {c.exitBias20 !== undefined && ` ｜停利 B20≥${c.exitBias20.toFixed(1)}%`}
+                                            {c.exitForceBias20 !== undefined && ` ｜強制停利 B20≥${c.exitForceBias20.toFixed(1)}%`}
+                                            {c.stopLossBias20 !== undefined && ` ｜停損 B20≥${c.stopLossBias20.toFixed(1)}%`}
                                         </span>
                                     );
                                 })}
@@ -564,18 +567,33 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
               next.etfBuyBias  = p.categories.ETF.bias20;
               if (p.categories.ETF.slopeUpDays !== undefined) next.etfBuySlopeDays = p.categories.ETF.slopeUpDays;
               if (p.categories.ETF.exitBias20 !== undefined) next.etfPartialSellBias = p.categories.ETF.exitBias20;
+              if (p.categories.ETF.strongRsi !== undefined) next.etfStrongBuyRsi = p.categories.ETF.strongRsi;
+              if (p.categories.ETF.strongBias20 !== undefined) next.etfStrongBuyBias = p.categories.ETF.strongBias20;
+              if (p.categories.ETF.strongSlopeUpDays !== undefined) next.etfStrongBuySlopeDays = p.categories.ETF.strongSlopeUpDays;
+              if (p.categories.ETF.exitForceBias20 !== undefined) next.etfSecondPartialSellBias = p.categories.ETF.exitForceBias20;
+              // ETF 無停損機制（視為長線持有），STOP LOSS / FORCE STOP LOSS 不套用
           }
           if (p.categories['上市']) {
               next.largeCapBuyRsi  = p.categories['上市'].rsi;
               next.largeCapBuyBias = p.categories['上市'].bias20;
               if (p.categories['上市'].slopeUpDays !== undefined) next.largeCapBuySlopeDays = p.categories['上市'].slopeUpDays;
               if (p.categories['上市'].exitBias20 !== undefined) next.largeCapPartialSellBias = p.categories['上市'].exitBias20;
+              if (p.categories['上市'].strongRsi !== undefined) next.largeCapStrongBuyRsi = p.categories['上市'].strongRsi;
+              if (p.categories['上市'].strongBias20 !== undefined) next.largeCapStrongBuyBias = p.categories['上市'].strongBias20;
+              if (p.categories['上市'].strongSlopeUpDays !== undefined) next.largeCapStrongBuySlopeDays = p.categories['上市'].strongSlopeUpDays;
+              if (p.categories['上市'].exitForceBias20 !== undefined) next.largeCapForceSellBias = p.categories['上市'].exitForceBias20;
+              if (p.categories['上市'].stopLossBias20 !== undefined) next.largeCapStopLossBias = p.categories['上市'].stopLossBias20;
           }
           if (p.categories['上櫃']) {
               next.smallCapBuyRsi  = p.categories['上櫃'].rsi;
               next.smallCapBuyBias = p.categories['上櫃'].bias20;
               if (p.categories['上櫃'].slopeUpDays !== undefined) next.smallCapBuySlopeDays = p.categories['上櫃'].slopeUpDays;
               if (p.categories['上櫃'].exitBias20 !== undefined) next.smallCapPartialSellBias = p.categories['上櫃'].exitBias20;
+              if (p.categories['上櫃'].strongRsi !== undefined) next.smallCapStrongBuyRsi = p.categories['上櫃'].strongRsi;
+              if (p.categories['上櫃'].strongBias20 !== undefined) next.smallCapStrongBuyBias = p.categories['上櫃'].strongBias20;
+              if (p.categories['上櫃'].strongSlopeUpDays !== undefined) next.smallCapStrongBuySlopeDays = p.categories['上櫃'].strongSlopeUpDays;
+              if (p.categories['上櫃'].exitForceBias20 !== undefined) next.smallCapForceSellBias = p.categories['上櫃'].exitForceBias20;
+              if (p.categories['上櫃'].stopLossBias20 !== undefined) next.smallCapStopLossBias = p.categories['上櫃'].stopLossBias20;
           }
           saveTechParameters(next);
           setTechParams(next);

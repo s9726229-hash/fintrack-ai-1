@@ -168,7 +168,12 @@ export interface DSSProfileCategoryStats {
     foreignConsecBuy?: number;
     trustConsecBuy?: number;
     marginConsecIncrease?: number;
-    // 出場（exitBias20 可自動套用至 xxxPartialSellBias，其餘僅供參考）
+    // 強買門檻（可自動套用至 xxxStrongBuyRsi / xxxStrongBuyBias / xxxStrongBuySlopeDays），
+    // 取單一最佳進場日中位數（不含 ±2 日鄰近樣本），比一般買進門檻嚴格
+    strongRsi?: number;
+    strongBias20?: number;
+    strongSlopeUpDays?: number;
+    // 出場／SELL（停利，僅取最終獲利交易；exitBias20 可自動套用至 xxxPartialSellBias，其餘僅供參考）
     exitRsi?: number;
     exitBias5?: number;
     exitBias10?: number;
@@ -178,6 +183,25 @@ export interface DSSProfileCategoryStats {
     exitTrustConsecBuy?: number;
     exitMarginConsecIncrease?: number;
     exitN?: number;
+    // FORCE SELL（僅取最終獲利交易的單一最佳出場日，不含 ±2 日樣本，比一般停利更嚴格；
+    // 可自動套用至 xxxForceSellBias / etfSecondPartialSellBias）
+    exitForceRsi?: number;
+    exitForceBias20?: number;
+    exitForceSlopeUpDays?: number;
+    // STOP LOSS（停損，僅取最終虧損交易，找損失最小的停損點；可自動套用至 xxxStopLossBias，ETF 無停損機制不套用）
+    stopLossRsi?: number;
+    stopLossBias5?: number;
+    stopLossBias10?: number;
+    stopLossBias20?: number;
+    stopLossSlopeUpDays?: number;
+    stopLossForeignConsecBuy?: number;
+    stopLossTrustConsecBuy?: number;
+    stopLossMarginConsecIncrease?: number;
+    stopLossN?: number;
+    // FORCE STOP LOSS（僅取最終虧損交易窗口內損失最大的一天，刻畫最危險狀態特徵；目前無對應技術面欄位，僅供參考）
+    forceStopLossRsi?: number;
+    forceStopLossBias20?: number;
+    forceStopLossSlopeUpDays?: number;
 }
 
 export interface DSSProfile {

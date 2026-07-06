@@ -1,13 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PlayCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, AlertCircle, Clock } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
-import { runBacktest, loadDSSLabRawCache, computeVirtualAlignment } from '../services/stock';
+import { runBacktest, loadDSSLabRawCache, computeVirtualAlignment, buildCompletedTrades } from '../services/stock';
 import { getBacktestCache, saveBacktestCache, getTechParameters } from '../services/storage';
 import { TECH_SIGNAL_BADGE_CLASS, NEUTRAL_BADGE_CLASS } from '../services/signalColors';
 
 /** DSS 實驗室「±N日最佳進場分析」「出場分析」快取裡，虛擬交易比對只需要用到的欄位 */
 interface OptimalEntryLite { symbol: string; category: 'ETF' | '上市' | '上櫃'; bestDate: string; }
-interface OptimalExitLite  { symbol: string; category: 'ETF' | '上市' | '上櫃'; bestDate: string; }
+/** 出場分析快取，額外帶上 sellTxId／實際-最佳出場日資訊，供「賣出→±10日最佳賣點」交叉比對使用 */
+interface OptimalExitLite {
+    symbol: string; category: 'ETF' | '上市' | '上櫃'; bestDate: string;
+    buyDate: string; sellDate: string; actualReturn: number; bestReturn: number; sellTxId?: string;
+}
 
 const CATEGORY_TO_SIZE: Record<'ETF' | '上市' | '上櫃', 'ETF' | 'LARGE_CAP' | 'SMALL_CAP'> = {
     'ETF': 'ETF', '上市': 'LARGE_CAP', '上櫃': 'SMALL_CAP',
@@ -202,9 +206,8 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
         };
     }, [results, filteredIds]);
 
-    // 虛擬交易比對：把 DSS 實驗室「±N日最佳進場分析／出場分析」算出的最佳進出場日當模擬交易，重算訊號吻合度，
-    // 藉此跟上面「實際交易」的吻合率並排比較，排除額度不足/定期定額/加碼誤判等雜訊干擾
-    const virtualStats = useMemo(() => {
+    // DSS 實驗室「±N日最佳進場分析／出場分析」快取，供虛擬交易比對與「背離×損益」「最佳賣點」交叉比對共用
+    const dssLabCaches = useMemo(() => {
         let optimalResults: OptimalEntryLite[] = [];
         let exitResults: OptimalExitLite[] = [];
         try {
@@ -215,6 +218,39 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
             const raw = JSON.parse(localStorage.getItem('ft_dsslab_exit_cache') || 'null');
             if (Array.isArray(raw?.results)) exitResults = raw.results;
         } catch { /* 忽略損壞快取 */ }
+        return { optimalResults, exitResults };
+    }, [results]);
+
+    // 完整交易（FIFO 配對），供「買進背離×已實現損益」交叉比對用；獨立算一次，跟 DSS 實驗室的標的勝率排行共用同一套邏輯
+    const completedTrades = useMemo(() => buildCompletedTrades(allTransactions), [allTransactions]);
+
+    // tradeId(買進) → 配對到的完整交易；tradeId(賣出) → 出場分析算出的最佳賣點
+    const completedByBuyTxId = useMemo(() => {
+        const map = new Map<string, typeof completedTrades>();
+        for (const t of completedTrades) {
+            if (!t.buyTxId) continue;
+            const arr = map.get(t.buyTxId) ?? [];
+            arr.push(t);
+            map.set(t.buyTxId, arr);
+        }
+        return map;
+    }, [completedTrades]);
+
+    const exitInfoBySellTxId = useMemo(() => {
+        const map = new Map<string, OptimalExitLite[]>();
+        for (const r of dssLabCaches.exitResults) {
+            if (!r.sellTxId) continue;
+            const arr = map.get(r.sellTxId) ?? [];
+            arr.push(r);
+            map.set(r.sellTxId, arr);
+        }
+        return map;
+    }, [dssLabCaches]);
+
+    // 虛擬交易比對：把 DSS 實驗室「±N日最佳進場分析／出場分析」算出的最佳進出場日當模擬交易，重算訊號吻合度，
+    // 藉此跟上面「實際交易」的吻合率並排比較，排除額度不足/定期定額/加碼誤判等雜訊干擾
+    const virtualStats = useMemo(() => {
+        const { optimalResults, exitResults } = dssLabCaches;
         if (!optimalResults.length && !exitResults.length) return null;
 
         const rawCache = loadDSSLabRawCache();
@@ -242,7 +278,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
             buyMatchRate:  buyTotal  ? (buyMatch  / buyTotal  * 100) : 0,
             sellMatchRate: sellTotal ? (sellMatch / sellTotal * 100) : 0,
         };
-    }, [results]);
+    }, [dssLabCaches]);
 
     const toggleSort = (key: SortKey) => {
         if (sortKey === key) setSortAsc(p => !p);
@@ -296,7 +332,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                 </div>
             )}
 
-            {/* Stats bar */}
+            {/* Stats bar：BUY/SELL 吻合率卡片內直接併入虛擬（最佳進出場）命中率，避免另開一個區塊重複顯示 */}
             {stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div className="bg-slate-800/40 rounded-lg border border-slate-700/40 px-3 py-2">
@@ -308,11 +344,25 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                         <div className="text-xs text-slate-500">BUY 吻合率</div>
                         <div className={`text-lg font-bold ${stats.buyMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{stats.buyMatchRate.toFixed(0)}%</div>
                         <div className="text-xs text-slate-500">吻合 {stats.buyMatch} / 背離 {stats.buyDiverge}</div>
+                        {virtualStats && (
+                            <div className="text-[10px] text-slate-500 mt-1 pt-1 border-t border-slate-700/40"
+                                title="虛擬命中率：把 DSS 實驗室「最佳進場日」當模擬交易重算訊號吻合度，樣本為完整交易（FIFO配對後），跟左邊實際吻合率的樣本（全部訊號驅動交易）母體不同，僅供參考趨勢">
+                                虛擬 <span className={`font-bold ${virtualStats.buyMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{virtualStats.buyMatchRate.toFixed(0)}%</span>
+                                <span className="text-slate-600">（{virtualStats.buyTotal}/{virtualStats.buyTotalRaw}筆{virtualStats.buyNoData ? `,${virtualStats.buyNoData}無快取` : ''}）</span>
+                            </div>
+                        )}
                     </div>
                     <div className="bg-slate-800/40 rounded-lg border border-slate-700/40 px-3 py-2">
                         <div className="text-xs text-slate-500">SELL 吻合率</div>
                         <div className={`text-lg font-bold ${stats.sellMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{stats.sellMatchRate.toFixed(0)}%</div>
                         <div className="text-xs text-slate-500">吻合 {stats.sellMatch} / 背離 {stats.sellDiverge}</div>
+                        {virtualStats && (
+                            <div className="text-[10px] text-slate-500 mt-1 pt-1 border-t border-slate-700/40"
+                                title="虛擬命中率：把 DSS 實驗室「最佳出場日」當模擬交易重算訊號吻合度，樣本為完整交易（FIFO配對後），跟左邊實際吻合率的樣本（全部訊號驅動交易）母體不同，僅供參考趨勢">
+                                虛擬 <span className={`font-bold ${virtualStats.sellMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{virtualStats.sellMatchRate.toFixed(0)}%</span>
+                                <span className="text-slate-600">（{virtualStats.sellTotal}/{virtualStats.sellTotalRaw}筆{virtualStats.sellNoData ? `,${virtualStats.sellNoData}無快取` : ''}）</span>
+                            </div>
+                        )}
                     </div>
                     <div className="bg-slate-800/40 rounded-lg border border-slate-700/40 px-3 py-2">
                         <div className="text-xs text-slate-500">賣出損益（吻合 vs 背離）</div>
@@ -337,44 +387,6 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                 <span className="text-slate-600 text-xs">無賣出損益資料</span>
                             )}
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 虛擬交易比對：實際吻合率 vs 用最佳進出場日模擬的虛擬吻合率 */}
-            {stats && virtualStats && (
-                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-3">
-                    <div className="text-xs font-bold text-slate-300 mb-2">實際 vs 虛擬（最佳進出場）命中率</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center gap-4">
-                            <div>
-                                <div className="text-[10px] text-slate-500">實際 BUY 吻合（{stats.buys} 筆）</div>
-                                <div className={`text-lg font-bold ${stats.buyMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{stats.buyMatchRate.toFixed(0)}%</div>
-                            </div>
-                            <span className="text-slate-600 text-xs">vs</span>
-                            <div>
-                                <div className="text-[10px] text-slate-500">
-                                    虛擬 BUY 命中（{virtualStats.buyTotal}/{virtualStats.buyTotalRaw} 筆{virtualStats.buyNoData ? `，${virtualStats.buyNoData} 筆無快取` : ''}）
-                                </div>
-                                <div className={`text-lg font-bold ${virtualStats.buyMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{virtualStats.buyMatchRate.toFixed(0)}%</div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div>
-                                <div className="text-[10px] text-slate-500">實際 SELL 吻合（{stats.sells} 筆）</div>
-                                <div className={`text-lg font-bold ${stats.sellMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{stats.sellMatchRate.toFixed(0)}%</div>
-                            </div>
-                            <span className="text-slate-600 text-xs">vs</span>
-                            <div>
-                                <div className="text-[10px] text-slate-500">
-                                    虛擬 SELL 命中（{virtualStats.sellTotal}/{virtualStats.sellTotalRaw} 筆{virtualStats.sellNoData ? `，${virtualStats.sellNoData} 筆無快取` : ''}）
-                                </div>
-                                <div className={`text-lg font-bold ${virtualStats.sellMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{virtualStats.sellMatchRate.toFixed(0)}%</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="text-[10px] text-slate-600 mt-2">
-                        虛擬命中率＝把 DSS 實驗室「最佳進場日／出場日」當模擬交易重算訊號吻合度；樣本是完整交易（FIFO 配對後），跟左側「實際吻合率」的樣本（全部訊號驅動交易）母體不同，只能看趨勢、不能直接相減比較。
                     </div>
                 </div>
             )}
@@ -488,7 +500,7 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                     {expandedRow === row.tradeId && !row.error && (
                                         <tr className="border-b border-slate-800/50 bg-slate-800/20">
                                             <td colSpan={11} className="px-4 py-3">
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
                                                     <div>
                                                         <div className="text-slate-500 mb-1">成交明細</div>
                                                         <div className="text-slate-300">價格 <span className="font-mono text-white">{row.price}</span></div>
@@ -519,6 +531,47 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                                             </div>
                                                         )) ?? <div className="text-slate-600">無籌碼資料</div>}
                                                     </div>
+                                                    {row.side === 'BUY' ? (
+                                                        <div>
+                                                            <div className="text-slate-500 mb-1">配對已實現損益{row.alignment === 'DIVERGE' && <span className="text-slate-600">（背離）</span>}</div>
+                                                            {(() => {
+                                                                const matched = completedByBuyTxId.get(row.tradeId);
+                                                                if (!matched?.length) return <div className="text-slate-600">尚未配對到賣出（可能還沒出場，或賣出紀錄不在篩選範圍內）</div>;
+                                                                const total = matched.reduce((s, t) => s + t.realizedProfit, 0);
+                                                                return (
+                                                                    <>
+                                                                        {matched.map((t, i) => (
+                                                                            <div key={i} className="flex justify-between text-slate-300">
+                                                                                <span className="text-slate-500">{t.sellDate}</span>
+                                                                                <span className={`font-mono ${t.realizedProfit >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                                                    {t.realizedProfit >= 0 ? '+' : ''}{(t.realizedProfit / 1000).toFixed(1)}K（{t.returnPct >= 0 ? '+' : ''}{t.returnPct.toFixed(1)}%）
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {row.alignment === 'DIVERGE' && (
+                                                                            <div className={`mt-1 pt-1 border-t border-slate-700/40 font-bold ${total >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                                                {total >= 0 ? '雖背離但實際獲利 +' : '背離且虧損 '}{(total / 1000).toFixed(1)}K
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <div className="text-slate-500 mb-1">±10日最佳賣點（出場分析）</div>
+                                                            {(() => {
+                                                                const matched = exitInfoBySellTxId.get(row.tradeId);
+                                                                if (!matched?.length) return <div className="text-slate-600">尚無出場分析資料（需先跑 DSS 實驗室的出場分析）</div>;
+                                                                return matched.map((r, i) => (
+                                                                    <div key={i} className="text-slate-300">
+                                                                        <div className="flex justify-between"><span className="text-slate-500">實際報酬</span><span className={`font-mono ${r.actualReturn >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>{r.actualReturn >= 0 ? '+' : ''}{r.actualReturn.toFixed(1)}%</span></div>
+                                                                        <div className="flex justify-between"><span className="text-slate-500">最佳（{r.bestDate}）</span><span className={`font-mono ${r.bestReturn >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>{r.bestReturn >= 0 ? '+' : ''}{r.bestReturn.toFixed(1)}%</span></div>
+                                                                    </div>
+                                                                ));
+                                                            })()}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

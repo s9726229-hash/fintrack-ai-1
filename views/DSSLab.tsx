@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { FlaskConical, Trophy, Target, ChevronDown, ChevronUp, BarChart2, Zap, Loader2, Save, Download, Upload, History } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
-import { lookupStockName, fetchKlineWindow, computeMultiBias, computeDSSForDate, fetchHistoricalInstForBacktest, fetchHistoricalMarginForBacktest } from '../services/stock';
+import { lookupStockName, fetchKlineWindow, computeMultiBias, computeDSSForDate, fetchHistoricalInstForBacktest, fetchHistoricalMarginForBacktest, CompletedTrade, buildCompletedTrades } from '../services/stock';
 import { getBacktestCache, getDSSProfiles, saveDSSProfiles, DSSProfile, getTechParameters } from '../services/storage';
 import { BacktestView } from './BacktestView';
 
@@ -15,20 +15,6 @@ const WINDOW_DAYS = 10;
 /** 最早交易日前至少緩衝這麼多天的歷史資料，讓 MA20/RSI14 等指標算得出來，
  *  同時對齊 DSS 回測分析(runBacktest)的 95 天緩衝需求，讓兩邊可共用同一份原始資料快取 */
 const MIN_HISTORY_BUFFER_DAYS = 95;
-
-interface CompletedTrade {
-    symbol: string;
-    name?: string;
-    category: 'ETF' | '上市' | '上櫃';
-    buyDate: string;
-    sellDate: string;
-    buyPrice: number;
-    sellPrice: number;
-    shares: number;
-    realizedProfit: number;
-    returnPct: number;
-    holdingDays: number;
-}
 
 interface SymbolStats {
     symbol: string;
@@ -45,67 +31,6 @@ interface SymbolStats {
     maxProfit: number;
     maxLoss: number;
 }
-
-const daysBetween = (d1: string, d2: string) => {
-    const diff = new Date(d2).getTime() - new Date(d1).getTime();
-    return Math.round(diff / 86400000);
-};
-
-const guessCategory = (symbol: string): 'ETF' | '上市' | '上櫃' => {
-    if (symbol.startsWith('00') && symbol.length >= 4) return 'ETF';
-    // OTC codes: typically 4-digit starting with 3,4,5,6,8 (rough heuristic)
-    const n = parseInt(symbol, 10);
-    if (!isNaN(n) && (n >= 3000 && n <= 6999 || n >= 8000 && n <= 8999)) return '上櫃';
-    return '上市';
-};
-
-const buildCompletedTrades = (transactions: StockTransaction[]): CompletedTrade[] => {
-    const bySymbol: Record<string, StockTransaction[]> = {};
-    for (const t of transactions) {
-        if (!t.symbol) continue;
-        (bySymbol[t.symbol] = bySymbol[t.symbol] ?? []).push(t);
-    }
-
-    const result: CompletedTrade[] = [];
-    for (const [symbol, txns] of Object.entries(bySymbol)) {
-        const sorted = [...txns].sort((a, b) => a.date.localeCompare(b.date));
-        // FIFO 依股數配對，而非「一筆買進對一筆賣出」；一筆賣出可能同時平掉多筆買進，
-        // 一筆買進也可能被多筆賣出分批出清，需依實際股數拆分/合併才能算出正確的持倉天數與報酬率。
-        const lots: { date: string; price: number; name?: string; remaining: number }[] = [];
-        for (const t of sorted) {
-            if (t.side === 'BUY') {
-                lots.push({ date: t.date, price: t.price, name: t.name, remaining: t.shares });
-            } else if (t.side === 'SELL' && t.realizedProfit !== undefined) {
-                const totalSellShares = t.shares;
-                let remainingToMatch = t.shares;
-                while (remainingToMatch > 0 && lots.length > 0) {
-                    const lot = lots[0];
-                    const matchedShares = Math.min(lot.remaining, remainingToMatch);
-                    const allocatedProfit = totalSellShares > 0 ? t.realizedProfit * (matchedShares / totalSellShares) : 0;
-                    const returnPct = lot.price > 0 ? ((t.price - lot.price) / lot.price) * 100 : 0;
-                    result.push({
-                        symbol,
-                        name: t.name ?? lot.name,
-                        category: guessCategory(symbol),
-                        buyDate: lot.date,
-                        sellDate: t.date,
-                        buyPrice: lot.price,
-                        sellPrice: t.price,
-                        shares: matchedShares,
-                        realizedProfit: allocatedProfit,
-                        returnPct,
-                        holdingDays: daysBetween(lot.date, t.date),
-                    });
-                    lot.remaining -= matchedShares;
-                    remainingToMatch -= matchedShares;
-                    if (lot.remaining <= 0) lots.shift();
-                }
-                // remainingToMatch > 0 代表賣出股數超過已知買進紀錄（資料不完整），無買進紀錄可配對的部分直接略過
-            }
-        }
-    }
-    return result.filter(t => t.holdingDays > 0);
-};
 
 const buildSymbolStats = (trades: CompletedTrade[]): SymbolStats[] => {
     const bySymbol: Record<string, CompletedTrade[]> = {};
@@ -391,6 +316,9 @@ interface WindowResult {
     bestMarginConsecIncrease: number | null;
     /** 最佳進場日 ±NEAR_BEST_DAYS 日內各交易日的指標，供中位數計算使用（樣本比單一最佳日更穩健） */
     nearBestSamples?: IndicatorSample[];
+    /** 對應原始交易 id，供 DSS 回測分析跨資料交叉比對（買進背離×已實現損益、最佳賣點）使用 */
+    buyTxId?: string;
+    sellTxId?: string;
 }
 
 /** biasSlopes[0] 起算連續正斜率天數（配合 TechParameters 的 xxxBuySlopeDays 門檻概念）*/
@@ -414,6 +342,10 @@ interface OptimalCatStats {
     medForeignConsecBuy: number | null;
     medTrustConsecBuy: number | null;
     medMarginConsecIncrease: number | null;
+    /** 強買門檻：取單一最佳進場日（不含 ±2 日鄰近樣本）的中位數，比普通買進門檻更嚴格 */
+    medStrongRsi: number | null;
+    medStrongBias20: number | null;
+    medStrongSlopeUpDays: number | null;
 }
 
 const notNull = (v: number | null): v is number => v !== null;
@@ -461,6 +393,10 @@ const buildOptimalCatStats = (results: WindowResult[], cat: 'ETF' | '上市' | '
         medForeignConsecBuy: median(samples.map(s => s.foreignConsecBuy).filter(notNull)),
         medTrustConsecBuy: median(samples.map(s => s.trustConsecBuy).filter(notNull)),
         medMarginConsecIncrease: median(samples.map(s => s.marginConsecIncrease).filter(notNull)),
+        // 強買門檻刻意只取單一最佳日（不併入 ±2 日鄰近樣本），比普通買進門檻更嚴格、更貼近真正的最佳時機
+        medStrongRsi: median(list.map(r => r.bestRsi).filter(notNull)),
+        medStrongBias20: median(list.map(r => r.bestBias20).filter(notNull)),
+        medStrongSlopeUpDays: median(list.map(r => r.bestSlopeUpDays).filter(notNull)),
     };
 };
 
@@ -648,6 +584,12 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                                         <StatCard label="投信連買天數中位數" value={optimalCatStats[optimalCatTab]!.medTrustConsecBuy !== null ? `${optimalCatStats[optimalCatTab]!.medTrustConsecBuy}天` : '-'} color="text-amber-300" />
                                         <StatCard label="融資連增天數中位數" value={optimalCatStats[optimalCatTab]!.medMarginConsecIncrease !== null ? `${optimalCatStats[optimalCatTab]!.medMarginConsecIncrease}天` : '-'} color="text-amber-300" />
                                     </div>
+                                    <div className="text-xs text-slate-500 mt-1">強買門檻（取單一最佳日，不含 ±2 日鄰近樣本，比普通買進更嚴格）</div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <StatCard label="強買 RSI 中位數" value={optimalCatStats[optimalCatTab]!.medStrongRsi?.toFixed(1) ?? '-'} color="text-rose-300" />
+                                        <StatCard label="強買 Bias20 中位數" value={optimalCatStats[optimalCatTab]!.medStrongBias20 !== null ? `${optimalCatStats[optimalCatTab]!.medStrongBias20!.toFixed(1)}%` : '-'} color="text-rose-300" />
+                                        <StatCard label="強買斜率連升天數中位數" value={optimalCatStats[optimalCatTab]!.medStrongSlopeUpDays !== null ? `${optimalCatStats[optimalCatTab]!.medStrongSlopeUpDays}天` : '-'} color="text-rose-300" />
+                                    </div>
                                     </>
                                 ) : (
                                     <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
@@ -666,7 +608,18 @@ const daysBetween2 = (d1: string, d2: string) => {
     return Math.round(diff / 86400000);
 };
 
-/** 最佳進出場日往前後各抓幾天的鄰近交易日，一起納入中位數樣本，避免單一天的極端值主導參數 */
+/** 依 kline 陣列裡的實際交易日位置（索引）取前後 N 個交易日的窗口，而非日曆天差——
+ *  避免最佳日剛好卡在週五時，「後2天」落到不開盤的週六週日，導致樣本數不足 */
+const sliceAroundDate = <T extends { date: string }>(rows: T[], centerDate: string, windowDays: number): T[] => {
+    let idx = rows.findIndex(r => r.date === centerDate);
+    if (idx === -1) {
+        idx = rows.findIndex(r => r.date >= centerDate);
+        if (idx === -1) idx = rows.length - 1;
+    }
+    return rows.slice(Math.max(0, idx - windowDays), idx + windowDays + 1);
+};
+
+/** 最佳進出場日往前後各抓幾個交易日，一起納入中位數樣本，避免單一天的極端值主導參數 */
 const NEAR_BEST_DAYS = 2;
 
 const computeNearBestSamples = (
@@ -677,10 +630,7 @@ const computeNearBestSamples = (
     params: ReturnType<typeof getTechParameters>,
     sizeCategory: 'ETF' | 'LARGE_CAP' | 'SMALL_CAP'
 ): IndicatorSample[] => {
-    const nearby = kline.filter(r => {
-        const diff = daysBetween2(r.date, bestDate);
-        return diff >= -NEAR_BEST_DAYS && diff <= NEAR_BEST_DAYS;
-    });
+    const nearby = sliceAroundDate(kline, bestDate, NEAR_BEST_DAYS);
     return nearby.map(r => {
         const bias = computeMultiBias(kline, r.date);
         const dss = computeDSSForDate(kline, instRows, marginRows, r.date, params, sizeCategory);
@@ -705,9 +655,12 @@ interface ExitWindowResult {
     buyPrice: number;
     actualSellPrice: number;
     actualReturn: number;
+    /** 這筆完整交易最終是否獲利（returnPct > 0）。獲利樣本 → SELL/FORCE SELL 資料庫；虧損樣本 → STOP LOSS/FORCE STOP LOSS 資料庫 */
+    isWinner: boolean;
     actualBias5: number | null;
     actualBias10: number | null;
     actualBias20: number | null;
+    /** 最佳出場日＝窗口內報酬最大化的一天（獲利交易＝停利點；虧損交易＝損失最小的停損點） */
     bestDate: string;
     bestPrice: number;
     bestReturn: number;
@@ -726,8 +679,23 @@ interface ExitWindowResult {
     bestForeignConsecBuy: number | null;
     bestTrustConsecBuy: number | null;
     bestMarginConsecIncrease: number | null;
+    /** 最差出場日＝窗口內報酬最小化的一天，僅虧損交易用來刻畫「最危險狀態」特徵（FORCE STOP LOSS） */
+    worstDate: string;
+    worstPrice: number;
+    worstReturn: number;
+    worstBias5: number | null;
+    worstBias10: number | null;
+    worstBias20: number | null;
+    worstRsi: number | null;
+    worstSlopeUpDays: number | null;
+    worstForeignConsecBuy: number | null;
+    worstTrustConsecBuy: number | null;
+    worstMarginConsecIncrease: number | null;
     /** 最佳出場日 ±NEAR_BEST_DAYS 日內各交易日的指標，供中位數計算使用（樣本比單一最佳日更穩健） */
     nearBestSamples?: IndicatorSample[];
+    /** 對應原始交易 id，供 DSS 回測分析跨資料交叉比對（買進背離×已實現損益、最佳賣點）使用 */
+    buyTxId?: string;
+    sellTxId?: string;
 }
 
 interface ExitCatStats {
@@ -735,6 +703,7 @@ interface ExitCatStats {
     n: number;
     rawN: number;
     qualityCutoff: number;
+    // SELL：±2日樣本池中位數，僅獲利交易
     medRsi: number | null;
     medBias5: number | null;
     medBias10: number | null;
@@ -743,11 +712,36 @@ interface ExitCatStats {
     medForeignConsecBuy: number | null;
     medTrustConsecBuy: number | null;
     medMarginConsecIncrease: number | null;
+    // FORCE SELL：單一最佳日中位數（不含±2樣本），僅獲利交易，比一般停利更嚴格
+    medForceRsi: number | null;
+    medForceBias20: number | null;
+    medForceSlopeUpDays: number | null;
 }
 
+interface StopLossCatStats {
+    cat: 'ETF' | '上市' | '上櫃';
+    n: number;
+    rawN: number;
+    qualityCutoff: number;
+    // STOP LOSS：±2日樣本池中位數，僅虧損交易，找損失最小的停損點
+    medRsi: number | null;
+    medBias5: number | null;
+    medBias10: number | null;
+    medBias20: number | null;
+    medSlopeUpDays: number | null;
+    medForeignConsecBuy: number | null;
+    medTrustConsecBuy: number | null;
+    medMarginConsecIncrease: number | null;
+    // FORCE STOP LOSS：單一最差日中位數（窗口內損失最大的一天），刻畫最危險狀態特徵
+    medForceRsi: number | null;
+    medForceBias20: number | null;
+    medForceSlopeUpDays: number | null;
+}
+
+/** SELL（停利）/ FORCE SELL：僅取「最終獲利」的完整交易 */
 const buildExitCatStats = (results: ExitWindowResult[], cat: 'ETF' | '上市' | '上櫃'): ExitCatStats | null => {
     const minN = cat === 'ETF' ? 1 : 3;
-    const catList = results.filter(r => r.category === cat);
+    const catList = results.filter(r => r.category === cat && r.isWinner);
     if (catList.length < minN) return null;
 
     const { kept: list, cutoff } = filterQualityTrades(catList);
@@ -767,6 +761,38 @@ const buildExitCatStats = (results: ExitWindowResult[], cat: 'ETF' | '上市' | 
         medForeignConsecBuy: median(samples.map(s => s.foreignConsecBuy).filter(notNull)),
         medTrustConsecBuy: median(samples.map(s => s.trustConsecBuy).filter(notNull)),
         medMarginConsecIncrease: median(samples.map(s => s.marginConsecIncrease).filter(notNull)),
+        medForceRsi: median(list.map(r => r.bestRsi).filter(notNull)),
+        medForceBias20: median(list.map(r => r.bestBias20).filter(notNull)),
+        medForceSlopeUpDays: median(list.map(r => r.bestSlopeUpDays).filter(notNull)),
+    };
+};
+
+/** STOP LOSS（停損）/ FORCE STOP LOSS：僅取「最終虧損」的完整交易 */
+const buildStopLossCatStats = (results: ExitWindowResult[], cat: 'ETF' | '上市' | '上櫃'): StopLossCatStats | null => {
+    const minN = cat === 'ETF' ? 1 : 3;
+    const catList = results.filter(r => r.category === cat && !r.isWinner);
+    if (catList.length < minN) return null;
+
+    const { kept: list, cutoff } = filterQualityTrades(catList);
+    if (list.length < minN) return null;
+
+    const samples = flattenNearBestSamples(list);
+    return {
+        cat,
+        n: list.length,
+        rawN: catList.length,
+        qualityCutoff: cutoff,
+        medRsi: median(samples.map(s => s.rsi).filter(notNull)),
+        medBias5: median(samples.map(s => s.bias5).filter(notNull)),
+        medBias10: median(samples.map(s => s.bias10).filter(notNull)),
+        medBias20: median(samples.map(s => s.bias20).filter(notNull)),
+        medSlopeUpDays: median(samples.map(s => s.slopeUpDays).filter(notNull)),
+        medForeignConsecBuy: median(samples.map(s => s.foreignConsecBuy).filter(notNull)),
+        medTrustConsecBuy: median(samples.map(s => s.trustConsecBuy).filter(notNull)),
+        medMarginConsecIncrease: median(samples.map(s => s.marginConsecIncrease).filter(notNull)),
+        medForceRsi: median(list.map(r => r.worstRsi).filter(notNull)),
+        medForceBias20: median(list.map(r => r.worstBias20).filter(notNull)),
+        medForceSlopeUpDays: median(list.map(r => r.worstSlopeUpDays).filter(notNull)),
     };
 };
 
@@ -778,6 +804,16 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
         const etf = buildExitCatStats(results, 'ETF');
         const listed = buildExitCatStats(results, '上市');
         const otc = buildExitCatStats(results, '上櫃');
+        if (!etf && !listed && !otc) return null;
+        return { ETF: etf, 上市: listed, 上櫃: otc };
+    }, [results]);
+
+    // STOP LOSS / FORCE STOP LOSS：僅取最終虧損的完整交易，跟 SELL/FORCE SELL（僅取獲利交易）互斥分流
+    const stopLossCatStats = useMemo(() => {
+        if (!results?.length) return null;
+        const etf = buildStopLossCatStats(results, 'ETF');
+        const listed = buildStopLossCatStats(results, '上市');
+        const otc = buildStopLossCatStats(results, '上櫃');
         if (!etf && !listed && !otc) return null;
         return { ETF: etf, 上市: listed, 上櫃: otc };
     }, [results]);
@@ -906,7 +942,7 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                             </table>
                         </div>
 
-                        {exitCatStats && (
+                        {(exitCatStats || stopLossCatStats) && (
                             <div className="pt-4 border-t border-slate-700 space-y-3">
                                 <div className="flex items-center gap-2">
                                     <h4 className="text-sm font-bold text-slate-200">最佳出場點參數中位數</h4>
@@ -914,7 +950,7 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                 </div>
                                 <div className="flex gap-1">
                                     {(['ETF', '上市', '上櫃'] as const).map(tab => {
-                                        const s = exitCatStats[tab];
+                                        const s = exitCatStats?.[tab] ?? stopLossCatStats?.[tab];
                                         const disabled = !s;
                                         return (
                                             <button key={tab} onClick={() => !disabled && setExitCatTab(tab)}
@@ -933,10 +969,10 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                         );
                                     })}
                                 </div>
-                                {exitCatStats[exitCatTab] ? (
+                                {exitCatStats?.[exitCatTab] ? (
                                     <>
                                     <div className="text-xs text-slate-500">
-                                        優質數據篩選：改善幅度前 70%（{exitCatStats[exitCatTab]!.rawN} 筆中保留 {exitCatStats[exitCatTab]!.n} 筆，門檻 ≥ {exitCatStats[exitCatTab]!.qualityCutoff.toFixed(1)}%）
+                                        SELL（停利，僅取最終獲利交易）· 優質數據篩選：改善幅度前 70%（{exitCatStats[exitCatTab]!.rawN} 筆中保留 {exitCatStats[exitCatTab]!.n} 筆，門檻 ≥ {exitCatStats[exitCatTab]!.qualityCutoff.toFixed(1)}%）
                                     </div>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         <StatCard label="RSI 中位數" value={exitCatStats[exitCatTab]!.medRsi?.toFixed(1) ?? '-'} color="text-amber-300" />
@@ -948,9 +984,49 @@ const ExitAnalysisSection: React.FC<{ results: ExitWindowResult[] | null }> = ({
                                         <StatCard label="投信連買天數中位數" value={exitCatStats[exitCatTab]!.medTrustConsecBuy !== null ? `${exitCatStats[exitCatTab]!.medTrustConsecBuy}天` : '-'} color="text-amber-300" />
                                         <StatCard label="融資連增天數中位數" value={exitCatStats[exitCatTab]!.medMarginConsecIncrease !== null ? `${exitCatStats[exitCatTab]!.medMarginConsecIncrease}天` : '-'} color="text-amber-300" />
                                     </div>
+                                    <div className="text-xs text-slate-500 mt-1">FORCE SELL（取單一最佳出場日，不含 ±2 日鄰近樣本，比一般停利更嚴格）</div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <StatCard label="強制停利 RSI 中位數" value={exitCatStats[exitCatTab]!.medForceRsi?.toFixed(1) ?? '-'} color="text-red-300" />
+                                        <StatCard label="強制停利 Bias20 中位數" value={exitCatStats[exitCatTab]!.medForceBias20 !== null ? `${exitCatStats[exitCatTab]!.medForceBias20!.toFixed(1)}%` : '-'} color="text-red-300" />
+                                        <StatCard label="強制停利斜率連升天數中位數" value={exitCatStats[exitCatTab]!.medForceSlopeUpDays !== null ? `${exitCatStats[exitCatTab]!.medForceSlopeUpDays}天` : '-'} color="text-red-300" />
+                                    </div>
                                     </>
                                 ) : (
-                                    <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
+                                    <div className="text-xs text-slate-500 py-4 text-center">此類別獲利交易資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
+                                )}
+                                {stopLossCatStats && (
+                                    <div className="pt-3 border-t border-slate-700/60 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-sm font-bold text-slate-200">最佳停損點參數中位數</h4>
+                                            <span className="text-xs text-slate-500">STOP LOSS / FORCE STOP LOSS，僅取最終虧損交易</span>
+                                        </div>
+                                        {stopLossCatStats[exitCatTab] ? (
+                                            <>
+                                            <div className="text-xs text-slate-500">
+                                                STOP LOSS（找損失最小的停損點）· 優質數據篩選：改善幅度前 70%（{stopLossCatStats[exitCatTab]!.rawN} 筆中保留 {stopLossCatStats[exitCatTab]!.n} 筆，門檻 ≥ {stopLossCatStats[exitCatTab]!.qualityCutoff.toFixed(1)}%）
+                                                {exitCatTab === 'ETF' && <span className="text-slate-600">（ETF 無停損機制，此數值僅供參考）</span>}
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                <StatCard label="RSI 中位數" value={stopLossCatStats[exitCatTab]!.medRsi?.toFixed(1) ?? '-'} color="text-emerald-300" />
+                                                <StatCard label="Bias5 中位數" value={stopLossCatStats[exitCatTab]!.medBias5 !== null ? `${stopLossCatStats[exitCatTab]!.medBias5!.toFixed(1)}%` : '-'} color="text-sky-400" />
+                                                <StatCard label="Bias10 中位數" value={stopLossCatStats[exitCatTab]!.medBias10 !== null ? `${stopLossCatStats[exitCatTab]!.medBias10!.toFixed(1)}%` : '-'} color="text-violet-400" />
+                                                <StatCard label="Bias20 中位數" value={stopLossCatStats[exitCatTab]!.medBias20 !== null ? `${stopLossCatStats[exitCatTab]!.medBias20!.toFixed(1)}%` : '-'} color="text-slate-300" />
+                                                <StatCard label="斜率連升天數中位數" value={stopLossCatStats[exitCatTab]!.medSlopeUpDays !== null ? `${stopLossCatStats[exitCatTab]!.medSlopeUpDays}天` : '-'} color="text-emerald-300" />
+                                                <StatCard label="外資連買天數中位數" value={stopLossCatStats[exitCatTab]!.medForeignConsecBuy !== null ? `${stopLossCatStats[exitCatTab]!.medForeignConsecBuy}天` : '-'} color="text-emerald-300" />
+                                                <StatCard label="投信連買天數中位數" value={stopLossCatStats[exitCatTab]!.medTrustConsecBuy !== null ? `${stopLossCatStats[exitCatTab]!.medTrustConsecBuy}天` : '-'} color="text-emerald-300" />
+                                                <StatCard label="融資連增天數中位數" value={stopLossCatStats[exitCatTab]!.medMarginConsecIncrease !== null ? `${stopLossCatStats[exitCatTab]!.medMarginConsecIncrease}天` : '-'} color="text-emerald-300" />
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">FORCE STOP LOSS（窗口內損失最大的一天，刻畫最危險狀態特徵，目前僅供參考、不自動套用）</div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                <StatCard label="最危險 RSI 中位數" value={stopLossCatStats[exitCatTab]!.medForceRsi?.toFixed(1) ?? '-'} color="text-slate-400" />
+                                                <StatCard label="最危險 Bias20 中位數" value={stopLossCatStats[exitCatTab]!.medForceBias20 !== null ? `${stopLossCatStats[exitCatTab]!.medForceBias20!.toFixed(1)}%` : '-'} color="text-slate-400" />
+                                                <StatCard label="最危險斜率天數中位數" value={stopLossCatStats[exitCatTab]!.medForceSlopeUpDays !== null ? `${stopLossCatStats[exitCatTab]!.medForceSlopeUpDays}天` : '-'} color="text-slate-400" />
+                                            </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-xs text-slate-500 py-4 text-center">此類別虧損交易資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -1079,11 +1155,8 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
             const marginRows = marginCache.get(trade.symbol) ?? [];
             const sizeCategory = trade.category === 'ETF' ? 'ETF' : trade.category === '上櫃' ? 'SMALL_CAP' : 'LARGE_CAP';
 
-            // 進場：買入日 ±WINDOW_DAYS 內找報酬最大化（等同最低價）的一天
-            const buyCandidates = kline.filter(r => {
-                const diff = daysBetween2(r.date, trade.buyDate);
-                return diff >= -WINDOW_DAYS && diff <= WINDOW_DAYS;
-            });
+            // 進場：買入日 ±WINDOW_DAYS 個交易日內找報酬最大化（等同最低價）的一天
+            const buyCandidates = sliceAroundDate(kline, trade.buyDate, WINDOW_DAYS);
             if (buyCandidates.length) {
                 const withReturns = buyCandidates.map(c => ({ ...c, ret: trade.sellPrice > 0 ? ((trade.sellPrice - c.close) / c.close) * 100 : -Infinity }));
                 const best = withReturns.reduce((m, c) => c.ret > m.ret ? c : m, withReturns[0]);
@@ -1108,27 +1181,32 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                     bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null, bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
                     bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
                     nearBestSamples,
+                    buyTxId: trade.buyTxId, sellTxId: trade.sellTxId,
                 });
             }
 
             // 出場：賣出日 ±WINDOW_DAYS 內（不早於買入日）找報酬最大化（等同最高價）的一天
-            const sellCandidates = kline.filter(r => {
-                const diff = daysBetween2(r.date, trade.sellDate);
-                return diff >= -WINDOW_DAYS && diff <= WINDOW_DAYS && r.date >= trade.buyDate;
-            });
+            const sellCandidates = sliceAroundDate(kline, trade.sellDate, WINDOW_DAYS).filter(r => r.date >= trade.buyDate);
             if (sellCandidates.length) {
                 const withReturns = sellCandidates.map(c => ({ ...c, ret: trade.buyPrice > 0 ? ((c.close - trade.buyPrice) / trade.buyPrice) * 100 : -Infinity }));
+                // 最佳出場日：報酬最大化（獲利交易=停利點；虧損交易=損失最小的停損點，同一套邏輯，差別只在後續依獲利/虧損分流統計）
                 const best = withReturns.reduce((m, c) => c.ret > m.ret ? c : m, withReturns[0]);
                 const bestReturn = best.ret === -Infinity ? 0 : best.ret;
+                // 最差出場日：報酬最小化（僅虧損交易用來刻畫「最危險狀態」特徵＝強制停損）
+                const worst = withReturns.reduce((m, c) => c.ret < m.ret ? c : m, withReturns[0]);
+                const worstReturn = worst.ret === -Infinity ? 0 : worst.ret;
                 const actualBias = computeMultiBias(kline, trade.sellDate);
                 const bestBias = computeMultiBias(kline, best.date);
+                const worstBias = computeMultiBias(kline, worst.date);
                 const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.sellDate, params, sizeCategory);
                 const bestDss = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
+                const worstDss = computeDSSForDate(kline, instRows, marginRows, worst.date, params, sizeCategory);
                 const nearBestSamples = computeNearBestSamples(kline, instRows, marginRows, best.date, params, sizeCategory);
                 extResults.push({
                     symbol: trade.symbol, name: nameMap.get(trade.symbol), category: trade.category,
                     buyDate: trade.buyDate, sellDate: trade.sellDate, buyPrice: trade.buyPrice,
                     actualSellPrice: trade.sellPrice, actualReturn: trade.returnPct,
+                    isWinner: trade.returnPct > 0,
                     actualBias5: actualBias.bias5, actualBias10: actualBias.bias10, actualBias20: actualBias.bias20,
                     bestDate: best.date, bestPrice: best.close, bestReturn,
                     bestBias5: bestBias.bias5, bestBias10: bestBias.bias10, bestBias20: bestBias.bias20,
@@ -1139,7 +1217,13 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                     bestRsi: bestDss?.rsi ?? null, bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
                     bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null, bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
                     bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
+                    worstDate: worst.date, worstPrice: worst.close, worstReturn,
+                    worstBias5: worstBias.bias5, worstBias10: worstBias.bias10, worstBias20: worstBias.bias20,
+                    worstRsi: worstDss?.rsi ?? null, worstSlopeUpDays: worstDss ? slopeConsecUp(worstDss.biasSlopes) : null,
+                    worstForeignConsecBuy: worstDss?.foreignConsecBuy ?? null, worstTrustConsecBuy: worstDss?.trustConsecBuy ?? null,
+                    worstMarginConsecIncrease: worstDss?.marginConsecIncrease ?? null,
                     nearBestSamples,
+                    buyTxId: trade.buyTxId, sellTxId: trade.sellTxId,
                 });
             }
         }
@@ -1201,7 +1285,8 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
         (['ETF', '上市', '上櫃'] as const).forEach(cat => {
             const entryStats = optimalResults?.length ? buildOptimalCatStats(optimalResults, cat) : null;
             const exitStats = exitResults?.length ? buildExitCatStats(exitResults, cat) : null;
-            if (!entryStats && !exitStats) return;
+            const stopLossStats = exitResults?.length ? buildStopLossCatStats(exitResults, cat) : null;
+            if (!entryStats && !exitStats && !stopLossStats) return;
             cats[cat] = {
                 rsi: round2(entryStats?.medRsi) ?? 0,
                 bias20: round2(entryStats?.medBias20) ?? 0,
@@ -1212,6 +1297,9 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                 foreignConsecBuy: round2(entryStats?.medForeignConsecBuy),
                 trustConsecBuy: round2(entryStats?.medTrustConsecBuy),
                 marginConsecIncrease: round2(entryStats?.medMarginConsecIncrease),
+                strongRsi: round2(entryStats?.medStrongRsi),
+                strongBias20: round2(entryStats?.medStrongBias20),
+                strongSlopeUpDays: round2(entryStats?.medStrongSlopeUpDays),
                 exitRsi: round2(exitStats?.medRsi),
                 exitBias5: round2(exitStats?.medBias5),
                 exitBias10: round2(exitStats?.medBias10),
@@ -1221,6 +1309,21 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                 exitTrustConsecBuy: round2(exitStats?.medTrustConsecBuy),
                 exitMarginConsecIncrease: round2(exitStats?.medMarginConsecIncrease),
                 exitN: exitStats?.n ?? undefined,
+                exitForceRsi: round2(exitStats?.medForceRsi),
+                exitForceBias20: round2(exitStats?.medForceBias20),
+                exitForceSlopeUpDays: round2(exitStats?.medForceSlopeUpDays),
+                stopLossRsi: round2(stopLossStats?.medRsi),
+                stopLossBias5: round2(stopLossStats?.medBias5),
+                stopLossBias10: round2(stopLossStats?.medBias10),
+                stopLossBias20: round2(stopLossStats?.medBias20),
+                stopLossSlopeUpDays: round2(stopLossStats?.medSlopeUpDays),
+                stopLossForeignConsecBuy: round2(stopLossStats?.medForeignConsecBuy),
+                stopLossTrustConsecBuy: round2(stopLossStats?.medTrustConsecBuy),
+                stopLossMarginConsecIncrease: round2(stopLossStats?.medMarginConsecIncrease),
+                stopLossN: stopLossStats?.n ?? undefined,
+                forceStopLossRsi: round2(stopLossStats?.medForceRsi),
+                forceStopLossBias20: round2(stopLossStats?.medForceBias20),
+                forceStopLossSlopeUpDays: round2(stopLossStats?.medForceSlopeUpDays),
             };
         });
         if (Object.keys(cats).length === 0) return;

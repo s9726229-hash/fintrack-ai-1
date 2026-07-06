@@ -1358,6 +1358,88 @@ export const detectRecurringCandidates = (transactions: StockTransaction[]): Sto
     return candidates;
 };
 
+export interface CompletedTrade {
+    symbol: string;
+    name?: string;
+    category: 'ETF' | '上市' | '上櫃';
+    buyDate: string;
+    sellDate: string;
+    buyPrice: number;
+    sellPrice: number;
+    shares: number;
+    realizedProfit: number;
+    returnPct: number;
+    holdingDays: number;
+    /** 原始買入交易 id（一對一：一筆完整交易恰好對應一筆買進 lot 的部分股數） */
+    buyTxId: string;
+    /** 原始賣出交易 id（一對多：同一筆賣出可能拆分配對到多筆不同買進 lot，因此會出現在多筆完整交易上） */
+    sellTxId: string;
+}
+
+const daysBetweenTrades = (d1: string, d2: string) => {
+    const diff = new Date(d2).getTime() - new Date(d1).getTime();
+    return Math.round(diff / 86400000);
+};
+
+const guessCategory = (symbol: string): 'ETF' | '上市' | '上櫃' => {
+    if (symbol.startsWith('00') && symbol.length >= 4) return 'ETF';
+    // OTC codes: typically 4-digit starting with 3,4,5,6,8 (rough heuristic)
+    const n = parseInt(symbol, 10);
+    if (!isNaN(n) && (n >= 3000 && n <= 6999 || n >= 8000 && n <= 8999)) return '上櫃';
+    return '上市';
+};
+
+/** 把股票交易紀錄用 FIFO 依股數配對成完整的「買進→賣出」交易，供標的勝率排行／最佳進出場分析／DSS回測分析共用 */
+export const buildCompletedTrades = (transactions: StockTransaction[]): CompletedTrade[] => {
+    const bySymbol: Record<string, StockTransaction[]> = {};
+    for (const t of transactions) {
+        if (!t.symbol) continue;
+        (bySymbol[t.symbol] = bySymbol[t.symbol] ?? []).push(t);
+    }
+
+    const result: CompletedTrade[] = [];
+    for (const [symbol, txns] of Object.entries(bySymbol)) {
+        const sorted = [...txns].sort((a, b) => a.date.localeCompare(b.date));
+        // FIFO 依股數配對，而非「一筆買進對一筆賣出」；一筆賣出可能同時平掉多筆買進，
+        // 一筆買進也可能被多筆賣出分批出清，需依實際股數拆分/合併才能算出正確的持倉天數與報酬率。
+        const lots: { date: string; price: number; name?: string; remaining: number; txId: string }[] = [];
+        for (const t of sorted) {
+            if (t.side === 'BUY') {
+                lots.push({ date: t.date, price: t.price, name: t.name, remaining: t.shares, txId: t.id });
+            } else if (t.side === 'SELL' && t.realizedProfit !== undefined) {
+                const totalSellShares = t.shares;
+                let remainingToMatch = t.shares;
+                while (remainingToMatch > 0 && lots.length > 0) {
+                    const lot = lots[0];
+                    const matchedShares = Math.min(lot.remaining, remainingToMatch);
+                    const allocatedProfit = totalSellShares > 0 ? t.realizedProfit * (matchedShares / totalSellShares) : 0;
+                    const returnPct = lot.price > 0 ? ((t.price - lot.price) / lot.price) * 100 : 0;
+                    result.push({
+                        symbol,
+                        name: t.name ?? lot.name,
+                        category: guessCategory(symbol),
+                        buyDate: lot.date,
+                        sellDate: t.date,
+                        buyPrice: lot.price,
+                        sellPrice: t.price,
+                        shares: matchedShares,
+                        realizedProfit: allocatedProfit,
+                        returnPct,
+                        holdingDays: daysBetweenTrades(lot.date, t.date),
+                        buyTxId: lot.txId,
+                        sellTxId: t.id,
+                    });
+                    lot.remaining -= matchedShares;
+                    remainingToMatch -= matchedShares;
+                    if (lot.remaining <= 0) lots.shift();
+                }
+                // remainingToMatch > 0 代表賣出股數超過已知買進紀錄（資料不完整），無買進紀錄可配對的部分直接略過
+            }
+        }
+    }
+    return result.filter(t => t.holdingDays > 0);
+};
+
 /** 買/賣動作與當天 DSS 訊號比對，判斷是否吻合。抽出為獨立函式供「實際交易回測」與「虛擬（最佳進出場）交易」共用 */
 export const computeAlignment = (side: 'BUY' | 'SELL', techSignal: TechDataResult['techSignal']): 'MATCH' | 'DIVERGE' | 'PARTIAL' => {
     if (side === 'BUY') {
