@@ -20,7 +20,7 @@ const DSSLabParamGuide: React.FC = () => (
                 <FlaskConical className="text-violet-400" /> 目標：從真實交易歷史回推「優化後」的進場參數
             </h3>
             <p className="text-sm text-slate-400 leading-relaxed">
-                核心想法：既然有歷史交易紀錄，就能回頭檢視「當時如果換個時間點進場，結果會不會更好」，找出那個更好的進場時間點當下的技術/籌碼指標，反過來當作 DSS 系統的建議參數門檻。整體分五個步驟，皆位於 <b className="text-slate-300">DSS 實驗室</b> 頁面。
+                核心想法：既然有歷史交易紀錄，就能回頭檢視「當時如果換個時間點進場，結果會不會更好」，找出那個更好的進場時間點當下的技術/籌碼指標，反過來當作 DSS 系統的建議參數門檻。整體分六個步驟，皆位於 <b className="text-slate-300">DSS 實驗室</b> 頁面。
             </p>
         </div>
 
@@ -143,6 +143,26 @@ const DSSLabParamGuide: React.FC = () => (
                     已知會影響吻合率、但非參數本身問題的干擾因素：(1) FinMind 額度常在批次回測中途用盡，導致部分標的顯示「K線資料無法取得」，樣本不完整（已用共用快取大幅緩解，但無法完全消除）；(2) 早期發現 BUY 背離裡有 60% 其實是「加碼」被誤判成進場失敗（已藉由簡化 V5.0 訊號層級處理，但沒有改變回測本身的吻合率數字，因為回測引擎本來就沒有加碼訊號可比對，這也是新增「買進背離×已實現損益」的原因之一）；(3) 定期定額交易會稀釋吻合率統計，已新增排除機制。
                 </p>
             </div>
+
+            {/* Step 6 */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600/30 text-violet-300 text-xs font-bold flex items-center justify-center">6</span>
+                    <h4 className="font-bold text-slate-200">背離分析（分類統計：漏判／誤判／時點偏移／過早／過晚）</h4>
+                    <StepBadge status="done" />
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed mb-2">
+                    （2026-07-07 新增）Step5 的「命中率」只回答「吻合還是背離」，沒有回答「背離的原因是什麼」。背離分析頁籤把 254 筆完整交易依三類拆解，直接呈現各類佔比，取代原本已移除的「進場條件分析」（Winner/Loser 均值比較，使用者評估後認為用不到）：
+                </p>
+                <ul className="text-sm text-slate-400 list-disc list-inside space-y-0.5">
+                    <li><b className="text-slate-300">買進背離</b>：串 DSS 回測快取（BacktestResult.alignment）與「標的勝率排行」FIFO 已實現損益（透過交易 id 對應）——<b className="text-slate-300">誤判</b>＝訊號判定 MATCH 但實際虧損；<b className="text-slate-300">漏判</b>＝訊號未判定 MATCH（DIVERGE/PARTIAL）但實際獲利；<b className="text-slate-300">時點偏移</b>＝Step2 算出的最佳進場日與實際進場日相差超過 3 天（不論吻合與否都算）。三者是各自獨立的統計口徑，同一筆交易可能同時落在多個分類。</li>
+                    <li><b className="text-slate-300">賣出（SELL）過早／過晚</b>：僅取最終獲利交易，比較出場分析算出的「最佳出場日」與實際賣出日——最佳日在實際賣出日之後＝賣太早；在之前＝賣太晚（該漲的時候賣掉了 vs 該賣的時候沒賣，抱過頭）。</li>
+                    <li><b className="text-slate-300">停損（STOP LOSS）過早／過晚</b>：邏輯同上但取最終虧損交易、比較對象是「損失最小的停損點」——過早＝停損點在實際停損日之後（可以再撐一下）；過晚＝停損點在實際停損日之前（應該早點停損，抱著虧損擴大）。</li>
+                </ul>
+                <p className="text-xs text-slate-500 mt-2">
+                    這頁只做分類統計與明細列表，可對照「±N日最佳進場分析」/「出場分析」頁籤中既有的中位數參數卡片（那兩頁維持原樣未搬動）。<b className="text-slate-300">刻意不包含</b>分位數（Q10/Q25/Q75/Q90）修正與自動收斂迴圈——這兩項屬於「DSS 背離分析模組 V1.0」構想文件中的中／低可行性部分，使用者評估後決定先暫停，之後有需要再討論（收斂迴圈尤其需要先定義「收斂」的量化停止標準，否則容易做出不知道何時該停的東西）。
+                </p>
+            </div>
         </div>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
@@ -164,6 +184,9 @@ const DSSLabParamGuide: React.FC = () => (
                 </li>
                 <li>
                     <b className="text-slate-300">匯入交易紀錄自動觸發分析</b>：目前「標的勝率排行」與「DSS 回測分析」都要手動點按鈕才會跑。未來希望匯入股票交易 CSV 後就自動觸發這兩項分析，資料一進來就能立刻檢視每一筆交易目前落在哪個環節/狀態，不用額外操作。
+                </li>
+                <li>
+                    <b className="text-slate-300">背離分位數修正 + 自動收斂迴圈</b>：Step6 目前只做分類統計。「DSS 背離分析模組 V1.0」構想文件中還有依分位數（Q10/Q25/Q75/Q90）自動調整參數、並反覆重跑驗證直到結果收斂的迴圈設計，使用者評估後決定先暫停——分位數修正牽涉到跟現有「優質數據篩選（前70%）＋中位數」邏輯如何整合還沒想清楚，收斂迴圈更需要先定義好量化的收斂/停止標準，否則容易做出不知道何時該停的自動化機制。
                 </li>
             </ul>
         </div>

@@ -61,15 +61,6 @@ const buildSymbolStats = (trades: CompletedTrade[]): SymbolStats[] => {
 type SortKey = 'trades' | 'winRate' | 'avgProfit' | 'totalPnL' | 'avgHolding';
 type CategoryFilter = 'ALL' | 'ETF' | '上市' | '上櫃';
 
-// ── Section 2：進場條件分析（交叉比對回測快取）──────────────────────────────
-interface EnrichedTrade extends CompletedTrade {
-    rsi?: number;
-    bias20?: number;
-    techSignal?: string;
-    foreignConsecBuy?: number;
-    trustConsecBuy?: number;
-}
-
 const median = (arr: number[]): number | null => {
     if (!arr.length) return null;
     const s = [...arr].sort((a, b) => a - b);
@@ -78,197 +69,6 @@ const median = (arr: number[]): number | null => {
 };
 
 const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
-
-interface CatStats {
-    cat: 'ETF' | '上市' | '上櫃';
-    matched: number; winners: number; losers: number;
-    wRsi: number | null; lRsi: number | null; medRsi: number | null;
-    wBias: number | null; lBias: number | null; medBias: number | null;
-    wForeign: number | null; lForeign: number | null;
-    wTrust: number | null; lTrust: number | null;
-    wHolding: number | null; lHolding: number | null;
-}
-
-const buildCatStats = (list: EnrichedTrade[], cat: 'ETF' | '上市' | '上櫃'): CatStats | null => {
-    const minN = cat === 'ETF' ? 1 : 3;
-    const withDSS = list.filter(t => t.category === cat && t.rsi !== undefined);
-    if (withDSS.length < minN) return null;
-    const winners = withDSS.filter(t => t.realizedProfit > 0);
-    const losers  = withDSS.filter(t => t.realizedProfit <= 0);
-    return {
-        cat, matched: withDSS.length, winners: winners.length, losers: losers.length,
-        wRsi: avg(winners.map(t => t.rsi!)), lRsi: avg(losers.map(t => t.rsi!)),
-        medRsi: median(winners.map(t => t.rsi!)),
-        wBias: avg(winners.map(t => t.bias20!)), lBias: avg(losers.map(t => t.bias20!)),
-        medBias: median(winners.map(t => t.bias20!)),
-        wForeign: avg(winners.map(t => t.foreignConsecBuy ?? 0)),
-        lForeign: avg(losers.map(t => t.foreignConsecBuy ?? 0)),
-        wTrust: avg(winners.map(t => t.trustConsecBuy ?? 0)),
-        lTrust: avg(losers.map(t => t.trustConsecBuy ?? 0)),
-        wHolding: avg(winners.map(t => t.holdingDays)),
-        lHolding: avg(losers.map(t => t.holdingDays)),
-    };
-};
-
-const CmpRow = ({ label, wVal, lVal, medVal, unit = '', inverse = false }: {
-    label: string; wVal: number | null; lVal: number | null; medVal?: number | null; unit?: string; inverse?: boolean;
-}) => {
-    if (wVal === null || lVal === null) return null;
-    const winnerBetter = inverse ? wVal < lVal : wVal > lVal;
-    return (
-        <tr className="border-t border-slate-700/40">
-            <td className="py-2.5 px-3 text-sm text-slate-300">{label}</td>
-            <td className="py-2.5 px-3 text-center font-mono text-sm text-red-400 font-bold">{wVal.toFixed(1)}{unit}</td>
-            <td className="py-2.5 px-3 text-center font-mono text-sm text-emerald-400 font-bold">{lVal.toFixed(1)}{unit}</td>
-            <td className="py-2.5 px-3 text-center text-xs">
-                {winnerBetter
-                    ? <span className="text-red-400">Winner 較優 ↑</span>
-                    : <span className="text-amber-400">差距不明顯</span>}
-            </td>
-            <td className="py-2.5 px-3 text-right text-xs font-mono text-violet-300">
-                {medVal !== null && medVal !== undefined
-                    ? (inverse ? `< ${medVal.toFixed(1)}${unit}` : `≥ ${medVal.toFixed(1)}${unit}`)
-                    : '—'}
-            </td>
-        </tr>
-    );
-};
-
-const CatPanel: React.FC<{ s: CatStats }> = ({ s }) => (
-    <div className="space-y-3">
-        <div className="flex items-center gap-4 text-xs text-slate-400">
-            <span>已比對 <strong className="text-white">{s.matched}</strong> 筆</span>
-            <span className="text-red-400">✓ Winner {s.winners} 筆</span>
-            <span className="text-emerald-400">✗ Loser {s.losers} 筆</span>
-            <span className="text-slate-500 ml-auto">建議門檻 = Winner 中位數</span>
-        </div>
-        <table className="w-full">
-            <thead>
-                <tr className="text-xs text-slate-400">
-                    <th className="py-1.5 px-3 text-left font-medium">指標</th>
-                    <th className="py-1.5 px-3 text-center font-medium text-red-400">Winner 均值</th>
-                    <th className="py-1.5 px-3 text-center font-medium text-emerald-400">Loser 均值</th>
-                    <th className="py-1.5 px-3 text-center font-medium">差異</th>
-                    <th className="py-1.5 px-3 text-right font-medium text-violet-300">建議門檻</th>
-                </tr>
-            </thead>
-            <tbody>
-                <CmpRow label="RSI 進場" wVal={s.wRsi} lVal={s.lRsi} medVal={s.medRsi} inverse />
-                <CmpRow label="Bias20 進場" wVal={s.wBias} lVal={s.lBias} medVal={s.medBias} unit="%" inverse />
-                <CmpRow label="外資連買天數" wVal={s.wForeign} lVal={s.lForeign} unit="天" />
-                <CmpRow label="投信連買天數" wVal={s.wTrust} lVal={s.lTrust} unit="天" />
-                <CmpRow label="持倉天數" wVal={s.wHolding} lVal={s.lHolding} unit="天" />
-            </tbody>
-        </table>
-    </div>
-);
-
-const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMap: Map<string, string> }> = ({ completedTrades }) => {
-    const [enriched, setEnriched] = useState<EnrichedTrade[] | null>(null);
-    const [activeTab, setActiveTab] = useState<'ETF' | '上市' | '上櫃'>('上市');
-    const [saving, setSaving] = useState(false);
-    const [savedMsg, setSavedMsg] = useState('');
-
-    useEffect(() => {
-        const cache = getBacktestCache();
-        if (!cache) { setEnriched([]); return; }
-        const resultMap = new Map<string, BacktestResult>();
-        cache.results.forEach(r => { if (r.side === 'BUY') resultMap.set(`${r.symbol}|${r.date}`, r); });
-        const list: EnrichedTrade[] = completedTrades.map(t => {
-            const r = resultMap.get(`${t.symbol}|${t.buyDate}`);
-            return r ? { ...t, rsi: r.rsi, bias20: r.bias20, techSignal: r.techSignal, foreignConsecBuy: r.foreignConsecBuy, trustConsecBuy: r.trustConsecBuy } : t;
-        });
-        setEnriched(list);
-    }, [completedTrades]);
-
-    const catStats = useMemo(() => {
-        if (!enriched?.length) return null;
-        const etf   = buildCatStats(enriched, 'ETF');
-        const listed = buildCatStats(enriched, '上市');
-        const otc   = buildCatStats(enriched, '上櫃');
-        if (!etf && !listed && !otc) return null;
-        return { ETF: etf, 上市: listed, 上櫃: otc };
-    }, [enriched]);
-
-    const totalMatched = enriched?.filter(t => t.rsi !== undefined).length ?? 0;
-
-    const handleSaveProfile = () => {
-        if (!catStats) return;
-        setSaving(true);
-        const cats: DSSProfile['categories'] = {};
-        if (catStats.ETF)  cats['ETF']  = { rsi: catStats.ETF.medRsi ?? 0,  bias20: catStats.ETF.medBias ?? 0,  n: catStats.ETF.matched };
-        if (catStats['上市']) cats['上市'] = { rsi: catStats['上市'].medRsi ?? 0, bias20: catStats['上市'].medBias ?? 0, n: catStats['上市'].matched };
-        if (catStats['上櫃']) cats['上櫃'] = { rsi: catStats['上櫃'].medRsi ?? 0, bias20: catStats['上櫃'].medBias ?? 0, n: catStats['上櫃'].matched };
-        const profile: DSSProfile = {
-            id: crypto.randomUUID(),
-            name: `交易分析 ${new Date().toLocaleDateString('zh-TW')}`,
-            createdAt: Date.now(),
-            source: { total: completedTrades.length, matched: totalMatched },
-            categories: cats,
-        };
-        const profiles = getDSSProfiles();
-        saveDSSProfiles([...profiles, profile]);
-        setSaving(false);
-        setSavedMsg('已儲存！可至系統設定套用');
-        setTimeout(() => setSavedMsg(''), 3000);
-    };
-
-    if (!enriched) return null;
-
-    const tabs: Array<'ETF' | '上市' | '上櫃'> = ['ETF', '上市', '上櫃'];
-
-    return (
-        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-slate-700 flex items-center gap-2">
-                <BarChart2 size={16} className="text-violet-400" />
-                <h3 className="text-sm font-bold text-slate-200">進場條件分析</h3>
-                <span className="text-xs text-slate-500 ml-1">交叉比對回測快取 · Winner vs Loser</span>
-                <div className="ml-auto flex items-center gap-2">
-                    {savedMsg && <span className="text-xs text-emerald-400">{savedMsg}</span>}
-                    {catStats && (
-                        <button onClick={handleSaveProfile} disabled={saving}
-                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">
-                            <Save size={12} />儲存為設定檔
-                        </button>
-                    )}
-                </div>
-            </div>
-            {!enriched.length || !catStats ? (
-                <div className="p-8 text-center text-slate-500 text-sm">
-                    尚無回測快取 — 請先至「交易紀錄 → DSS 回測分析」執行一次分析
-                </div>
-            ) : (
-                <div className="p-4 space-y-4">
-                    <div className="flex gap-1">
-                        {tabs.map(tab => {
-                            const s = catStats[tab];
-                            const disabled = !s;
-                            return (
-                                <button key={tab} onClick={() => !disabled && setActiveTab(tab)}
-                                    disabled={disabled}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                        activeTab === tab && !disabled
-                                            ? 'bg-violet-600/30 text-violet-300 border border-violet-500/40'
-                                            : disabled
-                                                ? 'text-slate-600 cursor-not-allowed'
-                                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                                    }`}>
-                                    {tab}
-                                    {s ? <span className="ml-1 text-slate-500">({s.matched})</span>
-                                       : <span className="ml-1 text-slate-600">(不足)</span>}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {catStats[activeTab]
-                        ? <CatPanel s={catStats[activeTab]!} />
-                        : <div className="text-xs text-slate-500 py-4 text-center">此類別資料不足（上市/上櫃需 ≥3 筆，ETF 需 ≥1 筆）</div>
-                    }
-                </div>
-            )}
-        </div>
-    );
-};
 
 // ── Section 3：±N日最佳進場分析 ───────────────────────────────────────────
 /** 最佳進出場日 ±NEAR_BEST_DAYS 日內，每個交易日各自的技術面/籌碼面指標，讓中位數不只依賴單一天 */
@@ -546,7 +346,7 @@ const OptimalEntrySection: React.FC<{ results: WindowResult[] | null }> = ({ res
                             <div className="pt-4 border-t border-slate-700 space-y-3">
                                 <div className="flex items-center gap-2">
                                     <h4 className="text-sm font-bold text-slate-200">最佳進場點參數中位數</h4>
-                                    <span className="text-xs text-slate-500">依分類彙總 — 供進場條件分析參考優化後門檻</span>
+                                    <span className="text-xs text-slate-500">依分類彙總 — 可套用為進場門檻參考值</span>
                                 </div>
                                 <div className="flex gap-1">
                                     {(['ETF', '上市', '上櫃'] as const).map(tab => {
@@ -1045,6 +845,244 @@ const StatCard = ({ label, value, sub, color = 'text-white' }: { label: string; 
     </div>
 );
 
+// ── Section 5：背離分析（BUY 漏判/誤判/時點偏移；SELL/STOP LOSS 過早/過晚）──────
+/** 進場日與最佳進場/出場日相差超過此天數（日曆天，對齊 dayOffset 計算方式）才視為有意義的偏移，避免零附近雜訊 */
+const DIVERGE_DAY_THRESHOLD = 3;
+
+interface BuyDivergenceRow {
+    symbol: string;
+    name?: string;
+    category: 'ETF' | '上市' | '上櫃';
+    buyDate: string;
+    alignment: 'MATCH' | 'DIVERGE' | 'PARTIAL';
+    realizedProfit: number;
+    dayOffset: number | null;
+}
+
+const BuyDivergenceTable: React.FC<{ list: BuyDivergenceRow[] }> = ({ list }) => {
+    if (!list.length) return <div className="text-xs text-slate-500 py-4 text-center">此分類目前無資料</div>;
+    return (
+        <div className="overflow-x-auto max-h-64 overflow-y-auto">
+            <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-slate-800">
+                    <tr className="text-slate-400">
+                        <th className="py-1.5 px-2 text-left">標的</th>
+                        <th className="py-1.5 px-2 text-left">分類</th>
+                        <th className="py-1.5 px-2 text-left">進場日</th>
+                        <th className="py-1.5 px-2 text-center">燈號比對</th>
+                        <th className="py-1.5 px-2 text-right">已實現損益</th>
+                        <th className="py-1.5 px-2 text-right">最佳進場日偏移</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {list.map((r, i) => (
+                        <tr key={i} className="border-t border-slate-700/40">
+                            <td className="py-1.5 px-2 text-slate-200">{r.name ? `${r.name} (${r.symbol})` : r.symbol}</td>
+                            <td className="py-1.5 px-2 text-slate-400">{r.category}</td>
+                            <td className="py-1.5 px-2 text-slate-400">{r.buyDate}</td>
+                            <td className="py-1.5 px-2 text-center text-slate-300">{r.alignment}</td>
+                            <td className={`py-1.5 px-2 text-right font-mono ${r.realizedProfit >= 0 ? 'text-red-400' : 'text-emerald-400'}`}>{r.realizedProfit.toFixed(0)}</td>
+                            <td className="py-1.5 px-2 text-right font-mono text-slate-400">{r.dayOffset !== null ? `${r.dayOffset > 0 ? '+' : ''}${r.dayOffset}天` : '—'}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const ExitDivergenceTable: React.FC<{ list: ExitWindowResult[] }> = ({ list }) => {
+    if (!list.length) return <div className="text-xs text-slate-500 py-4 text-center">此分類目前無資料</div>;
+    return (
+        <div className="overflow-x-auto max-h-64 overflow-y-auto">
+            <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-slate-800">
+                    <tr className="text-slate-400">
+                        <th className="py-1.5 px-2 text-left">標的</th>
+                        <th className="py-1.5 px-2 text-left">分類</th>
+                        <th className="py-1.5 px-2 text-left">實際賣出日</th>
+                        <th className="py-1.5 px-2 text-left">最佳出場日</th>
+                        <th className="py-1.5 px-2 text-right">實際報酬</th>
+                        <th className="py-1.5 px-2 text-right">最佳報酬</th>
+                        <th className="py-1.5 px-2 text-right">日差</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {list.map((r, i) => (
+                        <tr key={i} className="border-t border-slate-700/40">
+                            <td className="py-1.5 px-2 text-slate-200">{r.name ? `${r.name} (${r.symbol})` : r.symbol}</td>
+                            <td className="py-1.5 px-2 text-slate-400">{r.category}</td>
+                            <td className="py-1.5 px-2 text-slate-400">{r.sellDate}</td>
+                            <td className="py-1.5 px-2 text-slate-400">{r.bestDate}</td>
+                            <td className="py-1.5 px-2 text-right font-mono text-slate-300">{r.actualReturn.toFixed(1)}%</td>
+                            <td className="py-1.5 px-2 text-right font-mono text-slate-300">{r.bestReturn.toFixed(1)}%</td>
+                            <td className="py-1.5 px-2 text-right font-mono text-slate-400">{r.dayOffset > 0 ? '+' : ''}{r.dayOffset}天</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const DivergenceAnalysisSection: React.FC<{
+    completedTrades: CompletedTrade[];
+    optimalResults: WindowResult[] | null;
+    exitResults: ExitWindowResult[] | null;
+}> = ({ completedTrades, optimalResults, exitResults }) => {
+    const [backtestCache] = useState(() => getBacktestCache());
+    const [buySubTab, setBuySubTab] = useState<'falseBuy' | 'missed' | 'timingOff'>('falseBuy');
+    const [sellSubTab, setSellSubTab] = useState<'early' | 'late'>('early');
+    const [stopSubTab, setStopSubTab] = useState<'early' | 'late'>('early');
+
+    const buyRows = useMemo((): BuyDivergenceRow[] | null => {
+        if (!backtestCache) return null;
+        const buyResultByTxId = new Map<string, BacktestResult>();
+        backtestCache.results.forEach(r => { if (r.side === 'BUY' && !r.error) buyResultByTxId.set(r.tradeId, r); });
+        const offsetByBuyTxId = new Map<string, number>();
+        optimalResults?.forEach(w => { if (w.buyTxId) offsetByBuyTxId.set(w.buyTxId, w.dayOffset); });
+        const rows: BuyDivergenceRow[] = [];
+        completedTrades.forEach(t => {
+            const r = buyResultByTxId.get(t.buyTxId);
+            if (!r) return;
+            rows.push({
+                symbol: t.symbol, name: t.name, category: t.category, buyDate: t.buyDate,
+                alignment: r.alignment, realizedProfit: t.realizedProfit,
+                dayOffset: offsetByBuyTxId.get(t.buyTxId) ?? null,
+            });
+        });
+        return rows;
+    }, [backtestCache, optimalResults, completedTrades]);
+
+    const buyStats = useMemo(() => {
+        if (!buyRows?.length) return null;
+        const falseBuy = buyRows.filter(r => r.alignment === 'MATCH' && r.realizedProfit < 0);
+        const missed = buyRows.filter(r => r.alignment !== 'MATCH' && r.realizedProfit > 0);
+        const timingOff = buyRows.filter(r => r.dayOffset !== null && Math.abs(r.dayOffset) > DIVERGE_DAY_THRESHOLD);
+        return { total: buyRows.length, falseBuy, missed, timingOff };
+    }, [buyRows]);
+
+    const sellDivergence = useMemo(() => {
+        if (!exitResults) return null;
+        const pool = exitResults.filter(r => r.isWinner);
+        if (!pool.length) return null;
+        return { total: pool.length, early: pool.filter(r => r.dayOffset < -DIVERGE_DAY_THRESHOLD), late: pool.filter(r => r.dayOffset > DIVERGE_DAY_THRESHOLD) };
+    }, [exitResults]);
+
+    const stopLossDivergence = useMemo(() => {
+        if (!exitResults) return null;
+        const pool = exitResults.filter(r => !r.isWinner);
+        if (!pool.length) return null;
+        return { total: pool.length, early: pool.filter(r => r.dayOffset < -DIVERGE_DAY_THRESHOLD), late: pool.filter(r => r.dayOffset > DIVERGE_DAY_THRESHOLD) };
+    }, [exitResults]);
+
+    if (!buyStats && !sellDivergence && !stopLossDivergence) {
+        return (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-8 text-center text-slate-500 text-sm">
+                尚無可比對資料 — 請先執行上方「開始分析」，並至「DSS 回測分析」執行一次回測
+            </div>
+        );
+    }
+
+    const buyTabs = buyStats ? [
+        { key: 'falseBuy' as const, label: '誤判', desc: '訊號判定進場，但實際虧損', list: buyStats.falseBuy },
+        { key: 'missed' as const, label: '漏判', desc: '訊號未判定進場，但實際獲利', list: buyStats.missed },
+        { key: 'timingOff' as const, label: '時點偏移', desc: `最佳進場日與實際進場日相差 > ${DIVERGE_DAY_THRESHOLD} 天`, list: buyStats.timingOff },
+    ] : [];
+
+    return (
+        <div className="space-y-6">
+            {buyStats && (
+                <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+                    <div className="p-4 border-b border-slate-700 flex items-center gap-2">
+                        <BarChart2 size={16} className="text-violet-400" />
+                        <h3 className="text-sm font-bold text-slate-200">買進背離分類</h3>
+                        <span className="text-xs text-slate-500 ml-1">共比對 {buyStats.total} 筆已配對交易（來自 DSS 回測分析快取）</span>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        <div className="grid grid-cols-3 gap-3">
+                            {buyTabs.map(t => (
+                                <button key={t.key} onClick={() => setBuySubTab(t.key)}
+                                    className={`text-left p-3 rounded-xl border transition-colors ${buySubTab === t.key ? 'bg-violet-600/20 border-violet-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'}`}>
+                                    <div className="text-xs text-slate-400">{t.label}</div>
+                                    <div className="text-xl font-bold text-white">{t.list.length}
+                                        <span className="text-xs text-slate-500 font-normal ml-1">({buyStats.total ? ((t.list.length / buyStats.total) * 100).toFixed(1) : '0'}%)</span>
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-1">{t.desc}</div>
+                                </button>
+                            ))}
+                        </div>
+                        <BuyDivergenceTable list={buyTabs.find(t => t.key === buySubTab)?.list ?? []} />
+                    </div>
+                </div>
+            )}
+
+            {(sellDivergence || stopLossDivergence) && (
+                <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+                    <div className="p-4 border-b border-slate-700 flex items-center gap-2">
+                        <Target size={16} className="text-emerald-400" />
+                        <h3 className="text-sm font-bold text-slate-200">出場背離分類</h3>
+                        <span className="text-xs text-slate-500 ml-1">與「出場分析」±{WINDOW_DAYS}日窗口內最佳/最差出場日比對</span>
+                    </div>
+                    <div className="p-4 space-y-5">
+                        {sellDivergence && (
+                            <div className="space-y-3">
+                                <div className="text-xs text-slate-400">SELL（最終獲利交易，共 {sellDivergence.total} 筆）</div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button onClick={() => setSellSubTab('early')}
+                                        className={`text-left p-3 rounded-xl border transition-colors ${sellSubTab === 'early' ? 'bg-emerald-600/20 border-emerald-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'}`}>
+                                        <div className="text-xs text-slate-400">過早賣出</div>
+                                        <div className="text-xl font-bold text-white">{sellDivergence.early.length}
+                                            <span className="text-xs text-slate-500 font-normal ml-1">({sellDivergence.total ? ((sellDivergence.early.length / sellDivergence.total) * 100).toFixed(1) : '0'}%)</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-1">最佳賣點在實際賣出日之後</div>
+                                    </button>
+                                    <button onClick={() => setSellSubTab('late')}
+                                        className={`text-left p-3 rounded-xl border transition-colors ${sellSubTab === 'late' ? 'bg-emerald-600/20 border-emerald-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'}`}>
+                                        <div className="text-xs text-slate-400">過晚賣出</div>
+                                        <div className="text-xl font-bold text-white">{sellDivergence.late.length}
+                                            <span className="text-xs text-slate-500 font-normal ml-1">({sellDivergence.total ? ((sellDivergence.late.length / sellDivergence.total) * 100).toFixed(1) : '0'}%)</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-1">最佳賣點在實際賣出日之前（賣晚了）</div>
+                                    </button>
+                                </div>
+                                <ExitDivergenceTable list={sellSubTab === 'early' ? sellDivergence.early : sellDivergence.late} />
+                            </div>
+                        )}
+                        {stopLossDivergence && (
+                            <div className="space-y-3 pt-4 border-t border-slate-700">
+                                <div className="text-xs text-slate-400">STOP LOSS（最終虧損交易，共 {stopLossDivergence.total} 筆）</div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button onClick={() => setStopSubTab('early')}
+                                        className={`text-left p-3 rounded-xl border transition-colors ${stopSubTab === 'early' ? 'bg-amber-600/20 border-amber-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'}`}>
+                                        <div className="text-xs text-slate-400">停損過早</div>
+                                        <div className="text-xl font-bold text-white">{stopLossDivergence.early.length}
+                                            <span className="text-xs text-slate-500 font-normal ml-1">({stopLossDivergence.total ? ((stopLossDivergence.early.length / stopLossDivergence.total) * 100).toFixed(1) : '0'}%)</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-1">窗口內最小損失日在實際停損日之後</div>
+                                    </button>
+                                    <button onClick={() => setStopSubTab('late')}
+                                        className={`text-left p-3 rounded-xl border transition-colors ${stopSubTab === 'late' ? 'bg-amber-600/20 border-amber-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-slate-600'}`}>
+                                        <div className="text-xs text-slate-400">停損過晚</div>
+                                        <div className="text-xl font-bold text-white">{stopLossDivergence.late.length}
+                                            <span className="text-xs text-slate-500 font-normal ml-1">({stopLossDivergence.total ? ((stopLossDivergence.late.length / stopLossDivergence.total) * 100).toFixed(1) : '0'}%)</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-1">窗口內最小損失日在實際停損日之前（停損慢了）</div>
+                                    </button>
+                                </div>
+                                <ExitDivergenceTable list={stopSubTab === 'early' ? stopLossDivergence.early : stopLossDivergence.late} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+            <p className="text-xs text-slate-600">
+                此頁僅呈現分類統計，可對照「±N日最佳進場分析」/「出場分析」頁籤中的中位數參數；尚未套用分位數修正或自動收斂迴圈（如需要可再討論）。
+            </p>
+        </div>
+    );
+};
+
 export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
 
@@ -1061,7 +1099,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
     const [sortKey, setSortKey] = useState<SortKey>('trades');
     const [sortAsc, setSortAsc] = useState(false);
     const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
-    const [activeSection, setActiveSection] = useState<'winrate' | 'entry' | 'optimal' | 'exit' | 'backtest'>('winrate');
+    const [activeSection, setActiveSection] = useState<'winrate' | 'optimal' | 'exit' | 'divergence' | 'backtest'>('winrate');
 
     const OPTIMAL_CACHE_KEY = 'ft_dsslab_optimal_cache';
     const EXIT_CACHE_KEY = 'ft_dsslab_exit_cache';
@@ -1400,9 +1438,9 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
             <div className="flex gap-2 border-b border-slate-800">
                 {([
                     { key: 'winrate', label: '標的勝率排行', icon: Trophy },
-                    { key: 'entry', label: '進場條件分析', icon: BarChart2 },
                     { key: 'optimal', label: '±N日最佳進場分析', icon: Zap },
                     { key: 'exit', label: '出場分析', icon: Target },
+                    { key: 'divergence', label: '背離分析', icon: BarChart2 },
                     { key: 'backtest', label: 'DSS 回測分析', icon: History },
                 ] as const).map(({ key, label, icon: Icon }) => (
                     <button key={key} onClick={() => setActiveSection(key)}
@@ -1583,9 +1621,9 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                     </div>
                     )}
 
-                    {activeSection === 'entry' && <SignalQualitySection completedTrades={filteredTrades} nameMap={nameMap} />}
                     {activeSection === 'optimal' && <OptimalEntrySection results={optimalResults} />}
                     {activeSection === 'exit' && <ExitAnalysisSection results={exitResults} />}
+                    {activeSection === 'divergence' && <DivergenceAnalysisSection completedTrades={allCompleted} optimalResults={optimalResults} exitResults={exitResults} />}
                 </>
             )}
         </div>
