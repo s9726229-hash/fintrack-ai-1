@@ -1,9 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PlayCircle, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, AlertCircle, Clock } from 'lucide-react';
 import { StockTransaction, BacktestResult } from '../types';
-import { runBacktest } from '../services/stock';
+import { runBacktest, loadDSSLabRawCache, computeVirtualAlignment } from '../services/stock';
 import { getBacktestCache, saveBacktestCache, getTechParameters } from '../services/storage';
 import { TECH_SIGNAL_BADGE_CLASS, NEUTRAL_BADGE_CLASS } from '../services/signalColors';
+
+/** DSS 實驗室「±N日最佳進場分析」「出場分析」快取裡，虛擬交易比對只需要用到的欄位 */
+interface OptimalEntryLite { symbol: string; category: 'ETF' | '上市' | '上櫃'; bestDate: string; }
+interface OptimalExitLite  { symbol: string; category: 'ETF' | '上市' | '上櫃'; bestDate: string; }
+
+const CATEGORY_TO_SIZE: Record<'ETF' | '上市' | '上櫃', 'ETF' | 'LARGE_CAP' | 'SMALL_CAP'> = {
+    'ETF': 'ETF', '上市': 'LARGE_CAP', '上櫃': 'SMALL_CAP',
+};
 
 // 依 techSignal 還原「當天技術面判定條件」，呈現方式與籌碼條件一致（✓/✗ + 門檻）
 const buildTechConditions = (row: BacktestResult): { label: string; satisfied: boolean }[] | string => {
@@ -194,6 +202,48 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
         };
     }, [results, filteredIds]);
 
+    // 虛擬交易比對：把 DSS 實驗室「±N日最佳進場分析／出場分析」算出的最佳進出場日當模擬交易，重算訊號吻合度，
+    // 藉此跟上面「實際交易」的吻合率並排比較，排除額度不足/定期定額/加碼誤判等雜訊干擾
+    const virtualStats = useMemo(() => {
+        let optimalResults: OptimalEntryLite[] = [];
+        let exitResults: OptimalExitLite[] = [];
+        try {
+            const raw = JSON.parse(localStorage.getItem('ft_dsslab_optimal_cache') || 'null');
+            if (Array.isArray(raw?.results)) optimalResults = raw.results;
+        } catch { /* 忽略損壞快取 */ }
+        try {
+            const raw = JSON.parse(localStorage.getItem('ft_dsslab_exit_cache') || 'null');
+            if (Array.isArray(raw?.results)) exitResults = raw.results;
+        } catch { /* 忽略損壞快取 */ }
+        if (!optimalResults.length && !exitResults.length) return null;
+
+        const rawCache = loadDSSLabRawCache();
+        const params = getTechParameters();
+
+        let buyMatch = 0, buyDiverge = 0, buyNoData = 0;
+        for (const r of optimalResults) {
+            const alignment = computeVirtualAlignment(rawCache, r.symbol, r.bestDate, 'BUY', CATEGORY_TO_SIZE[r.category], params);
+            if (alignment === 'MATCH') buyMatch++;
+            else if (alignment === 'DIVERGE') buyDiverge++;
+            else if (alignment === null) buyNoData++;
+        }
+        let sellMatch = 0, sellDiverge = 0, sellNoData = 0;
+        for (const r of exitResults) {
+            const alignment = computeVirtualAlignment(rawCache, r.symbol, r.bestDate, 'SELL', CATEGORY_TO_SIZE[r.category], params);
+            if (alignment === 'MATCH') sellMatch++;
+            else if (alignment === 'DIVERGE') sellDiverge++;
+            else if (alignment === null) sellNoData++;
+        }
+        const buyTotal = optimalResults.length - buyNoData;
+        const sellTotal = exitResults.length - sellNoData;
+        return {
+            buyTotalRaw: optimalResults.length, sellTotalRaw: exitResults.length,
+            buyTotal, sellTotal, buyNoData, sellNoData, buyMatch, buyDiverge, sellMatch, sellDiverge,
+            buyMatchRate:  buyTotal  ? (buyMatch  / buyTotal  * 100) : 0,
+            sellMatchRate: sellTotal ? (sellMatch / sellTotal * 100) : 0,
+        };
+    }, [results]);
+
     const toggleSort = (key: SortKey) => {
         if (sortKey === key) setSortAsc(p => !p);
         else { setSortKey(key); setSortAsc(false); }
@@ -287,6 +337,44 @@ export const BacktestView: React.FC<Props> = ({ allTransactions, filteredTransac
                                 <span className="text-slate-600 text-xs">無賣出損益資料</span>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 虛擬交易比對：實際吻合率 vs 用最佳進出場日模擬的虛擬吻合率 */}
+            {stats && virtualStats && (
+                <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 p-3">
+                    <div className="text-xs font-bold text-slate-300 mb-2">實際 vs 虛擬（最佳進出場）命中率</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-4">
+                            <div>
+                                <div className="text-[10px] text-slate-500">實際 BUY 吻合（{stats.buys} 筆）</div>
+                                <div className={`text-lg font-bold ${stats.buyMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{stats.buyMatchRate.toFixed(0)}%</div>
+                            </div>
+                            <span className="text-slate-600 text-xs">vs</span>
+                            <div>
+                                <div className="text-[10px] text-slate-500">
+                                    虛擬 BUY 命中（{virtualStats.buyTotal}/{virtualStats.buyTotalRaw} 筆{virtualStats.buyNoData ? `，${virtualStats.buyNoData} 筆無快取` : ''}）
+                                </div>
+                                <div className={`text-lg font-bold ${virtualStats.buyMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{virtualStats.buyMatchRate.toFixed(0)}%</div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div>
+                                <div className="text-[10px] text-slate-500">實際 SELL 吻合（{stats.sells} 筆）</div>
+                                <div className={`text-lg font-bold ${stats.sellMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{stats.sellMatchRate.toFixed(0)}%</div>
+                            </div>
+                            <span className="text-slate-600 text-xs">vs</span>
+                            <div>
+                                <div className="text-[10px] text-slate-500">
+                                    虛擬 SELL 命中（{virtualStats.sellTotal}/{virtualStats.sellTotalRaw} 筆{virtualStats.sellNoData ? `，${virtualStats.sellNoData} 筆無快取` : ''}）
+                                </div>
+                                <div className={`text-lg font-bold ${virtualStats.sellMatchRate >= 50 ? 'text-emerald-400' : 'text-orange-400'}`}>{virtualStats.sellMatchRate.toFixed(0)}%</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-[10px] text-slate-600 mt-2">
+                        虛擬命中率＝把 DSS 實驗室「最佳進場日／出場日」當模擬交易重算訊號吻合度；樣本是完整交易（FIFO 配對後），跟左側「實際吻合率」的樣本（全部訊號驅動交易）母體不同，只能看趨勢、不能直接相減比較。
                     </div>
                 </div>
             )}

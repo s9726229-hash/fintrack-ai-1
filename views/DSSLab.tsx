@@ -346,6 +346,18 @@ const SignalQualitySection: React.FC<{ completedTrades: CompletedTrade[]; nameMa
 };
 
 // ── Section 3：±N日最佳進場分析 ───────────────────────────────────────────
+/** 最佳進出場日 ±NEAR_BEST_DAYS 日內，每個交易日各自的技術面/籌碼面指標，讓中位數不只依賴單一天 */
+interface IndicatorSample {
+    rsi: number | null;
+    bias5: number | null;
+    bias10: number | null;
+    bias20: number | null;
+    slopeUpDays: number | null;
+    foreignConsecBuy: number | null;
+    trustConsecBuy: number | null;
+    marginConsecIncrease: number | null;
+}
+
 interface WindowResult {
     symbol: string;
     name?: string;
@@ -377,6 +389,8 @@ interface WindowResult {
     bestForeignConsecBuy: number | null;
     bestTrustConsecBuy: number | null;
     bestMarginConsecIncrease: number | null;
+    /** 最佳進場日 ±NEAR_BEST_DAYS 日內各交易日的指標，供中位數計算使用（樣本比單一最佳日更穩健） */
+    nearBestSamples?: IndicatorSample[];
 }
 
 /** biasSlopes[0] 起算連續正斜率天數（配合 TechParameters 的 xxxBuySlopeDays 門檻概念）*/
@@ -414,6 +428,17 @@ const filterQualityTrades = <T extends { improvement: number }>(list: T[]): { ke
     return { kept: list.filter(r => r.improvement >= cutoff), cutoff };
 };
 
+/** 把每筆交易的 nearBestSamples 攤平成單一指標樣本池；舊快取沒有 nearBestSamples 時，退回單一最佳日的數值 */
+const flattenNearBestSamples = <T extends {
+    bestRsi: number | null; bestBias5: number | null; bestBias10: number | null; bestBias20: number | null;
+    bestSlopeUpDays: number | null; bestForeignConsecBuy: number | null; bestTrustConsecBuy: number | null; bestMarginConsecIncrease: number | null;
+    nearBestSamples?: IndicatorSample[];
+}>(list: T[]): IndicatorSample[] => list.flatMap(r => r.nearBestSamples?.length ? r.nearBestSamples : [{
+    rsi: r.bestRsi, bias5: r.bestBias5, bias10: r.bestBias10, bias20: r.bestBias20,
+    slopeUpDays: r.bestSlopeUpDays, foreignConsecBuy: r.bestForeignConsecBuy,
+    trustConsecBuy: r.bestTrustConsecBuy, marginConsecIncrease: r.bestMarginConsecIncrease,
+}]);
+
 const buildOptimalCatStats = (results: WindowResult[], cat: 'ETF' | '上市' | '上櫃'): OptimalCatStats | null => {
     const minN = cat === 'ETF' ? 1 : 3;
     const catList = results.filter(r => r.category === cat);
@@ -422,19 +447,20 @@ const buildOptimalCatStats = (results: WindowResult[], cat: 'ETF' | '上市' | '
     const { kept: list, cutoff } = filterQualityTrades(catList);
     if (list.length < minN) return null;
 
+    const samples = flattenNearBestSamples(list);
     return {
         cat,
         n: list.length,
         rawN: catList.length,
         qualityCutoff: cutoff,
-        medRsi: median(list.map(r => r.bestRsi).filter(notNull)),
-        medBias5: median(list.map(r => r.bestBias5).filter(notNull)),
-        medBias10: median(list.map(r => r.bestBias10).filter(notNull)),
-        medBias20: median(list.map(r => r.bestBias20).filter(notNull)),
-        medSlopeUpDays: median(list.map(r => r.bestSlopeUpDays).filter(notNull)),
-        medForeignConsecBuy: median(list.map(r => r.bestForeignConsecBuy).filter(notNull)),
-        medTrustConsecBuy: median(list.map(r => r.bestTrustConsecBuy).filter(notNull)),
-        medMarginConsecIncrease: median(list.map(r => r.bestMarginConsecIncrease).filter(notNull)),
+        medRsi: median(samples.map(s => s.rsi).filter(notNull)),
+        medBias5: median(samples.map(s => s.bias5).filter(notNull)),
+        medBias10: median(samples.map(s => s.bias10).filter(notNull)),
+        medBias20: median(samples.map(s => s.bias20).filter(notNull)),
+        medSlopeUpDays: median(samples.map(s => s.slopeUpDays).filter(notNull)),
+        medForeignConsecBuy: median(samples.map(s => s.foreignConsecBuy).filter(notNull)),
+        medTrustConsecBuy: median(samples.map(s => s.trustConsecBuy).filter(notNull)),
+        medMarginConsecIncrease: median(samples.map(s => s.marginConsecIncrease).filter(notNull)),
     };
 };
 
@@ -640,6 +666,35 @@ const daysBetween2 = (d1: string, d2: string) => {
     return Math.round(diff / 86400000);
 };
 
+/** 最佳進出場日往前後各抓幾天的鄰近交易日，一起納入中位數樣本，避免單一天的極端值主導參數 */
+const NEAR_BEST_DAYS = 2;
+
+const computeNearBestSamples = (
+    kline: { date: string; close: number }[],
+    instRows: { date: string; foreign: number; trust: number }[],
+    marginRows: { date: string; balance: number }[],
+    bestDate: string,
+    params: ReturnType<typeof getTechParameters>,
+    sizeCategory: 'ETF' | 'LARGE_CAP' | 'SMALL_CAP'
+): IndicatorSample[] => {
+    const nearby = kline.filter(r => {
+        const diff = daysBetween2(r.date, bestDate);
+        return diff >= -NEAR_BEST_DAYS && diff <= NEAR_BEST_DAYS;
+    });
+    return nearby.map(r => {
+        const bias = computeMultiBias(kline, r.date);
+        const dss = computeDSSForDate(kline, instRows, marginRows, r.date, params, sizeCategory);
+        return {
+            rsi: dss?.rsi ?? null,
+            bias5: bias.bias5, bias10: bias.bias10, bias20: bias.bias20,
+            slopeUpDays: dss ? slopeConsecUp(dss.biasSlopes) : null,
+            foreignConsecBuy: dss?.foreignConsecBuy ?? null,
+            trustConsecBuy: dss?.trustConsecBuy ?? null,
+            marginConsecIncrease: dss?.marginConsecIncrease ?? null,
+        };
+    });
+};
+
 // ── Section 4：出場分析（對稱於 ±N日最佳進場分析，改找最佳「出場」日）────────
 interface ExitWindowResult {
     symbol: string;
@@ -671,6 +726,8 @@ interface ExitWindowResult {
     bestForeignConsecBuy: number | null;
     bestTrustConsecBuy: number | null;
     bestMarginConsecIncrease: number | null;
+    /** 最佳出場日 ±NEAR_BEST_DAYS 日內各交易日的指標，供中位數計算使用（樣本比單一最佳日更穩健） */
+    nearBestSamples?: IndicatorSample[];
 }
 
 interface ExitCatStats {
@@ -696,19 +753,20 @@ const buildExitCatStats = (results: ExitWindowResult[], cat: 'ETF' | '上市' | 
     const { kept: list, cutoff } = filterQualityTrades(catList);
     if (list.length < minN) return null;
 
+    const samples = flattenNearBestSamples(list);
     return {
         cat,
         n: list.length,
         rawN: catList.length,
         qualityCutoff: cutoff,
-        medRsi: median(list.map(r => r.bestRsi).filter(notNull)),
-        medBias5: median(list.map(r => r.bestBias5).filter(notNull)),
-        medBias10: median(list.map(r => r.bestBias10).filter(notNull)),
-        medBias20: median(list.map(r => r.bestBias20).filter(notNull)),
-        medSlopeUpDays: median(list.map(r => r.bestSlopeUpDays).filter(notNull)),
-        medForeignConsecBuy: median(list.map(r => r.bestForeignConsecBuy).filter(notNull)),
-        medTrustConsecBuy: median(list.map(r => r.bestTrustConsecBuy).filter(notNull)),
-        medMarginConsecIncrease: median(list.map(r => r.bestMarginConsecIncrease).filter(notNull)),
+        medRsi: median(samples.map(s => s.rsi).filter(notNull)),
+        medBias5: median(samples.map(s => s.bias5).filter(notNull)),
+        medBias10: median(samples.map(s => s.bias10).filter(notNull)),
+        medBias20: median(samples.map(s => s.bias20).filter(notNull)),
+        medSlopeUpDays: median(samples.map(s => s.slopeUpDays).filter(notNull)),
+        medForeignConsecBuy: median(samples.map(s => s.foreignConsecBuy).filter(notNull)),
+        medTrustConsecBuy: median(samples.map(s => s.trustConsecBuy).filter(notNull)),
+        medMarginConsecIncrease: median(samples.map(s => s.marginConsecIncrease).filter(notNull)),
     };
 };
 
@@ -1034,6 +1092,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                 const bestBias = computeMultiBias(kline, best.date);
                 const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.buyDate, params, sizeCategory);
                 const bestDss = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
+                const nearBestSamples = computeNearBestSamples(kline, instRows, marginRows, best.date, params, sizeCategory);
                 optResults.push({
                     symbol: trade.symbol, name: nameMap.get(trade.symbol), category: trade.category,
                     buyDate: trade.buyDate, sellDate: trade.sellDate, sellPrice: trade.sellPrice,
@@ -1048,6 +1107,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                     bestRsi: bestDss?.rsi ?? null, bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
                     bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null, bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
                     bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
+                    nearBestSamples,
                 });
             }
 
@@ -1064,6 +1124,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                 const bestBias = computeMultiBias(kline, best.date);
                 const actualDss = computeDSSForDate(kline, instRows, marginRows, trade.sellDate, params, sizeCategory);
                 const bestDss = computeDSSForDate(kline, instRows, marginRows, best.date, params, sizeCategory);
+                const nearBestSamples = computeNearBestSamples(kline, instRows, marginRows, best.date, params, sizeCategory);
                 extResults.push({
                     symbol: trade.symbol, name: nameMap.get(trade.symbol), category: trade.category,
                     buyDate: trade.buyDate, sellDate: trade.sellDate, buyPrice: trade.buyPrice,
@@ -1078,6 +1139,7 @@ export const DSSLab: React.FC<Props> = ({ stockTransactions }) => {
                     bestRsi: bestDss?.rsi ?? null, bestSlopeUpDays: bestDss ? slopeConsecUp(bestDss.biasSlopes) : null,
                     bestForeignConsecBuy: bestDss?.foreignConsecBuy ?? null, bestTrustConsecBuy: bestDss?.trustConsecBuy ?? null,
                     bestMarginConsecIncrease: bestDss?.marginConsecIncrease ?? null,
+                    nearBestSamples,
                 });
             }
         }

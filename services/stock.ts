@@ -1358,6 +1358,62 @@ export const detectRecurringCandidates = (transactions: StockTransaction[]): Sto
     return candidates;
 };
 
+/** 買/賣動作與當天 DSS 訊號比對，判斷是否吻合。抽出為獨立函式供「實際交易回測」與「虛擬（最佳進出場）交易」共用 */
+export const computeAlignment = (side: 'BUY' | 'SELL', techSignal: TechDataResult['techSignal']): 'MATCH' | 'DIVERGE' | 'PARTIAL' => {
+    if (side === 'BUY') {
+        if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT'].includes(techSignal)) return 'MATCH';
+        if (['WATCH_DIVERGE', 'SELL', 'PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT'].includes(techSignal)) return 'DIVERGE';
+        return 'PARTIAL';
+    }
+    if (['PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT', 'SELL'].includes(techSignal)) return 'MATCH';
+    if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT'].includes(techSignal)) return 'DIVERGE';
+    return 'PARTIAL';
+};
+
+export interface DSSLabRawCacheEntry {
+    kline: { date: string; close: number }[];
+    inst: { date: string; foreign: number; trust: number }[];
+    margin: { date: string; balance: number }[];
+}
+
+export const loadDSSLabRawCache = (): Record<string, DSSLabRawCacheEntry> => {
+    try { return JSON.parse(localStorage.getItem('ft_dsslab_raw_cache') || '{}'); } catch { return {}; }
+};
+
+/** 在共用原始資料快取裡，找同一檔標的、實際資料範圍涵蓋 [requiredStart, requiredEnd] 的項目（起始日容許 ±10 天誤差） */
+export const findCachedRawData = (
+    rawCache: Record<string, DSSLabRawCacheEntry>,
+    symbol: string,
+    requiredStart: string,
+    requiredEnd: string
+): DSSLabRawCacheEntry | null => {
+    const requiredStartTolerant = new Date(new Date(requiredStart).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const cachedKey = Object.keys(rawCache).find(k => {
+        if (!k.startsWith(`${symbol}|`)) return false;
+        const entry = rawCache[k];
+        if (!entry?.kline?.length) return false;
+        return entry.kline[0].date <= requiredStartTolerant && entry.kline[entry.kline.length - 1].date >= requiredEnd;
+    });
+    return cachedKey ? rawCache[cachedKey] : null;
+};
+
+/** 只讀共用快取重算某標的在指定日期的 DSS 訊號吻合度，不打 FinMind（快取沒涵蓋就回傳 null）。給「虛擬交易」比對使用 */
+export const computeVirtualAlignment = (
+    rawCache: Record<string, DSSLabRawCacheEntry>,
+    symbol: string,
+    date: string,
+    side: 'BUY' | 'SELL',
+    sizeCategory: 'ETF' | 'LARGE_CAP' | 'SMALL_CAP',
+    params: TechParameters
+): 'MATCH' | 'DIVERGE' | 'PARTIAL' | null => {
+    const requiredStart = new Date(new Date(date).getTime() - 95 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const cached = findCachedRawData(rawCache, symbol, requiredStart, date);
+    if (!cached) return null;
+    const dss = computeDSSForDate(cached.kline, cached.inst, cached.margin, date, params, sizeCategory);
+    if (!dss) return null;
+    return computeAlignment(side, dss.techSignal);
+};
+
 export const runBacktest = async (
     trades: StockTransaction[],
     onProgress?: (done: number, total: number, currentSymbol: string) => void
@@ -1379,8 +1435,7 @@ export const runBacktest = async (
     const totalSymbols = bySymbol.size;
 
     // DSS 實驗室的原始資料快取（kline/籌碼/融資），日期範圍若涵蓋本次所需區間可直接重用，不必重打 FinMind
-    let dsslabRawCache: Record<string, { kline: { date: string; close: number }[]; inst: { date: string; foreign: number; trust: number }[]; margin: { date: string; balance: number }[] }> = {};
-    try { dsslabRawCache = JSON.parse(localStorage.getItem('ft_dsslab_raw_cache') || '{}'); } catch { /* 忽略損壞快取 */ }
+    const dsslabRawCache = loadDSSLabRawCache();
     let rawCacheDirty = false;
 
     for (const [symbol, symbolTrades] of bySymbol.entries()) {
@@ -1396,23 +1451,13 @@ export const runBacktest = async (
         const buyBias  = isETF ? params.etfBuyBias  : sizeCategory === 'LARGE_CAP' ? params.largeCapBuyBias  : params.smallCapBuyBias;
         const sellBias = isETF ? params.etfPartialSellBias : sizeCategory === 'LARGE_CAP' ? params.largeCapPartialSellBias : params.smallCapPartialSellBias;
 
-        // 找 DSS 實驗室快取裡，同一檔股票、實際資料範圍涵蓋 [klineStart, maxDate] 的項目（不要求快取鍵完全相同）。
-        // 容許起始日 ±10 天誤差：日曆天換算交易日本來就有落差(遇假日/非交易日)，只要落在合理範圍內，
-        // 歷史資料量足夠算 MA20/RSI 即可，不需要精確對到同一天。
-        const klineStartTolerant = new Date(new Date(klineStart).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const cachedKey = Object.keys(dsslabRawCache).find(k => {
-            if (!k.startsWith(`${symbol}|`)) return false;
-            const entry = dsslabRawCache[k];
-            if (!entry?.kline?.length) return false;
-            return entry.kline[0].date <= klineStartTolerant && entry.kline[entry.kline.length - 1].date >= maxDate;
-        });
+        const cached = findCachedRawData(dsslabRawCache, symbol, klineStart, maxDate);
 
         let klineRows: { date: string; close: number }[] | null;
         let instRows: { date: string; foreign: number; trust: number }[] | null;
         let marginRows: { date: string; balance: number }[] | null;
 
-        if (cachedKey) {
-            const cached = dsslabRawCache[cachedKey];
+        if (cached) {
             klineRows = cached.kline;
             instRows = cached.inst;
             marginRows = cached.margin;
@@ -1447,22 +1492,10 @@ export const runBacktest = async (
                 continue;
             }
 
-            const { techSignal } = dss;
-            let alignment: 'MATCH' | 'DIVERGE' | 'PARTIAL';
-            if (trade.side === 'BUY') {
-                if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT'].includes(techSignal)) alignment = 'MATCH';
-                else if (['WATCH_DIVERGE', 'SELL', 'PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT'].includes(techSignal)) alignment = 'DIVERGE';
-                else alignment = 'PARTIAL';
-            } else {
-                if (['PARTIAL_SELL', 'SECOND_PARTIAL_SELL', 'FORCE_SELL', 'STOP_LOSS_ALERT', 'SELL'].includes(techSignal)) alignment = 'MATCH';
-                else if (['STRONG_BUY', 'BUY', 'STRONG_LAYOUT'].includes(techSignal)) alignment = 'DIVERGE';
-                else alignment = 'PARTIAL';
-            }
-
             results.push({
                 ...baseEntry,
                 ...dss,
-                alignment,
+                alignment: computeAlignment(trade.side, dss.techSignal),
                 gapToBuyBias:  dss.bias20 - buyBias,
                 gapToSellBias: dss.bias20 - sellBias,
             });
