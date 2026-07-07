@@ -857,7 +857,52 @@ interface BuyDivergenceRow {
     alignment: 'MATCH' | 'DIVERGE' | 'PARTIAL';
     realizedProfit: number;
     dayOffset: number | null;
+    rsi: number;
+    bias20: number;
+    slopeUpDays: number;
+    foreignConsecBuy: number;
+    trustConsecBuy: number;
 }
+
+const fmtNum = (v: number | null) => v !== null ? v.toFixed(1) : '-';
+const fmtPct = (v: number | null) => v !== null ? `${v.toFixed(1)}%` : '-';
+const fmtDays = (v: number | null) => v !== null ? `${Math.round(v)}天` : '-';
+/** 過濾 null/undefined 後取中位數（沿用上方 median()），供各背離分類母體中位數使用 */
+const medianOf = (arr: (number | null | undefined)[]): number | null =>
+    median(arr.filter((v): v is number => v !== null && v !== undefined));
+
+const MiniStat = ({ label, value }: { label: string; value: string }) => (
+    <div className="bg-slate-900/40 border border-slate-700/50 rounded-lg px-3 py-1.5 text-center min-w-[84px]">
+        <div className="text-[10px] text-slate-500">{label}</div>
+        <div className="text-sm font-bold text-amber-300">{value}</div>
+    </div>
+);
+
+const MedianStatsRow: React.FC<{ n: number; items: { label: string; value: string }[] }> = ({ n, items }) => (
+    <div className="flex flex-wrap gap-2">
+        <MiniStat label="樣本數" value={`${n}`} />
+        {items.map(it => <MiniStat key={it.label} label={it.label} value={it.value} />)}
+    </div>
+);
+
+const buyBucketMedianItems = (list: BuyDivergenceRow[]) => [
+    { label: 'RSI 中位數', value: fmtNum(medianOf(list.map(r => r.rsi))) },
+    { label: 'Bias20 中位數', value: fmtPct(medianOf(list.map(r => r.bias20))) },
+    { label: '斜率天數中位數', value: fmtDays(medianOf(list.map(r => r.slopeUpDays))) },
+    { label: '外資連買中位數', value: fmtDays(medianOf(list.map(r => r.foreignConsecBuy))) },
+    { label: '投信連買中位數', value: fmtDays(medianOf(list.map(r => r.trustConsecBuy))) },
+];
+
+const exitBucketMedianItems = (list: ExitWindowResult[]) => [
+    { label: 'RSI 中位數', value: fmtNum(medianOf(list.map(r => r.actualRsi))) },
+    { label: 'Bias5 中位數', value: fmtPct(medianOf(list.map(r => r.actualBias5))) },
+    { label: 'Bias10 中位數', value: fmtPct(medianOf(list.map(r => r.actualBias10))) },
+    { label: 'Bias20 中位數', value: fmtPct(medianOf(list.map(r => r.actualBias20))) },
+    { label: '斜率天數中位數', value: fmtDays(medianOf(list.map(r => r.actualSlopeUpDays))) },
+    { label: '外資連買中位數', value: fmtDays(medianOf(list.map(r => r.actualForeignConsecBuy))) },
+    { label: '投信連買中位數', value: fmtDays(medianOf(list.map(r => r.actualTrustConsecBuy))) },
+    { label: '融資連增中位數', value: fmtDays(medianOf(list.map(r => r.actualMarginConsecIncrease))) },
+];
 
 const BuyDivergenceTable: React.FC<{ list: BuyDivergenceRow[] }> = ({ list }) => {
     if (!list.length) return <div className="text-xs text-slate-500 py-4 text-center">此分類目前無資料</div>;
@@ -949,6 +994,8 @@ const DivergenceAnalysisSection: React.FC<{
                 symbol: t.symbol, name: t.name, category: t.category, buyDate: t.buyDate,
                 alignment: r.alignment, realizedProfit: t.realizedProfit,
                 dayOffset: offsetByBuyTxId.get(t.buyTxId) ?? null,
+                rsi: r.rsi, bias20: r.bias20, slopeUpDays: slopeConsecUp(r.biasSlopes),
+                foreignConsecBuy: r.foreignConsecBuy, trustConsecBuy: r.trustConsecBuy,
             });
         });
         return rows;
@@ -1012,6 +1059,7 @@ const DivergenceAnalysisSection: React.FC<{
                                 </button>
                             ))}
                         </div>
+                        <MedianStatsRow n={buyTabs.find(t => t.key === buySubTab)?.list.length ?? 0} items={buyBucketMedianItems(buyTabs.find(t => t.key === buySubTab)?.list ?? [])} />
                         <BuyDivergenceTable list={buyTabs.find(t => t.key === buySubTab)?.list ?? []} />
                     </div>
                 </div>
@@ -1046,6 +1094,7 @@ const DivergenceAnalysisSection: React.FC<{
                                         <div className="text-xs text-slate-500 mt-1">最佳賣點在實際賣出日之前（賣晚了）</div>
                                     </button>
                                 </div>
+                                <MedianStatsRow n={(sellSubTab === 'early' ? sellDivergence.early : sellDivergence.late).length} items={exitBucketMedianItems(sellSubTab === 'early' ? sellDivergence.early : sellDivergence.late)} />
                                 <ExitDivergenceTable list={sellSubTab === 'early' ? sellDivergence.early : sellDivergence.late} />
                             </div>
                         )}
@@ -1070,6 +1119,7 @@ const DivergenceAnalysisSection: React.FC<{
                                         <div className="text-xs text-slate-500 mt-1">窗口內最小損失日在實際停損日之前（停損慢了）</div>
                                     </button>
                                 </div>
+                                <MedianStatsRow n={(stopSubTab === 'early' ? stopLossDivergence.early : stopLossDivergence.late).length} items={exitBucketMedianItems(stopSubTab === 'early' ? stopLossDivergence.early : stopLossDivergence.late)} />
                                 <ExitDivergenceTable list={stopSubTab === 'early' ? stopLossDivergence.early : stopLossDivergence.late} />
                             </div>
                         )}
@@ -1077,7 +1127,7 @@ const DivergenceAnalysisSection: React.FC<{
                 </div>
             )}
             <p className="text-xs text-slate-600">
-                此頁僅呈現分類統計，可對照「±N日最佳進場分析」/「出場分析」頁籤中的中位數參數；尚未套用分位數修正或自動收斂迴圈（如需要可再討論）。
+                各分類上方的中位數為該分類母體（誤判/漏判/時點偏移/過早/過晚）自身的技術面/籌碼面中位數，僅供對照「±N日最佳進場分析」/「出場分析」頁籤中的整體中位數參考，尚未自動套用或寫入設定檔；分位數修正與自動收斂迴圈仍維持暫停（如需要可再討論）。
             </p>
         </div>
     );
