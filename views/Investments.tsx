@@ -1,12 +1,11 @@
 ﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, LineChart, Clock, WifiOff } from 'lucide-react';
+import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, Clock, WifiOff } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime, fetchTWSEBatch } from '../services/stock';
-import { getApiKey, getTechParameters, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
-import { TECH_SIGNAL_BADGE_CLASS, NEUTRAL_BADGE_CLASS, brewingBadgeClass, conditionChipClass, chipHintBadgeClass, THRESHOLD_BUY_HIT_BG, THRESHOLD_SELL_HIT_BG, THRESHOLD_BUY_HIT_TEXT, THRESHOLD_SELL_HIT_TEXT, CONSEC_BUY_BG, CONSEC_SELL_BG, CONSEC_BUY_TEXT, CONSEC_SELL_TEXT } from '../services/signalColors';
+import { getApiKey, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
@@ -34,7 +33,7 @@ interface InvestmentsProps {
     isActiveView?: boolean;
 }
 
-type ActiveTab = 'INVENTORY' | 'HISTORY' | 'DIVIDEND' | 'MONITOR';
+type ActiveTab = 'INVENTORY' | 'HISTORY' | 'DIVIDEND';
 
 const formatTimeAgo = (timestamp: number | undefined): { text: string; color: string } => {
     if (!timestamp) return { text: 'N/A', color: 'text-slate-500' };
@@ -244,16 +243,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
         setAnalyzeProgress(null);
     };
 
-    useEffect(() => {
-        if (activeTab === 'MONITOR' && localStorage.getItem('needs_rescan_inventory') === 'true') {
-            localStorage.removeItem('needs_rescan_inventory');
-            if (inventory.length > 0) {
-                // Use setTimeout to avoid state update during render if React 18 batches it weirdly
-                setTimeout(() => handleUpdateBias(), 100);
-            }
-        }
-    }, [activeTab, inventory]);
-
     const handleUpdateBiasRef = useRef(handleUpdateBias);
     useEffect(() => {
         handleUpdateBiasRef.current = handleUpdateBias;
@@ -326,7 +315,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
             <div className="flex items-center justify-between border-b border-slate-700 flex-wrap gap-y-2">
                 <div className="flex items-center gap-4">
                     <button onClick={() => setActiveTab('INVENTORY')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'INVENTORY' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>庫存總覽</button>
-                    <button onClick={() => setActiveTab('MONITOR')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'MONITOR' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}><div className="flex items-center gap-1.5"><LineChart size={14}/> 技術監控</div></button>
                     <button onClick={() => setActiveTab('HISTORY')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'HISTORY' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>交易紀錄</button>
                     <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>股息分析</button>
                 </div>
@@ -409,298 +397,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     </div>
                 </div>
             )}
-            {activeTab === 'MONITOR' && (() => {
-                const techParams = getTechParameters();
-                
-                // Get latest updated time
-                const lastUpdatedTime = inventory.length > 0 && inventory[0].lastUpdated 
-                    ? new Date(inventory[0].lastUpdated).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                    : '尚無資料';
-
-                const renderTechRow = (pos: Asset) => {
-                    const bias20 = pos.ma20 && pos.currentPrice ? ((pos.currentPrice - pos.ma20) / pos.ma20) * 100 : null;
-                    
-                    let consecutivePositiveSlopes = 0;
-                    let consecutiveNegativeSlopes = 0;
-                    if (pos.biasSlopes) {
-                        for (let i = 0; i < pos.biasSlopes.length; i++) {
-                            if (pos.biasSlopes[i] !== undefined && pos.biasSlopes[i] > 0) {
-                                consecutivePositiveSlopes++;
-                            } else {
-                                break;
-                            }
-                        }
-                        for (let i = 0; i < pos.biasSlopes.length; i++) {
-                            if (pos.biasSlopes[i] !== undefined && pos.biasSlopes[i] < 0) {
-                                consecutiveNegativeSlopes++;
-                            } else {
-                                break;
-                            }
-                        }
-                    }
-
-                    let buyBiasThreshold = techParams.largeCapBuyBias;
-                    let rsiThreshold = techParams.largeCapBuyRsi;
-                    let slopeDaysThreshold = techParams.largeCapBuySlopeDays;
-                    let partialSellThreshold = techParams.largeCapPartialSellBias;
-                    let partialSellSlopeDaysThreshold = techParams.largeCapPartialSellSlopeDays;
-                    let stopLossThreshold = techParams.largeCapStopLossBias;
-
-                    if (pos.sizeCategory === 'ETF') {
-                        buyBiasThreshold = techParams.etfBuyBias;
-                        rsiThreshold = techParams.etfBuyRsi;
-                        slopeDaysThreshold = techParams.etfBuySlopeDays;
-                        partialSellThreshold = techParams.etfPartialSellBias;
-                        partialSellSlopeDaysThreshold = techParams.etfPartialSellSlopeDays;
-                        stopLossThreshold = -999;
-                    } else if (pos.sizeCategory === 'SMALL_CAP') {
-                        buyBiasThreshold = techParams.smallCapBuyBias;
-                        rsiThreshold = techParams.smallCapBuyRsi;
-                        slopeDaysThreshold = techParams.smallCapBuySlopeDays;
-                        partialSellThreshold = techParams.smallCapPartialSellBias;
-                        partialSellSlopeDaysThreshold = techParams.smallCapPartialSellSlopeDays;
-                        stopLossThreshold = techParams.smallCapStopLossBias;
-                    }
-
-                    const currentProfit = (pos.currentPrice && pos.avgCost) ? ((pos.currentPrice - pos.avgCost) / pos.avgCost) * 100 : null;
-                    const profitAmount = (pos.currentPrice && pos.avgCost && pos.shares) ? (pos.currentPrice - pos.avgCost) * pos.shares : null;
-
-                    let biasHighlightClass = '';
-                    let biasSubtext = null;
-                    if (stopLossThreshold !== -999 && bias20 !== null && bias20 <= stopLossThreshold) {
-                        biasHighlightClass = THRESHOLD_SELL_HIT_BG;
-                        biasSubtext = <div className={`text-[10px] ${THRESHOLD_SELL_HIT_TEXT} mt-0.5 leading-tight`}>達停損門檻 <span className="scale-90 inline-block">(&lt;={stopLossThreshold}%)</span></div>;
-                    } else if (bias20 !== null && bias20 <= buyBiasThreshold) {
-                        biasHighlightClass = THRESHOLD_BUY_HIT_BG;
-                        biasSubtext = <div className={`text-[10px] ${THRESHOLD_BUY_HIT_TEXT} mt-0.5 leading-tight`}>達買進門檻 <span className="scale-90 inline-block">(&lt;={buyBiasThreshold}%)</span></div>;
-                    } else if (bias20 !== null && bias20 >= partialSellThreshold) {
-                        biasHighlightClass = THRESHOLD_SELL_HIT_BG;
-                        biasSubtext = <div className={`text-[10px] ${THRESHOLD_SELL_HIT_TEXT} mt-0.5 leading-tight`}>達停利門檻 <span className="scale-90 inline-block">(&gt;={partialSellThreshold}%)</span></div>;
-                    }
-
-                    let slopeHighlightClass = '';
-                    let slopeSubtext = null;
-                    if (consecutivePositiveSlopes >= slopeDaysThreshold) {
-                        slopeHighlightClass = THRESHOLD_BUY_HIT_BG;
-                        slopeSubtext = <div className={`text-[10px] ${THRESHOLD_BUY_HIT_TEXT} mt-0.5 leading-tight`}>達買進門檻 <span className="scale-90 inline-block">(連{slopeDaysThreshold}增)</span></div>;
-                    } else if (consecutiveNegativeSlopes >= partialSellSlopeDaysThreshold) {
-                        slopeHighlightClass = THRESHOLD_SELL_HIT_BG;
-                        slopeSubtext = <div className={`text-[10px] ${THRESHOLD_SELL_HIT_TEXT} mt-0.5 leading-tight`}>過熱勿追 <span className="scale-90 inline-block">(連{partialSellSlopeDaysThreshold}跌)</span></div>;
-                    }
-
-                    let rsiHighlightClass = '';
-                    let rsiSubtext = null;
-                    if (pos.rsi !== undefined && pos.rsi !== null && pos.rsi <= rsiThreshold) {
-                        rsiHighlightClass = THRESHOLD_BUY_HIT_BG;
-                        rsiSubtext = <div className={`text-[10px] ${THRESHOLD_BUY_HIT_TEXT} mt-0.5 leading-tight`}>達買進門檻 <span className="scale-90 inline-block">(&lt;={rsiThreshold})</span></div>;
-                    }
-
-                    const targetBuyPrice = pos.ma20 ? (pos.ma20 * (1 + buyBiasThreshold / 100)).toFixed(2) : '-';
-                    const targetSellPrice = pos.ma20 ? (pos.ma20 * (1 + partialSellThreshold / 100)).toFixed(2) : '-';
-                    const targetStopPrice = pos.ma20 && stopLossThreshold !== -999 ? (pos.ma20 * (1 + stopLossThreshold / 100)).toFixed(2) : '-';
-
-                    const renderConditionChips = (hint: typeof pos.signalHint) => {
-                        if (!hint?.conditions?.length) return null;
-                        return (
-                            <div className="flex items-center justify-center gap-1 flex-wrap mt-1 max-w-[180px]">
-                                {hint.conditions.map((c, i) => (
-                                    <span key={i} className={`text-xs px-1.5 py-0.5 rounded border ${conditionChipClass(hint.type, c.satisfied)}`}>
-                                        {c.label}
-                                    </span>
-                                ))}
-                            </div>
-                        );
-                    };
-
-                    const withChips = (badge: React.ReactNode) => (
-                        <div className="flex flex-col items-center gap-1">
-                            {badge}
-                            {renderConditionChips(pos.signalHint)}
-                        </div>
-                    );
-
-                    const renderTechBadge = (signal: string) => {
-                        const isBrewingState = signal === 'NONE' || signal === 'RISK_ALERT';
-                        if (isBrewingState) {
-                            if (!pos.signalHint) return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
-                            const hint = pos.signalHint;
-                            const target = hint.target;
-                            return (
-                                <div className="flex flex-col items-center gap-1">
-                                    {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${brewingBadgeClass(hint.type)}`}>{target}</span>}
-                                    {renderConditionChips(hint)}
-                                </div>
-                            );
-                        }
-                        switch (signal) {
-                            case 'STRONG_BUY': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STRONG_BUY} px-2 py-1 rounded text-xs font-bold`}>🚀 強力買進 (&lt;={targetBuyPrice})</span>);
-                            case 'BUY': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.BUY} px-2 py-1 rounded text-xs font-bold`}>🔴 買進訊號 (&lt;={targetBuyPrice})</span>);
-                            case 'PARTIAL_SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.PARTIAL_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 部分停利 (&gt;={targetSellPrice})</span>);
-                            case 'FORCE_SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.FORCE_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 強制停利 (&gt;={targetSellPrice})</span>);
-                            case 'STOP_LOSS': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STOP_LOSS} px-2 py-1 rounded text-xs font-bold`}>⚠️ 停損警示 (&lt;={targetStopPrice})</span>);
-                            case 'FINAL_ADD': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.FINAL_ADD} px-2 py-1 rounded text-xs font-bold`}>🔵🔵 最後加碼</span>);
-                            case 'STOP_LOSS_ALERT': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STOP_LOSS_ALERT} px-2 py-1 rounded text-xs font-bold`}>⚠️ 停損警示 (&lt;={targetStopPrice})</span>);
-                            case 'RISK_ALERT': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.PARTIAL_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 留意風險</span>);
-                            case 'SECOND_PARTIAL_SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.SECOND_PARTIAL_SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 再次減碼 (&gt;={targetSellPrice})</span>);
-                            case 'STRONG_LAYOUT': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.STRONG_LAYOUT} px-2 py-1 rounded text-xs font-bold`}>🚀 強力布局（籌碼共振）</span>);
-                            case 'WATCH_DIVERGE': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.WATCH_DIVERGE} px-2 py-1 rounded text-xs font-bold`}>🟢 持續觀察（籌碼背離）</span>);
-                            case 'SELL': return withChips(<span className={`${TECH_SIGNAL_BADGE_CLASS.SELL} px-2 py-1 rounded text-xs font-bold`}>🟢 建議賣出（主力棄守）</span>);
-                            case 'NONE': return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
-                            default: return <span className="text-slate-500 text-xs">無訊號觀察中</span>;
-                        }
-                    };
-
-                    const renderChipBadge = (_signal: string) => {
-                        if (!pos.chipHint) return <span className="text-slate-500 text-xs">-</span>;
-                        const hint = pos.chipHint;
-                        const target = hint.target;
-                        return (
-                            <div className="flex flex-col items-center gap-1">
-                                {target && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${chipHintBadgeClass(target)}`}>{target}</span>}
-                                {renderConditionChips(hint)}
-                            </div>
-                        );
-                    };
-
-                    const techBadge = renderTechBadge(pos.techSignal || '');
-                    const chipBadge = renderChipBadge(pos.techSignal || '');
-
-                    const currentSlope = pos.biasSlopes && pos.biasSlopes[0] !== undefined ? pos.biasSlopes[0] : null;
-                    const slopeColor = currentSlope !== null ? (currentSlope > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500';
-
-                    return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
-                        <td className="p-3">
-                            <p className="font-bold text-white truncate">{pos.name}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                                <p className="text-xs text-slate-500 font-mono">{pos.symbol}</p>
-                                {pos.sizeCategory === 'LARGE_CAP' && <span className="text-[9px] px-1 bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/30 font-bold tracking-wider">上市</span>}
-                                {pos.sizeCategory === 'SMALL_CAP' && <span className="text-[9px] px-1 bg-sky-500/20 text-sky-400 rounded border border-sky-500/30 font-bold tracking-wider">上櫃</span>}
-                                {pos.sizeCategory === 'ETF' && <span className="text-[9px] px-1 bg-violet-500/20 text-violet-400 rounded border border-violet-500/30 font-bold tracking-wider">ETF</span>}
-                            </div>
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-white">
-                            <div className="flex flex-col items-end">
-                                <span>{pos.currentPrice?.toFixed(2) || '-'}</span>
-                                {pos.dailyChange != null && pos.dailyChangeRatio != null && (
-                                    <span className={`text-[10px] ${pos.dailyChange > 0 ? 'text-red-400' : pos.dailyChange < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                        {pos.dailyChange > 0 ? '▲' : '▼'} {Math.abs(pos.dailyChange).toFixed(2)} ({pos.dailyChange > 0 ? '+' : ''}{pos.dailyChangeRatio.toFixed(2)}%)
-                                    </span>
-                                )}
-                            </div>
-                        </td>
-                        <td className="p-3 text-right font-mono">
-                            {currentProfit !== null && profitAmount !== null ? (
-                                <div className={`leading-tight ${currentProfit > 0 ? 'text-red-400' : currentProfit < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                    <div className="font-bold">{currentProfit > 0 ? '+' : ''}{currentProfit.toFixed(2)}%</div>
-                                    <div className="text-[10px] opacity-80 mt-0.5">({profitAmount > 0 ? '+' : ''}{Math.round(profitAmount).toLocaleString()})</div>
-                                </div>
-                            ) : <span className="text-slate-500">-</span>}
-                        </td>
-                        <td className="p-3 text-right font-mono text-slate-400">{pos.ma20?.toFixed(2) || '-'}</td>
-                        <td className={`p-3 text-right font-mono transition-colors ${biasHighlightClass}`}>
-                            {bias20 !== null ? <span className={bias20 > 0 ? 'text-red-400' : 'text-emerald-400'}>{bias20 > 0 ? '+' : ''}{bias20.toFixed(2)}%</span> : '-'}
-                            {biasSubtext}
-                        </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${slopeHighlightClass}`}>
-                            {currentSlope !== null ? (
-                                <span className={slopeColor}>{currentSlope > 0 ? '+' : ''}{currentSlope.toFixed(2)} {consecutivePositiveSlopes > 0 ? <span className="text-[10px] ml-1 opacity-80">(連{consecutivePositiveSlopes}增)</span> : ''}</span>
-                            ) : '-'}
-                            {slopeSubtext}
-                        </td>
-                        <td className={`p-3 text-right font-mono text-slate-300 transition-colors ${rsiHighlightClass}`}>
-                            {pos.rsi?.toFixed(1) || '-'}
-                            {rsiSubtext}
-                        </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.foreignConsecBuy && pos.foreignConsecBuy >= 3 ? CONSEC_BUY_BG : pos.foreignConsecSell && pos.foreignConsecSell >= 3 ? CONSEC_SELL_BG : ''}`}>
-                            {pos.institutionalForeign !== undefined && pos.institutionalForeign !== null ? (
-                                <div>
-                                    <span className={pos.institutionalForeign > 0 ? 'text-red-400' : (pos.institutionalForeign < 0 ? 'text-emerald-400' : 'text-slate-500')}>
-                                        {pos.institutionalForeign > 0 ? '+' : ''}{pos.institutionalForeign.toLocaleString()}
-                                    </span>
-                                    {pos.foreignConsecBuy && pos.foreignConsecBuy > 0 ? (
-                                        <div className={`text-[10px] mt-0.5 ${CONSEC_BUY_TEXT(pos.foreignConsecBuy >= 3)}`}>
-                                            連買{pos.foreignConsecBuy}日
-                                        </div>
-                                    ) : pos.foreignConsecSell && pos.foreignConsecSell > 0 ? (
-                                        <div className={`text-[10px] mt-0.5 ${CONSEC_SELL_TEXT(pos.foreignConsecSell >= 3)}`}>
-                                            連賣{pos.foreignConsecSell}日
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ) : '-'}
-                        </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.trustConsecBuy && pos.trustConsecBuy >= 3 ? CONSEC_BUY_BG : pos.trustConsecSell && pos.trustConsecSell >= 3 ? CONSEC_SELL_BG : ''}`}>
-                            {pos.institutionalTrust !== undefined && pos.institutionalTrust !== null ? (
-                                <div>
-                                    <span className={pos.institutionalTrust > 0 ? 'text-red-400' : (pos.institutionalTrust < 0 ? 'text-emerald-400' : 'text-slate-500')}>
-                                        {pos.institutionalTrust > 0 ? '+' : ''}{pos.institutionalTrust.toLocaleString()}
-                                    </span>
-                                    {pos.trustConsecBuy && pos.trustConsecBuy > 0 ? (
-                                        <div className={`text-[10px] mt-0.5 ${CONSEC_BUY_TEXT(pos.trustConsecBuy >= 3)}`}>
-                                            連買{pos.trustConsecBuy}日
-                                        </div>
-                                    ) : pos.trustConsecSell && pos.trustConsecSell > 0 ? (
-                                        <div className={`text-[10px] mt-0.5 ${CONSEC_SELL_TEXT(pos.trustConsecSell >= 3)}`}>
-                                            連賣{pos.trustConsecSell}日
-                                        </div>
-                                    ) : null}
-                                </div>
-                            ) : '-'}
-                        </td>
-                        <td className={`p-3 text-right font-mono transition-colors ${pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio >= 2 ? CONSEC_BUY_BG : pos.marginChange !== null && pos.marginChange !== undefined && pos.marginChange < 0 ? CONSEC_SELL_BG : ''}`}>
-                            {pos.marginChange !== undefined && pos.marginChange !== null ? (
-                                <div>
-                                    <span className={pos.marginChange > 0 ? 'text-red-400' : (pos.marginChange < 0 ? 'text-emerald-400' : 'text-slate-500')}>
-                                        {pos.marginChange > 0 ? '+' : ''}{pos.marginChange.toLocaleString()}
-                                    </span>
-                                    {pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio >= 2 && (
-                                        <div className="text-[10px] text-amber-400/80 mt-0.5">融資大增 +{pos.marginChangeRatio.toFixed(1)}%</div>
-                                    )}
-                                    {pos.marginChangeRatio !== null && pos.marginChangeRatio !== undefined && pos.marginChangeRatio <= -2 && (
-                                        <div className="text-[10px] text-emerald-400/80 mt-0.5">融資大減 {pos.marginChangeRatio.toFixed(1)}%</div>
-                                    )}
-                                </div>
-                            ) : '-'}
-                        </td>
-
-                        <td className="p-3 text-center">{techBadge}</td>
-                        <td className="p-3 text-center">{chipBadge}</td>
-                    </tr>);
-                };
-
-                return (
-                <div className="space-y-6 animate-fade-in">
-                    <div className="flex justify-end">
-                        <span className="text-xs text-slate-500 font-mono">最後分析時間：{lastUpdatedTime}</span>
-                    </div>
-                    {/* 投資組合監控 */}
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl flex flex-col max-h-[75vh]">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><LineChart size={16} className="text-sky-400" /> 📊 投資組合技術監控</h3>
-                            <span className="text-xs text-slate-500">轉折策略與高乖離預警</span>
-                        </div>
-                        <div className="flex-1 overflow-auto"><table className="w-full text-left min-w-[1000px]">
-                            <thead className="sticky top-0 bg-slate-900 z-10 shadow-md"><tr className="text-xs text-slate-400 uppercase">
-                                <th className="p-3 font-medium w-32">標的</th>
-                                <th className="p-3 font-medium text-right">當前價格</th>
-                                <th className="p-3 font-medium text-right">當前損益</th>
-                                <th className="p-3 font-medium text-right">月線 (20MA)</th>
-                                <th className="p-3 font-medium text-right">月乖離 (BIAS20)</th>
-                                <th className="p-3 font-medium text-right">乖離斜率</th>
-                                <th className="p-3 font-medium text-right">強弱指標 (RSI)</th>
-                                <th className="p-3 font-medium text-right">外資買賣(張)</th>
-                                <th className="p-3 font-medium text-right">投信買賣(張)</th>
-                                <th className="p-3 font-medium text-right">融資增減(張)</th>
-                                <th className="p-3 font-medium text-center">訊號(技術)</th>
-                                <th className="p-3 font-medium text-center">訊號(籌碼)</th>
-                            </tr></thead>
-                            <tbody>{inventory.length > 0 ? inventory.map(renderTechRow) : (<tr><td colSpan={11} className="text-center py-6 text-slate-500 text-sm">無庫存資料</td></tr>)}</tbody>
-                        </table></div>
-                    </div>
-                </div>
-                );
-            })()}
-            
             {activeTab === 'DIVIDEND' && (
                 <div className="space-y-6 animate-fade-in">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

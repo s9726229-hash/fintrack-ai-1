@@ -9,9 +9,6 @@ import { Settings } from './views/Settings';
 import { GuideView } from './views/Guide';
 import { Budget } from './views/Budget';
 import { Investments } from './views/Investments';
-import { TechDocs } from './views/TechDocs';
-import { Watchlist } from './views/Watchlist';
-import { DSSLab } from './views/DSSLab';
 import { ViewState, Asset, Transaction, RecurringItem, AssetType, BudgetConfig, ApiKeyStatus, StockSnapshot, StockTransaction, Currency } from './types';
 import * as storage from './services/storage';
 import { calculateLoanBalance } from './services/finance';
@@ -335,12 +332,7 @@ export default function App() {
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}
       {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}
-      <div className={view === 'WATCHLIST' ? 'block' : 'hidden'}>
-        <Watchlist isActiveView={view === 'WATCHLIST'} />
-      </div>
-      {view === 'DSS_LAB' && <DSSLab stockTransactions={stockTransactions} />}
       {view === 'GUIDE' && <GuideView />}
-      {view === 'TECH_DOCS' && <TechDocs />}
       {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}
       {toast && (
         <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[60] animate-fade-in">

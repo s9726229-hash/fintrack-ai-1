@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
-import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS, getDSSProfiles, saveDSSProfiles, DSSProfile } from '../services/storage';
+import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS } from '../services/storage';
 import { initGapi, initGis, handleAuthClick, uploadToDrive, downloadFromDrive, getBackupMetadata, checkConnection } from '../services/googleDrive';
-import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon, FlaskConical } from 'lucide-react';
+import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
 import { ApiKeyStatus, Asset, AssetType } from '../types';
 import { STORAGE_KEYS } from '../constants';
 import { fetchFinMindUsage } from '../services/stock';
@@ -14,72 +14,6 @@ interface SettingsProps {
 
 
 
-
-const DSSProfilesCard: React.FC<{ onApply: (p: DSSProfile) => void }> = ({ onApply }) => {
-    const [profiles, setProfiles] = useState<DSSProfile[]>([]);
-    const [applied, setApplied] = useState<string | null>(null);
-
-    useEffect(() => { setProfiles(getDSSProfiles()); }, []);
-
-    const handleDelete = (id: string) => {
-        const next = profiles.filter(p => p.id !== id);
-        saveDSSProfiles(next);
-        setProfiles(next);
-    };
-
-    const handleApply = (p: DSSProfile) => {
-        onApply(p);
-        setApplied(p.id);
-        setTimeout(() => setApplied(null), 2500);
-    };
-
-    if (!profiles.length) return null;
-
-    return (
-        <Card className="border-violet-500/30 bg-gradient-to-br from-slate-800 to-slate-900/50">
-            <div className="flex items-center gap-2 mb-4">
-                <FlaskConical size={18} className="text-violet-400" />
-                <h3 className="text-lg font-bold text-white">DSS 設定檔</h3>
-                <span className="text-xs text-slate-500 ml-1">由 DSS 實驗室分析產生</span>
-            </div>
-            <div className="space-y-2">
-                {profiles.map(p => (
-                    <div key={p.id} className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700/40">
-                        <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-slate-200">{p.name}</div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                                <span className="text-xs text-slate-500">{new Date(p.createdAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                <span className="text-xs text-slate-500">比對 {p.source.matched}/{p.source.total} 筆</span>
-                                {(['ETF', '上市', '上櫃'] as const).map(cat => {
-                                    const c = p.categories[cat];
-                                    if (!c) return null;
-                                    const color = cat === 'ETF' ? 'text-cyan-400/70' : cat === '上市' ? 'text-emerald-400/70' : 'text-amber-400/70';
-                                    return (
-                                        <span key={cat} className={`text-xs ${color}`}>
-                                            {cat}: 進場 RSI&lt;{c.rsi.toFixed(1)} B20&lt;{c.bias20.toFixed(1)}%
-                                            {c.slopeUpDays !== undefined && ` 斜率≥${c.slopeUpDays}天`}
-                                            {c.strongBias20 !== undefined && ` ｜強買 B20&lt;${c.strongBias20.toFixed(1)}%`}
-                                            {c.exitBias20 !== undefined && ` ｜停利 B20≥${c.exitBias20.toFixed(1)}%`}
-                                            {c.exitForceBias20 !== undefined && ` ｜強制停利 B20≥${c.exitForceBias20.toFixed(1)}%`}
-                                            {c.stopLossBias20 !== undefined && ` ｜停損 B20≥${c.stopLossBias20.toFixed(1)}%`}
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                            {applied === p.id
-                                ? <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle2 size={12} />已套用</span>
-                                : <button onClick={() => handleApply(p)} className="text-xs px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 rounded-lg transition-colors">套用</button>
-                            }
-                            <button onClick={() => handleDelete(p.id)} className="text-slate-600 hover:text-red-400 transition-colors p-1"><Trash2 size={14} /></button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
-    );
-};
 
 export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
@@ -557,48 +491,6 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
 
 
-
-      {/* DSS 設定檔 */}
-      <DSSProfilesCard onApply={(p) => {
-          const cur = getTechParameters();
-          const next = { ...cur };
-          if (p.categories.ETF) {
-              next.etfBuyRsi   = p.categories.ETF.rsi;
-              next.etfBuyBias  = p.categories.ETF.bias20;
-              if (p.categories.ETF.slopeUpDays !== undefined) next.etfBuySlopeDays = p.categories.ETF.slopeUpDays;
-              if (p.categories.ETF.exitBias20 !== undefined) next.etfPartialSellBias = p.categories.ETF.exitBias20;
-              if (p.categories.ETF.strongRsi !== undefined) next.etfStrongBuyRsi = p.categories.ETF.strongRsi;
-              if (p.categories.ETF.strongBias20 !== undefined) next.etfStrongBuyBias = p.categories.ETF.strongBias20;
-              if (p.categories.ETF.strongSlopeUpDays !== undefined) next.etfStrongBuySlopeDays = p.categories.ETF.strongSlopeUpDays;
-              if (p.categories.ETF.exitForceBias20 !== undefined) next.etfSecondPartialSellBias = p.categories.ETF.exitForceBias20;
-              // ETF 無停損機制（視為長線持有），STOP LOSS / FORCE STOP LOSS 不套用
-          }
-          if (p.categories['上市']) {
-              next.largeCapBuyRsi  = p.categories['上市'].rsi;
-              next.largeCapBuyBias = p.categories['上市'].bias20;
-              if (p.categories['上市'].slopeUpDays !== undefined) next.largeCapBuySlopeDays = p.categories['上市'].slopeUpDays;
-              if (p.categories['上市'].exitBias20 !== undefined) next.largeCapPartialSellBias = p.categories['上市'].exitBias20;
-              if (p.categories['上市'].strongRsi !== undefined) next.largeCapStrongBuyRsi = p.categories['上市'].strongRsi;
-              if (p.categories['上市'].strongBias20 !== undefined) next.largeCapStrongBuyBias = p.categories['上市'].strongBias20;
-              if (p.categories['上市'].strongSlopeUpDays !== undefined) next.largeCapStrongBuySlopeDays = p.categories['上市'].strongSlopeUpDays;
-              if (p.categories['上市'].exitForceBias20 !== undefined) next.largeCapForceSellBias = p.categories['上市'].exitForceBias20;
-              if (p.categories['上市'].stopLossBias20 !== undefined) next.largeCapStopLossBias = p.categories['上市'].stopLossBias20;
-          }
-          if (p.categories['上櫃']) {
-              next.smallCapBuyRsi  = p.categories['上櫃'].rsi;
-              next.smallCapBuyBias = p.categories['上櫃'].bias20;
-              if (p.categories['上櫃'].slopeUpDays !== undefined) next.smallCapBuySlopeDays = p.categories['上櫃'].slopeUpDays;
-              if (p.categories['上櫃'].exitBias20 !== undefined) next.smallCapPartialSellBias = p.categories['上櫃'].exitBias20;
-              if (p.categories['上櫃'].strongRsi !== undefined) next.smallCapStrongBuyRsi = p.categories['上櫃'].strongRsi;
-              if (p.categories['上櫃'].strongBias20 !== undefined) next.smallCapStrongBuyBias = p.categories['上櫃'].strongBias20;
-              if (p.categories['上櫃'].strongSlopeUpDays !== undefined) next.smallCapStrongBuySlopeDays = p.categories['上櫃'].strongSlopeUpDays;
-              if (p.categories['上櫃'].exitForceBias20 !== undefined) next.smallCapForceSellBias = p.categories['上櫃'].exitForceBias20;
-              if (p.categories['上櫃'].stopLossBias20 !== undefined) next.smallCapStopLossBias = p.categories['上櫃'].stopLossBias20;
-          }
-          saveTechParameters(next);
-          setTechParams(next);
-          triggerRescan();
-      }} />
 
       <div className="text-center text-[10px] text-slate-600 pb-4">
           <p>FinTrack AI</p>

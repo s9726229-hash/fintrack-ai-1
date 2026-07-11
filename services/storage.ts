@@ -84,21 +84,6 @@ export const saveFeeDiscount = (discount: number) => {
     localStorage.setItem(STORAGE_KEYS.FEE_DISCOUNT, discount.toString());
 };
 
-export const getWatchlists = (): import('../types').WatchlistGroup[] => {
-    const data = localStorage.getItem(STORAGE_KEYS.WATCHLISTS);
-    if (data) {
-        return JSON.parse(data);
-    }
-    // Default watchlist if empty
-    return [
-        { id: 'default', name: '自選股', symbols: [] }
-    ];
-};
-
-export const saveWatchlists = (watchlists: import('../types').WatchlistGroup[]) => {
-    localStorage.setItem(STORAGE_KEYS.WATCHLISTS, JSON.stringify(watchlists));
-};
-
 // --- V7.1.0 Tech Parameters ---
 export const DEFAULT_TECH_PARAMS: import('../types').TechParameters = {
     etfBuyBias: -7,
@@ -155,77 +140,6 @@ export const saveTechParameters = (params: import('../types').TechParameters) =>
     localStorage.setItem(STORAGE_KEYS.TECH_PARAMS, JSON.stringify(params));
 };
 
-// ── DSS 設定檔 ────────────────────────────────────────────────────────────────
-export interface DSSProfileCategoryStats {
-    // 進場（可自動套用至 xxxBuyRsi / xxxBuyBias / xxxBuySlopeDays）
-    rsi: number;
-    bias20: number;
-    n: number;
-    slopeUpDays?: number;
-    // 進場（僅供參考，技術面參數設定無對應欄位可自動套用）
-    bias5?: number;
-    bias10?: number;
-    foreignConsecBuy?: number;
-    trustConsecBuy?: number;
-    marginConsecIncrease?: number;
-    // 強買門檻（可自動套用至 xxxStrongBuyRsi / xxxStrongBuyBias / xxxStrongBuySlopeDays），
-    // 取單一最佳進場日中位數（不含 ±2 日鄰近樣本），比一般買進門檻嚴格
-    strongRsi?: number;
-    strongBias20?: number;
-    strongSlopeUpDays?: number;
-    // 出場／SELL（停利，僅取最終獲利交易；exitBias20 可自動套用至 xxxPartialSellBias，其餘僅供參考）
-    exitRsi?: number;
-    exitBias5?: number;
-    exitBias10?: number;
-    exitBias20?: number;
-    exitSlopeUpDays?: number;
-    exitForeignConsecBuy?: number;
-    exitTrustConsecBuy?: number;
-    exitMarginConsecIncrease?: number;
-    exitN?: number;
-    // FORCE SELL（僅取最終獲利交易的單一最佳出場日，不含 ±2 日樣本，比一般停利更嚴格；
-    // 可自動套用至 xxxForceSellBias / etfSecondPartialSellBias）
-    exitForceRsi?: number;
-    exitForceBias20?: number;
-    exitForceSlopeUpDays?: number;
-    // STOP LOSS（停損，僅取最終虧損交易，找損失最小的停損點；可自動套用至 xxxStopLossBias，ETF 無停損機制不套用）
-    stopLossRsi?: number;
-    stopLossBias5?: number;
-    stopLossBias10?: number;
-    stopLossBias20?: number;
-    stopLossSlopeUpDays?: number;
-    stopLossForeignConsecBuy?: number;
-    stopLossTrustConsecBuy?: number;
-    stopLossMarginConsecIncrease?: number;
-    stopLossN?: number;
-    // FORCE STOP LOSS（僅取最終虧損交易窗口內損失最大的一天，刻畫最危險狀態特徵；目前無對應技術面欄位，僅供參考）
-    forceStopLossRsi?: number;
-    forceStopLossBias20?: number;
-    forceStopLossSlopeUpDays?: number;
-}
-
-export interface DSSProfile {
-    id: string;
-    name: string;
-    createdAt: number;
-    source: { total: number; matched: number };
-    categories: {
-        ETF?:  DSSProfileCategoryStats;
-        上市?: DSSProfileCategoryStats;
-        上櫃?: DSSProfileCategoryStats;
-    };
-}
-
-export const getDSSProfiles = (): DSSProfile[] => {
-    try { return JSON.parse(localStorage.getItem('ft_dss_profiles') || '[]'); }
-    catch { return []; }
-};
-
-export const saveDSSProfiles = (profiles: DSSProfile[]) => {
-    localStorage.setItem('ft_dss_profiles', JSON.stringify(profiles));
-};
-// ------------------------
-
 export const getApiKey = (): string => {
     return localStorage.getItem('ft_api_key') || '';
 };
@@ -264,9 +178,7 @@ export const getFullDataJson = () => {
         [STORAGE_KEYS.BUDGETS]: getBudgets(),
         [STORAGE_KEYS.STOCK_HISTORY]: getStockHistory(),
         [STORAGE_KEYS.STOCK_TRANSACTIONS]: getStockTransactions(),
-        [STORAGE_KEYS.WATCHLISTS]: getWatchlists(),
         [STORAGE_KEYS.TECH_PARAMS]: getTechParameters(),
-        [BACKTEST_CACHE_KEY]: getBacktestCache(),
         'ft_api_key': getApiKey(),
         'ft_finmind_token': getFinMindToken(),
         'ft_google_client_id': getGoogleClientId(),
@@ -323,9 +235,7 @@ export const importData = (jsonData: string) => {
     if (data[STORAGE_KEYS.HISTORY]) saveHistory(data[STORAGE_KEYS.HISTORY]);
     if (data[STORAGE_KEYS.BUDGETS]) saveBudgets(data[STORAGE_KEYS.BUDGETS]);
     if (data[STORAGE_KEYS.STOCK_HISTORY]) saveStockHistory(data[STORAGE_KEYS.STOCK_HISTORY]);
-    if (data[STORAGE_KEYS.WATCHLISTS]) saveWatchlists(data[STORAGE_KEYS.WATCHLISTS]);
     if (data[STORAGE_KEYS.TECH_PARAMS]) saveTechParameters(data[STORAGE_KEYS.TECH_PARAMS]);
-    if (data[BACKTEST_CACHE_KEY]) localStorage.setItem(BACKTEST_CACHE_KEY, JSON.stringify(data[BACKTEST_CACHE_KEY]));
     if (data['ft_api_key']) saveApiKey(data['ft_api_key']);
     if (data['ft_finmind_token']) saveFinMindToken(data['ft_finmind_token']);
     if (data['ft_google_client_id']) saveGoogleClientId(data['ft_google_client_id']);
@@ -340,18 +250,6 @@ export const importData = (jsonData: string) => {
 
 export const clearAllData = () => {
   localStorage.clear();
-};
-
-// --- 回測分析快取 ---
-const BACKTEST_CACHE_KEY = 'ft_backtest_cache';
-
-export const getBacktestCache = (): { timestamp: number; results: import('../types').BacktestResult[] } | null => {
-    const data = localStorage.getItem(BACKTEST_CACHE_KEY);
-    return data ? JSON.parse(data) : null;
-};
-
-export const saveBacktestCache = (results: import('../types').BacktestResult[]) => {
-    localStorage.setItem(BACKTEST_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), results }));
 };
 
 export const getAutoTechUpdateEnabled = (): boolean => {
