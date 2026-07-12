@@ -143,12 +143,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
         [fallbackNameMap, baseStockNameMap]
     );
 
-    // 本年度尚未入帳的股息事件（獨立 store，涵蓋目前庫存 + 今年已出清的股票；AI 估算備援的股票沒有事件清單所以不會出現）
-    const pendingDividendEvents = useMemo(() => {
-        const events: { key: string; symbol: string; name: string; exDate: string; paymentDate?: string; dividendPerShare: number; shares: number; amount: number }[] = [];
+    // 本年度所有股息事件（獨立 store，涵蓋目前庫存 + 今年已出清的股票；AI 估算備援的股票沒有事件清單所以不會出現）
+    const allDividendEvents = useMemo(() => {
+        const events: { key: string; symbol: string; name: string; exDate: string; paymentDate?: string; dividendPerShare: number; shares: number; amount: number; recorded: boolean }[] = [];
         Object.entries(dividendEvents).forEach(([symbol, symbolEvents]) => {
             symbolEvents.forEach(ev => {
-                if (ev.recorded) return;
                 const shares = getSharesHeldAtDate(symbol, ev.exDate, stockTransactions);
                 if (shares <= 0) return;
                 events.push({
@@ -160,11 +159,35 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     dividendPerShare: ev.dividendPerShare,
                     shares,
                     amount: Math.round(shares * ev.dividendPerShare),
+                    recorded: !!ev.recorded,
                 });
             });
         });
         return events.sort((a, b) => a.exDate.localeCompare(b.exDate));
     }, [dividendEvents, stockTransactions, stockNameMap]);
+
+    // 尚未入帳的部分，供上方勾選確認、一鍵產生交易用
+    const pendingDividendEvents = useMemo(
+        () => allDividendEvents.filter(e => !e.recorded),
+        [allDividendEvents]
+    );
+
+    // 依除息月份分組，讓已入帳的股息也能持續留在畫面上快速檢視，而不是產生交易後就整個消失
+    const dividendEventsByMonth = useMemo(() => {
+        const groups = new Map<string, typeof allDividendEvents>();
+        allDividendEvents.forEach(e => {
+            const month = e.exDate.slice(0, 7); // YYYY-MM
+            if (!groups.has(month)) groups.set(month, []);
+            groups.get(month)!.push(e);
+        });
+        return Array.from(groups.entries())
+            .sort((a, b) => b[0].localeCompare(a[0])) // 最新月份在前
+            .map(([month, events]) => ({
+                month,
+                events,
+                total: events.reduce((s, e) => s + e.amount, 0),
+            }));
+    }, [allDividendEvents]);
 
     const [uncheckedEventKeys, setUncheckedEventKeys] = useState<Set<string>>(new Set());
     const toggleEventKey = (key: string) => {
@@ -377,6 +400,34 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                         </div>
                                         <p className="font-mono font-bold text-emerald-400 shrink-0">+${e.amount.toLocaleString()}</p>
                                     </label>
+                                ))}
+                            </div>
+                        </div>
+                   )}
+
+                   {dividendEventsByMonth.length > 0 && (
+                        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
+                            <div className="p-4 border-b border-slate-700"><h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><Coins size={16} className="text-emerald-400"/> 股息紀錄（依除息月份）</h3></div>
+                            <div className="max-h-[32rem] overflow-y-auto divide-y divide-slate-800">
+                                {dividendEventsByMonth.map(group => (
+                                    <div key={group.month}>
+                                        <div className="px-4 py-2 bg-slate-900/60 flex items-center justify-between sticky top-0">
+                                            <span className="text-xs font-bold text-slate-300">{group.month.replace('-', '年')}月</span>
+                                            <span className="text-xs font-mono font-bold text-emerald-400">+${group.total.toLocaleString()}</span>
+                                        </div>
+                                        {group.events.map(e => (
+                                            <div key={e.key} className="flex items-center gap-3 px-4 py-2.5 border-t border-slate-800/60">
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-bold text-white truncate">{e.name} <span className="text-xs text-slate-500 font-mono">{e.symbol}</span></p>
+                                                    <p className="text-xs text-slate-500 font-mono">除息 {e.exDate}{e.paymentDate ? ` · 發放 ${e.paymentDate}` : ''} · {e.shares.toLocaleString()}股 × ${e.dividendPerShare}</p>
+                                                </div>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${e.recorded ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-300'}`}>
+                                                    {e.recorded ? '已入帳' : '待入帳'}
+                                                </span>
+                                                <p className="font-mono font-bold text-emerald-400 shrink-0 w-20 text-right">+${e.amount.toLocaleString()}</p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 ))}
                             </div>
                         </div>
