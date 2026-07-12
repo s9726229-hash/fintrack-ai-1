@@ -1,10 +1,10 @@
-﻿import React, { useState, useMemo, useRef } from 'react';
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
 import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchMarketRegime } from '../services/stock';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchMarketRegime, lookupStockName } from '../services/stock';
 import { getApiKey } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
@@ -122,7 +122,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         };
     }, [inventory, transactions]);
     
-    const stockNameMap = useMemo(() => {
+    const baseStockNameMap = useMemo(() => {
         const map: Record<string, string> = {};
         stockTransactions.forEach(tx => {
             if (tx.symbol && tx.name) map[tx.symbol] = tx.name;
@@ -132,6 +132,32 @@ export const Investments: React.FC<InvestmentsProps> = ({
         });
         return map;
     }, [inventory, stockTransactions]);
+
+    // 交易紀錄裡有些股票已全數賣出（不在庫存）且該筆交易本身沒存中文名（如舊版 CSV 匯入），
+    // 這時 baseStockNameMap 查不到名稱，改向 FinMind 股票基本資料查詢作為備援
+    const [fallbackNameMap, setFallbackNameMap] = useState<Record<string, string>>({});
+    useEffect(() => {
+        const missingSymbols = Array.from(new Set(stockTransactions.map(t => t.symbol)))
+            .filter(sym => sym && !baseStockNameMap[sym] && !fallbackNameMap[sym]);
+        if (missingSymbols.length === 0) return;
+        let cancelled = false;
+        (async () => {
+            const updates: Record<string, string> = {};
+            for (const sym of missingSymbols) {
+                const name = await lookupStockName(sym);
+                if (name) updates[sym] = name;
+            }
+            if (!cancelled && Object.keys(updates).length > 0) {
+                setFallbackNameMap(prev => ({ ...prev, ...updates }));
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [stockTransactions, baseStockNameMap, fallbackNameMap]);
+
+    const stockNameMap = useMemo(
+        () => ({ ...fallbackNameMap, ...baseStockNameMap }),
+        [fallbackNameMap, baseStockNameMap]
+    );
 
     const { filteredStockTransactions, dateRangeLabel } = useMemo(() => {
         const now = new Date();

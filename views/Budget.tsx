@@ -18,7 +18,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
   const [editAmount, setEditAmount] = useState<string>('');
 
   // 1. Calculate Monthly Spending per Category & Context for AI
-  const { categorySpend, totalBudgetLimit, trackedSpend, largeExpenses, financialContext } = useMemo(() => {
+  const { categorySpend, totalBudgetLimit, trackedSpend, largeExpenses, financialContext, totalMonthExpense } = useMemo(() => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
@@ -74,14 +74,23 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
     const currentCash = assets.filter(a => a.type === 'CASH').reduce((sum, a) => sum + a.amount, 0);
     const netWorth = assets.reduce((sum, a) => a.type === 'DEBT' ? sum - a.amount : sum + a.amount, 0);
 
-    return { 
-        categorySpend: catSpend, 
+    const totalMonthExpense = Object.values(catSpend).reduce((sum, v) => sum + v, 0);
+
+    return {
+        categorySpend: catSpend,
         totalBudgetLimit: totalLimitSum,
         trackedSpend: trackedSpendSum,
-        largeExpenses: large, 
-        financialContext: { monthlyIncome, monthlyFixedExpenses, currentCash, netWorth }
+        largeExpenses: large,
+        financialContext: { monthlyIncome, monthlyFixedExpenses, currentCash, netWorth },
+        totalMonthExpense
     };
   }, [transactions, budgets]);
+
+  // Logic 5: "其他" 分類佔比過高提示（分類規則可能不夠細）
+  const OTHER_CATEGORY_ALERT_THRESHOLD = 0.2;
+  const otherSpend = categorySpend['其他'] || 0;
+  const otherRatio = totalMonthExpense > 0 ? otherSpend / totalMonthExpense : 0;
+  const isOtherRatioHigh = otherRatio > OTHER_CATEGORY_ALERT_THRESHOLD;
 
   const handleSetBudget = (category: string) => {
     const limit = parseInt(editAmount);
@@ -149,6 +158,12 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
 
       {/* SECTION 2: Category Grid (Main Content) */}
       <div>
+          {isOtherRatioHigh && (
+              <div className="flex items-center gap-2 mb-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-amber-300 text-xs">
+                  <AlertTriangle size={16} className="shrink-0"/>
+                  <span>你有 <span className="font-mono font-bold">${otherSpend.toLocaleString()}</span> 支出（本月 {(otherRatio * 100).toFixed(0)}%）被歸類為「其他」，建議檢視是否有支出可以分類得更細，讓預算監控更準確。</span>
+              </div>
+          )}
           <h3 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2">
               <Zap size={16} className="text-amber-400"/> 各類別預算監控 (排除投資)
           </h3>
@@ -162,8 +177,9 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
                   if (percent > 80) barColor = 'bg-amber-500';
                   if (percent > 100) barColor = 'bg-red-500';
 
+                  const isHighlightedOther = cat === '其他' && isOtherRatioHigh;
                   return (
-                      <div key={cat} className="bg-slate-800 border border-slate-700 p-4 rounded-xl relative overflow-hidden group hover:border-slate-600 transition-colors">
+                      <div key={cat} className={`bg-slate-800 p-4 rounded-xl relative overflow-hidden group transition-colors ${isHighlightedOther ? 'border-2 border-amber-500/50' : 'border border-slate-700 hover:border-slate-600'}`}>
                           <div className="flex justify-between items-start mb-2 relative z-10">
                               <div>
                                   <h4 className="font-bold text-white">{cat}</h4>

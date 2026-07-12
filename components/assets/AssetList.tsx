@@ -25,6 +25,10 @@ export const AssetList: React.FC<AssetListProps> = ({
     }
   };
 
+  const subtotalAssets = filteredAssets.filter(a => a.type !== AssetType.DEBT).reduce((sum, a) => sum + a.amount, 0);
+  const subtotalDebt = filteredAssets.filter(a => a.type === AssetType.DEBT).reduce((sum, a) => sum + a.amount, 0);
+  const subtotalNet = subtotalAssets - subtotalDebt;
+
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl max-h-[600px] flex flex-col">
          <div className="flex items-center gap-2 p-4 border-b border-slate-700 bg-slate-800/50 overflow-x-auto no-scrollbar shrink-0">
@@ -47,6 +51,31 @@ export const AssetList: React.FC<AssetListProps> = ({
                  </button>
              ))}
          </div>
+
+         {filteredAssets.length > 0 && (
+             <div className="flex items-center gap-x-6 gap-y-1 px-4 py-2.5 border-b border-slate-700 bg-slate-900/40 text-xs flex-wrap shrink-0">
+                 {subtotalAssets > 0 && (
+                     <div className="flex items-center gap-1.5">
+                         <span className="text-slate-400">資產小計</span>
+                         <span className="font-mono font-bold text-emerald-400">${subtotalAssets.toLocaleString()}</span>
+                     </div>
+                 )}
+                 {subtotalDebt > 0 && (
+                     <div className="flex items-center gap-1.5">
+                         <span className="text-slate-400">負債小計</span>
+                         <span className="font-mono font-bold text-red-400">-${subtotalDebt.toLocaleString()}</span>
+                     </div>
+                 )}
+                 {filterType === 'ALL' && subtotalDebt > 0 && subtotalAssets > 0 && (
+                     <div className="flex items-center gap-1.5">
+                         <span className="text-slate-400">淨值小計</span>
+                         <span className={`font-mono font-bold ${subtotalNet < 0 ? 'text-red-400' : 'text-white'}`}>
+                             {subtotalNet < 0 ? '-' : ''}${Math.abs(subtotalNet).toLocaleString()}
+                         </span>
+                     </div>
+                 )}
+             </div>
+         )}
 
          <div className="overflow-y-auto flex-1">
             <table className="w-full text-left border-collapse">

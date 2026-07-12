@@ -57,6 +57,27 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
     };
   }, [items]);
 
+  const healthAdvice = useMemo(() => {
+    const { balance, savingsRate } = stats;
+    if (balance < 0) {
+      return { level: 'danger' as const, text: '固定支出已經超過固定收入，每月入不敷出。建議優先檢視非必要的訂閱或固定扣款項目，或設法增加收入來源。' };
+    }
+    if (savingsRate < 10) {
+      return { level: 'warning' as const, text: '儲蓄率偏低，扣除固定支出後可運用的資金有限，一旦有臨時開銷容易吃緊。建議檢視是否有可以刪減的固定項目。' };
+    }
+    if (savingsRate < 20) {
+      return { level: 'ok' as const, text: '財務狀況穩定，固定收支結構還算健康，仍有進一步優化儲蓄率的空間。' };
+    }
+    return { level: 'good' as const, text: '儲蓄率表現健康，固定收支結構良好，可以考慮把多餘的結餘配置到投資或緊急預備金。' };
+  }, [stats]);
+
+  const healthAdviceColor = {
+    danger: 'text-red-400',
+    warning: 'text-amber-400',
+    ok: 'text-slate-300',
+    good: 'text-emerald-400',
+  }[healthAdvice.level];
+
   const currentMonthKey = new Date().toISOString().substring(0, 7); // YYYY-MM
   const currentMonth = new Date().getMonth() + 1;
 
@@ -172,6 +193,9 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                    </span>
                 </div>
              </div>
+             <p className={`text-xs leading-relaxed mt-3 pt-3 border-t border-slate-700/50 ${healthAdviceColor}`}>
+                {healthAdvice.text}
+             </p>
           </div>
           <div className="absolute left-0 bottom-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-primary opacity-50"></div>
        </div>
