@@ -372,6 +372,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
       }).sort((a, b) => b.percentage - a.percentage) || [];
   }, [budgets, transactions, currentMonth, currentYear]);
 
+  // 4. Net Worth Trend (vs ~30 days ago)
+  const netWorthTrend = useMemo(() => {
+      if (historyData.length < 2) return null;
+      const todayEntry = historyData[historyData.length - 1];
+      const targetDate = new Date(todayEntry.fullDate);
+      targetDate.setDate(targetDate.getDate() - 30);
+      const targetStr = targetDate.toISOString().split('T')[0];
+      let baseline = null;
+      for (let i = historyData.length - 1; i >= 0; i--) {
+          if (historyData[i].fullDate <= targetStr) { baseline = historyData[i]; break; }
+      }
+      if (!baseline || baseline.fullDate === todayEntry.fullDate) return null;
+      const diff = todayEntry.netWorth - baseline.netWorth;
+      const pct = baseline.netWorth !== 0 ? (diff / Math.abs(baseline.netWorth)) * 100 : null;
+      return { diff, pct };
+  }, [historyData]);
+
+  // 5. Monthly Net Income Trend (this month vs last month)
+  const monthlyIncomeTrend = useMemo(() => {
+      if (historicalMonthlyIncomeData.length < 2) return null;
+      const cur = historicalMonthlyIncomeData[historicalMonthlyIncomeData.length - 1];
+      const prev = historicalMonthlyIncomeData[historicalMonthlyIncomeData.length - 2];
+      const diff = cur.netIncome - prev.netIncome;
+      const pct = prev.netIncome !== 0 ? (diff / Math.abs(prev.netIncome)) * 100 : null;
+      return { diff, pct };
+  }, [historicalMonthlyIncomeData]);
+
   return (
     <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
       {/* 1. Daily Reminder / Inline Quick Add */}
@@ -417,21 +444,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* 2. Key Metrics Cards (Interactive) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card 
-            className="bg-gradient-to-br from-primary/20 to-slate-800 border-primary/30 relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all"
+        <Card
+            className={netWorth < 0
+                ? "bg-gradient-to-br from-red-900/40 to-slate-800 border-red-500/40 relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all"
+                : "bg-gradient-to-br from-primary/20 to-slate-800 border-primary/30 relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all"}
             onClick={() => onChangeView('ASSETS')}
         >
             <div className="absolute right-[-20px] top-[-20px] opacity-10 group-hover:opacity-20 transition-opacity">
-                <Sparkles size={100} />
+                {netWorth < 0 ? <AlertTriangle size={100} /> : <Sparkles size={100} />}
             </div>
-            <div className="text-primary-300 text-sm font-medium mb-2 flex items-center gap-2">
-                <TrendingUp size={16}/> 淨資產總額 (Net Worth)
+            <div className={`text-sm font-medium mb-2 flex items-center gap-2 ${netWorth < 0 ? 'text-red-300' : 'text-primary-300'}`}>
+                {netWorth < 0 ? <AlertTriangle size={16}/> : <TrendingUp size={16}/>} 淨資產總額 (Net Worth)
             </div>
-            <div className="text-4xl font-bold text-white tracking-tight font-mono">
-              ${netWorth.toLocaleString()}
+            <div className="flex items-baseline gap-2 flex-wrap">
+                <div className={`text-4xl font-bold tracking-tight font-mono ${netWorth < 0 ? 'text-red-400' : 'text-white'}`}>
+                  {netWorth < 0 ? '-' : ''}${Math.abs(netWorth).toLocaleString()}
+                </div>
+                {netWorthTrend && (
+                    <span className={`text-xs font-mono font-bold flex items-center gap-0.5 ${netWorthTrend.diff > 0 ? 'text-red-400' : netWorthTrend.diff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        {netWorthTrend.diff > 0 ? '▲' : netWorthTrend.diff < 0 ? '▼' : ''}
+                        {netWorthTrend.diff !== 0 ? Math.abs(netWorthTrend.diff).toLocaleString() : '0'}
+                        {netWorthTrend.pct !== null && ` (${netWorthTrend.diff >= 0 ? '+' : '-'}${Math.abs(netWorthTrend.pct).toFixed(1)}%)`}
+                    </span>
+                )}
             </div>
-            <div className="mt-4 text-xs text-slate-400 group-hover:text-primary-300 transition-colors">
-               資產 - 負債 (系統即時結算)
+            <div className={`mt-4 text-xs transition-colors ${netWorth < 0 ? 'text-red-300/70 group-hover:text-red-300' : 'text-slate-400 group-hover:text-primary-300'}`}>
+               {netWorth < 0 ? '負債大於資產，建議檢視還款計畫' : '資產 - 負債 (系統即時結算)'} {netWorthTrend && '· 近30天'}
             </div>
         </Card>
         
@@ -511,8 +549,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             <h3 className="text-lg font-bold text-white">
                                 {activeMainChart === 'WATERFALL' ? '資產配置演進' : activeMainChart === 'TREND' ? '總資產與負債趨勢' : activeMainChart === 'MONTHLY_INCOME' ? '歷史月度淨收益' : activeMainChart === 'ANNUAL_INCOME' ? '歷史年度淨收益' : '本月金流與分類'}
                             </h3>
-                            <p className="text-xs text-slate-400">
-                                {activeMainChart === 'WATERFALL' ? '各類資產的成長貢獻' : activeMainChart === 'TREND' ? '歷史資產累積與淨值變化' : activeMainChart === 'MONTHLY_INCOME' ? '每月最終結算之正負收益' : activeMainChart === 'ANNUAL_INCOME' ? '年度最終結算之正負收益' : '每日收入與支出分佈 (含股票收益)'}
+                            <p className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
+                                <span>{activeMainChart === 'WATERFALL' ? '各類資產的成長貢獻' : activeMainChart === 'TREND' ? '歷史資產累積與淨值變化' : activeMainChart === 'MONTHLY_INCOME' ? '每月最終結算之正負收益' : activeMainChart === 'ANNUAL_INCOME' ? '年度最終結算之正負收益' : '每日收入與支出分佈 (含股票收益)'}</span>
+                                {activeMainChart === 'MONTHLY_INCOME' && monthlyIncomeTrend && (
+                                    <span className={`font-mono font-bold flex items-center gap-0.5 ${monthlyIncomeTrend.diff > 0 ? 'text-red-400' : monthlyIncomeTrend.diff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                        本月 vs 上月：
+                                        {monthlyIncomeTrend.diff > 0 ? '▲' : monthlyIncomeTrend.diff < 0 ? '▼' : ''}
+                                        {Math.abs(monthlyIncomeTrend.diff).toLocaleString()}
+                                        {monthlyIncomeTrend.pct !== null && ` (${monthlyIncomeTrend.diff >= 0 ? '+' : '-'}${Math.abs(monthlyIncomeTrend.pct).toFixed(1)}%)`}
+                                    </span>
+                                )}
                             </p>
                          </div>
                       </div>

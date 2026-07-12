@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StockTransaction } from '../../types';
-import { ReceiptText, Repeat, Search, X } from 'lucide-react';
+import { ReceiptText, Repeat, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { detectRecurringCandidates } from '../../services/stock';
 
 interface TransactionHistoryListProps {
@@ -10,11 +10,24 @@ interface TransactionHistoryListProps {
     onBulkMarkRecurring?: (ids: string[]) => void;
 }
 
+const PAGE_SIZE = 50;
+
 export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ transactions, stockNameMap, onToggleRecurring, onBulkMarkRecurring }) => {
     const [candidates, setCandidates] = useState<StockTransaction[] | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [searched, setSearched] = useState(false);
     const [alreadyMarkedCount, setAlreadyMarkedCount] = useState(0);
+    const [page, setPage] = useState(1);
+
+    useEffect(() => {
+        setPage(1);
+    }, [transactions]);
+
+    const totalPages = Math.max(1, Math.ceil(transactions.length / PAGE_SIZE));
+    const pagedTransactions = useMemo(
+        () => transactions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+        [transactions, page]
+    );
 
     const runDetection = () => {
         const found = detectRecurringCandidates(transactions.filter(t => !t.isRecurring));
@@ -121,7 +134,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                         </tr>
                     </thead>
                     <tbody>
-                        {transactions.length > 0 ? transactions.map(tx => {
+                        {pagedTransactions.length > 0 ? pagedTransactions.map(tx => {
                             const profitColor = tx.realizedProfit && tx.realizedProfit >= 0 ? 'text-red-400' : 'text-emerald-400';
                             return (
                                 <tr key={tx.id} className={`border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors ${tx.isRecurring ? 'bg-sky-500/5' : ''}`}>
@@ -190,6 +203,29 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                     </tbody>
                 </table>
             </div>
+            {transactions.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700 text-xs text-slate-400">
+                    <span>
+                        共 {transactions.length} 筆，第 {page} / {totalPages} 頁
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                            className="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronLeft size={14}/>
+                        </button>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages}
+                            className="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronRight size={14}/>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

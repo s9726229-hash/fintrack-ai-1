@@ -271,10 +271,49 @@ export const enrichStockBasicInfo = async (stock: Asset): Promise<Partial<Asset>
     }
 };
 
+/** 從 FinMind 官方股利資料（TaiwanStockDividend）計算近12個月合計現金股利(TTM DPS)、配息頻率、最近除息/發放日 */
+const fetchFinMindDividendTTM = async (symbol: string): Promise<{ dividendPerShare: number; dividendFrequency: string; exDate?: string; paymentDate?: string } | null> => {
+    const startDate = new Date();
+    startDate.setFullYear(startDate.getFullYear() - 2);
+    const data = await finmindFetch({ dataset: 'TaiwanStockDividend', data_id: symbol, start_date: startDate.toISOString().split('T')[0] });
+    if (!data) return null;
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 366);
+
+    const ttmEntries = data.filter((d: any) => {
+        const exDateStr = d.CashExDividendTradingDate;
+        const cash = Number(d.CashEarningsDistribution) || 0;
+        if (!exDateStr || cash <= 0) return false;
+        return new Date(exDateStr) >= cutoff;
+    });
+
+    if (ttmEntries.length === 0) return { dividendPerShare: 0, dividendFrequency: 'N/A' };
+
+    const dividendPerShare = Math.round(ttmEntries.reduce((sum: number, d: any) => sum + Number(d.CashEarningsDistribution), 0) * 1000) / 1000;
+    const count = ttmEntries.length;
+    const dividendFrequency = count >= 10 ? 'monthly' : count >= 4 ? 'quarterly' : count >= 2 ? 'semi-annual' : 'annual';
+
+    const latest = [...ttmEntries].sort((a: any, b: any) => a.CashExDividendTradingDate.localeCompare(b.CashExDividendTradingDate)).pop();
+
+    return {
+        dividendPerShare,
+        dividendFrequency,
+        exDate: latest?.CashExDividendTradingDate || undefined,
+        paymentDate: latest?.CashDividendPaymentDate || undefined,
+    };
+};
+
 /**
  * [Deep Mode V7.0.0] Enriches a stock symbol with TTM dividend information.
+ * 優先使用 FinMind 官方股利資料集（TaiwanStockDividend），查無資料（如興櫃股票）才退回 AI 搜尋估算。
  */
 export const enrichStockDividendInfo = async (stock: Asset): Promise<Partial<Asset> | null> => {
+    if (stock.symbol) {
+        const finmindResult = await fetchFinMindDividendTTM(stock.symbol);
+        if (finmindResult) return finmindResult;
+    }
+
     try {
         const ai = getAI();
         const response = await ai.models.generateContent({
