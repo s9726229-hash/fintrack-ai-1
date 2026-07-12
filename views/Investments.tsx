@@ -355,11 +355,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><CheckSquare size={16} className="text-amber-400"/> 本年度未入帳股息（依 FinMind 實際配息資料偵測）</h3>
                                 <Button
                                     onClick={handleGenerateDividendTransactions}
-                                    disabled={pendingDividendEvents.every(e => uncheckedEventKeys.has(e.key))}
+                                    disabled={enrichStatus.dividend.isUpdating || pendingDividendEvents.every(e => uncheckedEventKeys.has(e.key))}
+                                    title={enrichStatus.dividend.isUpdating ? '股息資料掃描中，請稍候再產生交易' : undefined}
                                     className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"
                                 >
-                                    產生 {pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).length} 筆股息交易（共 $
-                                    {pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).reduce((s, e) => s + e.amount, 0).toLocaleString()}）
+                                    {enrichStatus.dividend.isUpdating ? '掃描中，請稍候...' : `產生 ${pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).length} 筆股息交易（共 $${pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).reduce((s, e) => s + e.amount, 0).toLocaleString()}）`}
                                 </Button>
                             </div>
                             <div className="divide-y divide-slate-800 max-h-72 overflow-y-auto">

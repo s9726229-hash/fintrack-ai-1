@@ -112,13 +112,12 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
    * 目前庫存股票則有 3 天冷卻期。
    */
   const updateDividendEvents = async (heldSymbols: string[], soldOutSymbols: string[], onSuccess: () => void) => {
-    const scannedAt = storage.getDividendScannedAt();
-    const eventsMap = storage.getDividendEvents();
+    const scannedAtSnapshot = storage.getDividendScannedAt();
     const now = Date.now();
 
     const symbolsToScan = [
-      ...heldSymbols.filter(sym => !scannedAt[sym] || now - scannedAt[sym] > HELD_SYMBOL_COOLDOWN_MS),
-      ...soldOutSymbols.filter(sym => !scannedAt[sym]),
+      ...heldSymbols.filter(sym => !scannedAtSnapshot[sym] || now - scannedAtSnapshot[sym] > HELD_SYMBOL_COOLDOWN_MS),
+      ...soldOutSymbols.filter(sym => !scannedAtSnapshot[sym]),
     ];
 
     if (symbolsToScan.length === 0) { onSuccess(); return; }
@@ -126,18 +125,17 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
     setEnrichStatus(prev => ({ ...prev, dividend: { isUpdating: true, progress: { current: 0, total: symbolsToScan.length } } }));
 
     let processedCount = 0;
+    let eventsMap = storage.getDividendEvents();
 
     for (let i = 0; i < symbolsToScan.length; i += BATCH_SIZE) {
       const batch = symbolsToScan.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (symbol) => {
+      const batchResults = await Promise.all(batch.map(async (symbol) => {
         try {
           const events = await fetchDividendEventsForSymbol(symbol, eventsMap[symbol]);
-          // events 為 null 代表 FinMind 對這個代號就是沒有股利資料（例如從未配息過），
-          // 跟真的抓取失敗一樣都要記錄掃描時間，否則這類股票會每次都被重新掃描，白白浪費查詢量。
-          if (events) eventsMap[symbol] = events;
-          scannedAt[symbol] = now;
+          return { symbol, events, scanned: true };
         } catch (error) {
           console.error(`Dividend events fetch failed for ${symbol}:`, error);
+          return { symbol, events: null, scanned: false };
         } finally {
           processedCount++;
           setEnrichStatus(prev => ({
@@ -146,10 +144,21 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
           }));
         }
       }));
+
+      // 每一批掃描結果都立刻讀取「當下最新」的 storage 再合併寫回——避免掃描期間使用者在畫面上
+      // 把某筆股息標記為已入帳，卻被稍後才寫回的舊快照覆蓋掉（結果交易已建立，畫面卻沒更新）。
+      eventsMap = storage.getDividendEvents();
+      const scannedAt = storage.getDividendScannedAt();
+      batchResults.forEach(({ symbol, events, scanned }) => {
+        // events 為 null 代表 FinMind 對這個代號就是沒有股利資料（例如從未配息過），
+        // 跟真的抓取失敗一樣都要記錄掃描時間，否則這類股票會每次都被重新掃描，白白浪費查詢量。
+        if (events) eventsMap[symbol] = events;
+        if (scanned) scannedAt[symbol] = now;
+      });
+      storage.saveDividendEvents(eventsMap);
+      storage.saveDividendScannedAt(scannedAt);
     }
 
-    storage.saveDividendEvents(eventsMap);
-    storage.saveDividendScannedAt(scannedAt);
     onSuccess();
     setEnrichStatus(prev => ({ ...prev, dividend: { isUpdating: false, progress: { current: 0, total: 0 } } }));
   };
