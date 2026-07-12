@@ -29,7 +29,7 @@ export interface StockTransaction {
   fees: number; // sum of 手續費 + 交易稅 + 二代健保補充費
   realizedProfit?: number; // from '損益', only for sells
   amount: number; // 應收付帳款
-  isRecurring?: boolean; // 定期定額標記：排除於 DSS 回測分析的訊號吻合判定之外（非訊號驅動的交易）
+  isRecurring?: boolean; // 定期定額標記（非訊號驅動的交易）：匯入 DSS Lab 後會排除於其回測分析的訊號吻合判定之外
 }
 
 export interface Asset {

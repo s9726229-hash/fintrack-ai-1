@@ -251,11 +251,3 @@ export const importData = (jsonData: string) => {
 export const clearAllData = () => {
   localStorage.clear();
 };
-
-export const getAutoTechUpdateEnabled = (): boolean => {
-  return localStorage.getItem('auto_tech_update_enabled') === 'true';
-};
-
-export const setAutoTechUpdateEnabled = (enabled: boolean) => {
-  localStorage.setItem('auto_tech_update_enabled', enabled.toString());
-};

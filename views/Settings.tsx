@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
-import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount, getTechParameters, saveTechParameters, DEFAULT_TECH_PARAMS } from '../services/storage';
+import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount } from '../services/storage';
 import { initGapi, initGis, handleAuthClick, uploadToDrive, downloadFromDrive, getBackupMetadata, checkConnection } from '../services/googleDrive';
-import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
+import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp } from 'lucide-react';
 import { ApiKeyStatus, Asset, AssetType } from '../types';
 import { STORAGE_KEYS } from '../constants';
 import { fetchFinMindUsage } from '../services/stock';
@@ -18,7 +18,6 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [feeDiscount, setFeeDiscount] = useState(0.28);
-  const [techParams, setTechParams] = useState(DEFAULT_TECH_PARAMS);
 
   const [finmindToken, setFinmindToken] = useState('');
   const [apiUsage, setApiUsage] = useState<{ user_count: number, api_request_limit: number } | null>(null);
@@ -31,7 +30,6 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
   useEffect(() => {
     setFeeDiscount(getFeeDiscount());
-    setTechParams(getTechParameters());
     setFinmindToken(localStorage.getItem('ft_finmind_token') || '');
     fetchFinMindUsage().then(setApiUsage);
     const storedClientId = getGoogleClientId();
@@ -62,29 +60,6 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const handleSaveFeeDiscount = () => {
       saveFeeDiscount(feeDiscount);
       showNotify('success', '手續費折扣已儲存！');
-  };
-
-  const triggerRescan = () => {
-      localStorage.setItem('needs_rescan_inventory', 'true');
-      localStorage.setItem('needs_rescan_watchlist', 'true');
-      // 同 window 的 localStorage.setItem 不觸發 storage 事件，需手動 dispatch
-      window.dispatchEvent(new StorageEvent('storage', { key: 'needs_rescan_inventory', newValue: 'true' }));
-      window.dispatchEvent(new StorageEvent('storage', { key: 'needs_rescan_watchlist', newValue: 'true' }));
-  };
-
-  const handleSaveTechParams = () => {
-      saveTechParameters(techParams);
-      triggerRescan();
-      showNotify('success', '技術面參數已儲存！正在重新分析...');
-  };
-
-  const handleResetTechParams = () => {
-      if(confirm('確定要還原為系統預設的技術面參數嗎？')) {
-          setTechParams(DEFAULT_TECH_PARAMS);
-          saveTechParameters(DEFAULT_TECH_PARAMS);
-          triggerRescan();
-          showNotify('success', '已還原預設參數！正在重新分析...');
-      }
   };
 
   const handleSaveFinMindToken = () => {
@@ -322,169 +297,6 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                       <Button onClick={handleSaveFeeDiscount} variant="secondary" className="shrink-0">儲存</Button>
                   </div>
                   <p className="text-xs text-slate-500 mt-2">請輸入您的券商折扣，例如 2.8 折請輸入 0.28。此設定將影響損益計算的準確性。</p>
-              </div>
-          </div>
-      </Card>
-
-      {/* Technical Parameters Settings */}
-      <Card className="border-indigo-500/30 bg-gradient-to-br from-slate-800 to-slate-900/50">
-          <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-white">
-                <SettingsIcon className="text-indigo-400"/> 技術面參數設定
-              </h3>
-              <div className="flex gap-2">
-                  <Button onClick={handleResetTechParams} variant="danger" className="text-xs h-8 px-3">還原預設</Button>
-                  <Button onClick={handleSaveTechParams} variant="secondary" className="text-xs h-8 px-3">儲存參數</Button>
-              </div>
-          </div>
-          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-6">
-              <p className="text-xs text-slate-400">自定義 V3.0 量化評分引擎的買賣門檻，參數調整後將立即影響首頁的選股掃描結果。</p>
-              
-              <div className="overflow-x-auto pb-2">
-                  <div className="min-w-[700px]">
-                      {/* Header */}
-                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 mb-3 px-4">
-                          <div className="font-bold text-slate-500 text-sm flex items-center">訊號燈號</div>
-                          <div className="font-bold text-emerald-400 text-center bg-slate-900/50 py-2 rounded-lg border border-emerald-500/20">🟢 ETF</div>
-                          <div className="font-bold text-blue-400 text-center bg-slate-900/50 py-2 rounded-lg border border-blue-500/20">🔵 上市（TSE）</div>
-                          <div className="font-bold text-purple-400 text-center bg-slate-900/50 py-2 rounded-lg border border-purple-500/20">🟣 上櫃（OTC）</div>
-                      </div>
-
-                      {/* Chip Setup Row */}
-                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 p-4 bg-slate-900/30 rounded-xl border border-indigo-500/30 mb-3 hover:bg-slate-900/50 transition-colors">
-                          <div className="font-bold text-indigo-400 flex flex-col justify-center">
-                              <span>📊 籌碼參數</span>
-                              <span className="text-[10px] text-slate-500 font-normal mt-1">DSS 第二軌共振</span>
-                          </div>
-                          
-                          {/* All categories share same chip settings */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-indigo-500/10 col-span-3 grid grid-cols-2 gap-4">
-                              <div className="flex flex-col gap-1">
-                                  <label className="text-[11px] text-slate-400">法人累積買賣超天數 (預設3天)</label>
-                                  <Input type="number" value={techParams.chipInstDays} onChange={e => setTechParams({...techParams, chipInstDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" />
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                  <label className="text-[11px] text-slate-400">融資增減基期天數 (預設5天)</label>
-                                  <Input type="number" value={techParams.chipMarginDays} onChange={e => setTechParams({...techParams, chipMarginDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" />
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Row 1: 🟢 買進 */}
-                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 p-4 bg-slate-900/30 rounded-xl border border-slate-700/30 mb-3 hover:bg-slate-900/50 transition-colors">
-                          <div className="font-bold text-emerald-400 flex flex-col justify-center">
-                              <span>🟢 買進 (Buy)</span>
-                              <span className="text-[10px] text-slate-500 font-normal mt-1">首次止跌反轉</span>
-                          </div>
-                          
-                          {/* ETF Buy */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離率 (&lt;= %)</label><Input type="number" value={techParams.etfBuyBias} onChange={e => setTechParams({...techParams, etfBuyBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI (&lt;)</label><Input type="number" value={techParams.etfBuyRsi} onChange={e => setTechParams({...techParams, etfBuyRsi: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連增天)</label><Input type="number" value={techParams.etfBuySlopeDays} onChange={e => setTechParams({...techParams, etfBuySlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-                          
-                          {/* Large Cap Buy */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離率 (&lt;= %)</label><Input type="number" value={techParams.largeCapBuyBias} onChange={e => setTechParams({...techParams, largeCapBuyBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI (&lt;)</label><Input type="number" value={techParams.largeCapBuyRsi} onChange={e => setTechParams({...techParams, largeCapBuyRsi: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連增天)</label><Input type="number" value={techParams.largeCapBuySlopeDays} onChange={e => setTechParams({...techParams, largeCapBuySlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-
-                          {/* Small Cap Buy */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離率 (&lt;= %)</label><Input type="number" value={techParams.smallCapBuyBias} onChange={e => setTechParams({...techParams, smallCapBuyBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI (&lt;)</label><Input type="number" value={techParams.smallCapBuyRsi} onChange={e => setTechParams({...techParams, smallCapBuyRsi: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連增天)</label><Input type="number" value={techParams.smallCapBuySlopeDays} onChange={e => setTechParams({...techParams, smallCapBuySlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-                      </div>
-
-                      {/* Row 2: 🚀 強買 */}
-                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 p-4 bg-slate-900/30 rounded-xl border border-slate-700/30 mb-3 hover:bg-slate-900/50 transition-colors">
-                          <div className="font-bold text-emerald-400 flex flex-col justify-center">
-                              <span>🚀 強買 (Strong)</span>
-                              <span className="text-[10px] text-slate-500 font-normal mt-1">深跌且確認反轉</span>
-                          </div>
-                          
-                          {/* ETF Strong Buy */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-emerald-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離率 (&lt;= %)</label><Input type="number" value={techParams.etfStrongBuyBias} onChange={e => setTechParams({...techParams, etfStrongBuyBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI (&lt;)</label><Input type="number" value={techParams.etfStrongBuyRsi} onChange={e => setTechParams({...techParams, etfStrongBuyRsi: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連增天)</label><Input type="number" value={techParams.etfStrongBuySlopeDays} onChange={e => setTechParams({...techParams, etfStrongBuySlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-                          
-                          {/* Large Cap Strong Buy */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-emerald-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離率 (&lt;= %)</label><Input type="number" value={techParams.largeCapStrongBuyBias} onChange={e => setTechParams({...techParams, largeCapStrongBuyBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI (&lt;)</label><Input type="number" value={techParams.largeCapStrongBuyRsi} onChange={e => setTechParams({...techParams, largeCapStrongBuyRsi: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連增天)</label><Input type="number" value={techParams.largeCapStrongBuySlopeDays} onChange={e => setTechParams({...techParams, largeCapStrongBuySlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-
-                          {/* Small Cap Strong Buy */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-emerald-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">乖離率 (&lt;= %)</label><Input type="number" value={techParams.smallCapStrongBuyBias} onChange={e => setTechParams({...techParams, smallCapStrongBuyBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">RSI (&lt;)</label><Input type="number" value={techParams.smallCapStrongBuyRsi} onChange={e => setTechParams({...techParams, smallCapStrongBuyRsi: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連增天)</label><Input type="number" value={techParams.smallCapStrongBuySlopeDays} onChange={e => setTechParams({...techParams, smallCapStrongBuySlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-                      </div>
-
-                      {/* Row 4: 🟡 停利 / 減碼 */}
-                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 p-4 bg-slate-900/30 rounded-xl border border-slate-700/30 mb-3 hover:bg-slate-900/50 transition-colors">
-                          <div className="font-bold text-amber-400 flex flex-col justify-center">
-                              <span>🟡 停利/減碼</span>
-                              <span className="text-[10px] text-slate-500 font-normal mt-1">短線獲利入袋</span>
-                              <span className="text-[10px] text-amber-500/60 font-normal mt-1">同時作為選股「過熱勿追」門檻</span>
-                          </div>
-                          
-                          {/* ETF Partial Sell */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-amber-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">減碼乖離 (&gt;= %)</label><Input type="number" value={techParams.etfPartialSellBias} onChange={e => setTechParams({...techParams, etfPartialSellBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">再次減碼 (&gt;= %)</label><Input type="number" value={techParams.etfSecondPartialSellBias} onChange={e => setTechParams({...techParams, etfSecondPartialSellBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連降天)</label><Input type="number" value={techParams.etfPartialSellSlopeDays} onChange={e => setTechParams({...techParams, etfPartialSellSlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-                          
-                          {/* Large Cap Partial Sell */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-amber-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">停利乖離 (&gt;= %)</label><Input type="number" value={techParams.largeCapPartialSellBias} onChange={e => setTechParams({...techParams, largeCapPartialSellBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400 text-red-400/80">強制停利 (&gt;= %)</label><Input type="number" value={techParams.largeCapForceSellBias} onChange={e => setTechParams({...techParams, largeCapForceSellBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-red-400" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連降天)</label><Input type="number" value={techParams.largeCapPartialSellSlopeDays} onChange={e => setTechParams({...techParams, largeCapPartialSellSlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-
-                          {/* Small Cap Partial Sell */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg border border-amber-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">停利乖離 (&gt;= %)</label><Input type="number" value={techParams.smallCapPartialSellBias} onChange={e => setTechParams({...techParams, smallCapPartialSellBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400 text-red-400/80">強制停利 (&gt;= %)</label><Input type="number" value={techParams.smallCapForceSellBias} onChange={e => setTechParams({...techParams, smallCapForceSellBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-red-400" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-slate-400">斜率(連降天)</label><Input type="number" value={techParams.smallCapPartialSellSlopeDays} onChange={e => setTechParams({...techParams, smallCapPartialSellSlopeDays: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50" /></div>
-                          </div>
-                      </div>
-
-                      {/* Row 5: ⚠️ 停損 */}
-                      <div className="grid grid-cols-[140px_1fr_1fr_1fr] gap-4 p-4 bg-slate-900/30 rounded-xl border border-rose-900/30 hover:bg-slate-900/50 transition-colors">
-                          <div className="font-bold text-rose-400 flex flex-col justify-center">
-                              <span>⚠️ 停損 (Stop Loss)</span>
-                              <span className="text-[10px] text-slate-500 font-normal mt-1">強制控制風險</span>
-                          </div>
-                          
-                          {/* ETF Stop Loss */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg flex items-center justify-center text-slate-600 text-xs border border-slate-700/50">
-                              ETF 不停損
-                          </div>
-                          
-                          {/* Large Cap Stop Loss */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg flex flex-col justify-center border border-rose-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-rose-400">持倉損益 (&lt;= %)</label><Input type="number" value={techParams.largeCapStopLossPnL} onChange={e => setTechParams({...techParams, largeCapStopLossPnL: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-rose-400" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-rose-400">停損乖離 (&lt;= %)</label><Input type="number" value={techParams.largeCapStopLossBias} onChange={e => setTechParams({...techParams, largeCapStopLossBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-rose-400" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-amber-400">風險乖離 (&lt;= %)</label><Input type="number" value={techParams.largeCapRiskAlertBias} onChange={e => setTechParams({...techParams, largeCapRiskAlertBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-amber-400" /></div>
-                          </div>
-
-                          {/* Small Cap Stop Loss */}
-                          <div className="space-y-2 bg-black/20 p-3 rounded-lg flex flex-col justify-center border border-rose-500/10">
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-rose-400">持倉損益 (&lt;= %)</label><Input type="number" value={techParams.smallCapStopLossPnL} onChange={e => setTechParams({...techParams, smallCapStopLossPnL: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-rose-400" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-rose-400">停損乖離 (&lt;= %)</label><Input type="number" value={techParams.smallCapStopLossBias} onChange={e => setTechParams({...techParams, smallCapStopLossBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-rose-400" /></div>
-                              <div className="flex justify-between items-center"><label className="text-[11px] text-amber-400">風險乖離 (&lt;= %)</label><Input type="number" value={techParams.smallCapRiskAlertBias} onChange={e => setTechParams({...techParams, smallCapRiskAlertBias: Number(e.target.value)})} className="h-7 w-24 text-xs bg-black/50 text-amber-400" /></div>
-                          </div>
-                      </div>
-                  </div>
               </div>
           </div>
       </Card>

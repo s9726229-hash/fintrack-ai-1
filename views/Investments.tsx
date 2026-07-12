@@ -1,11 +1,11 @@
-﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
+﻿import React, { useState, useMemo, useRef } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, Clock, WifiOff } from 'lucide-react';
+import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins } from 'lucide-react';
 import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchTechnicalData, fetchMarketRegime, fetchTWSEBatch } from '../services/stock';
-import { getApiKey, getAutoTechUpdateEnabled, setAutoTechUpdateEnabled } from '../services/storage';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchMarketRegime } from '../services/stock';
+import { getApiKey } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
@@ -61,16 +61,13 @@ const translateFrequency = (freq: string | undefined): string => {
 
 export const Investments: React.FC<InvestmentsProps> = ({
     assets, stockHistory, stockTransactions, transactions,
-    onAdd, onUpdate, onUpdateMultiple, onDelete,
+    onAdd, onUpdate, onDelete,
     enrichStatus, onUpdatePrices, onUpdateDividends,
-    onImportTransactions, onImportInventory, onToggleRecurringTransaction, onBulkMarkRecurringTransactions, isActiveView = true
+    onImportTransactions, onImportInventory, onToggleRecurringTransaction, onBulkMarkRecurringTransactions
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
-    const [isUpdatingBias, setIsUpdatingBias] = useState(false);
-    const [priceSource, setPriceSource] = useState<'TWSE' | 'TWSE_FAILED'>('TWSE');
-    const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number, total: number, symbol: string } | null>(null);
     const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
     const [taiexInfo, setTaiexInfo] = useState<{ lastClose: number, dailyChange: number, changeAmount: number } | null>(null);
 
@@ -89,7 +86,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
     const [customStart, setCustomStart] = useState<string>('');
     const [customEnd, setCustomEnd] = useState<string>('');
-    const [autoUpdateEnabled, setAutoUpdateEnabledState] = useState(getAutoTechUpdateEnabled());
 
     const inventory = useMemo(() => assets.filter(a => a.type === AssetType.STOCK), [assets]);
 
@@ -168,125 +164,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const handleOpenModal = (asset: Asset | null = null) => { setEditingAsset(asset); setIsModalOpen(true); };
     const handleSaveAsset = (asset: Asset) => { if (editingAsset) onUpdate(asset); else onAdd(asset); setIsModalOpen(false); setEditingAsset(null); };
 
-    const handleUpdateBias = async () => {
-        setIsUpdatingBias(true);
-        const validStocks = inventory.filter(s => s.symbol);
-        setAnalyzeProgress({ current: 0, total: validStocks.length, symbol: '' });
-
-        const updatedAssets: Asset[] = [];
-        let currentIdx = 0;
-        
-        // Chunking array into smaller sizes
-        const chunkArray = <T,>(arr: T[], size: number): T[][] => 
-            Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
-
-        // Pre-warm market regime cache before parallel execution to prevent duplicate TWII requests
-        const refreshedRegime = await fetchMarketRegime(true);
-        setMarketRegime(refreshedRegime.regime);
-        setTaiexInfo({ lastClose: refreshedRegime.lastClose, dailyChange: refreshedRegime.dailyChange, changeAmount: refreshedRegime.changeAmount });
-
-        // 批次抓即時現價（一次 CF 呼叫），與 Watchlist 相同做法
-        const symbols = validStocks.map(s => s.symbol!);
-        const batchResult = await fetchTWSEBatch(symbols);
-        setPriceSource(batchResult.source);
-
-        const chunks = chunkArray(validStocks, 15);
-        for (const chunk of chunks) {
-            await Promise.all(chunk.map(async (stock) => {
-                if (stock.symbol) {
-                    // 批次已整批失敗時不逐檔重打 TWSE（避免併發爆量觸發 rate limit），直接讓 fetchTechnicalData 用昨收 fallback
-                    const preloadedPrice = batchResult.source === 'TWSE_FAILED'
-                        ? { price: 0, change: null, changePercent: null }
-                        : (batchResult.prices[stock.symbol] ?? null);
-                    const techData = await fetchTechnicalData(stock.symbol, inventory, stockTransactions, preloadedPrice);
-                    if (techData !== null) {
-                        const cleanTechData: Partial<Asset> = {};
-                        if (techData.ma20 !== null) cleanTechData.ma20 = techData.ma20;
-                        if (techData.ma60 !== null) cleanTechData.ma60 = techData.ma60;
-                        if (techData.rsi !== null) cleanTechData.rsi = techData.rsi;
-                        cleanTechData.techSignal = techData.techSignal;
-                        cleanTechData.biasSlopes = techData.biasSlopes;
-                        if (techData.ma20Slope !== null) cleanTechData.ma20Slope = techData.ma20Slope;
-                        if (techData.marginChangeRatio !== null) cleanTechData.marginChangeRatio = techData.marginChangeRatio;
-                        if (techData.marginChange !== null && techData.marginChange !== undefined) cleanTechData.marginChange = techData.marginChange;
-                        if (techData.institutionalForeign !== null && techData.institutionalForeign !== undefined) cleanTechData.institutionalForeign = techData.institutionalForeign;
-                        if (techData.institutionalTrust !== null && techData.institutionalTrust !== undefined) cleanTechData.institutionalTrust = techData.institutionalTrust;
-                        if (techData.institutionalDealer !== null && techData.institutionalDealer !== undefined) cleanTechData.institutionalDealer = techData.institutionalDealer;
-                        cleanTechData.foreignBuy = techData.foreignBuy;
-                        cleanTechData.foreignSell = techData.foreignSell;
-                        cleanTechData.trustBuy = techData.trustBuy;
-                        cleanTechData.trustSell = techData.trustSell;
-                        cleanTechData.foreignConsecBuy = techData.foreignConsecBuy;
-                        cleanTechData.foreignConsecSell = techData.foreignConsecSell;
-                        cleanTechData.trustConsecBuy = techData.trustConsecBuy;
-                        cleanTechData.trustConsecSell = techData.trustConsecSell;
-                        cleanTechData.signalHint = techData.signalHint ?? undefined;
-                        cleanTechData.chipHint = techData.chipHint ?? undefined;
-                        if (techData.sizeCategory) cleanTechData.sizeCategory = techData.sizeCategory;
-                        if (techData.currentPrice !== undefined) cleanTechData.currentPrice = techData.currentPrice;
-                        if (techData.dailyChangeRatio !== null && techData.dailyChangeRatio !== undefined) cleanTechData.dailyChangeRatio = techData.dailyChangeRatio;
-                        if (techData.dailyChange !== null && techData.dailyChange !== undefined) cleanTechData.dailyChange = techData.dailyChange;
-                        if (techData.riskAlerts) cleanTechData.riskAlerts = techData.riskAlerts;
-                        
-                        updatedAssets.push({ ...stock, ...cleanTechData, lastUpdated: Date.now() });
-                    }
-                    currentIdx++;
-                    setAnalyzeProgress({ current: currentIdx, total: validStocks.length, symbol: stock.symbol });
-                }
-            }));
-        }
-        if (updatedAssets.length > 0 && onUpdateMultiple) {
-            onUpdateMultiple(updatedAssets);
-        }
-        localStorage.setItem('last_tech_update_time', Date.now().toString());
-        setIsUpdatingBias(false);
-        setAnalyzeProgress(null);
-    };
-
-    const handleUpdateBiasRef = useRef(handleUpdateBias);
-    useEffect(() => {
-        handleUpdateBiasRef.current = handleUpdateBias;
-    });
-
-    // 同步其他頁面的開關狀態（Watchlist 切換也會影響 localStorage）
-    useEffect(() => {
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === 'auto_tech_update_enabled') {
-                setAutoUpdateEnabledState(e.newValue === 'true');
-            }
-            if (e.key === 'needs_rescan_inventory' && e.newValue === 'true') {
-                localStorage.removeItem('needs_rescan_inventory');
-                setTimeout(() => handleUpdateBiasRef.current(), 100);
-            }
-        };
-        window.addEventListener('storage', onStorage);
-        return () => window.removeEventListener('storage', onStorage);
-    }, []);
-
-    useEffect(() => {
-        if (!autoUpdateEnabled) return;
-        const interval = setInterval(() => {
-            if (!isActiveView) return; // 非當前頁面，跳過（避免與 Watchlist 同時打 API）
-            const lastUpdate = localStorage.getItem('last_tech_update_time') || '0';
-            if (Date.now() - parseInt(lastUpdate) >= 5 * 60 * 1000) {
-                if (document.visibilityState === 'visible' && !isUpdatingBias && !isEnriching) {
-                    handleUpdateBiasRef.current();
-                }
-            }
-        }, 15000);
-        return () => clearInterval(interval);
-    }, [autoUpdateEnabled, isUpdatingBias, isEnriching, isActiveView]);
     const handleTransactionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { transactions: p, error } = parseStockTransactionCSV(t); if (error) { alert(`CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportTransactions(p); else alert('CSV 中找不到有效交易。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
-            {priceSource === 'TWSE_FAILED' && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
-                    <WifiOff size={15} />
-                    <span>即時現價暫時無法取得，目前顯示昨日收盤價，DSS 訊號僅供參考。</span>
-                </div>
-            )}
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                     <div className="flex items-center gap-3">
@@ -322,33 +204,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20">
                         {!enrichStatus.dividend.isUpdating && <Landmark size={14}/>}
                         {enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}
-                    </Button>
-                    <Button onClick={handleUpdateBias} disabled={isEnriching || isUpdatingBias} loading={isUpdatingBias} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20 transition-all duration-300 ease-in-out min-w-[120px] relative overflow-hidden">
-                        {!isUpdatingBias && <TrendingUp size={14}/>}
-                        {isUpdatingBias && analyzeProgress ? (
-                            <span className="flex items-center gap-1 z-10 relative">
-                                處理中 {analyzeProgress.symbol} <span className="text-[10px] text-sky-400">({analyzeProgress.current}/{analyzeProgress.total})</span>
-                            </span>
-                        ) : '分析技術面'}
-                        {isUpdatingBias && analyzeProgress && (
-                            <div 
-                                className="absolute left-0 top-0 bottom-0 bg-sky-500/20 transition-all duration-300"
-                                style={{ width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%` }}
-                            />
-                        )}
-                    </Button>
-                    <Button 
-                        onClick={() => {
-                            const newState = !autoUpdateEnabled;
-                            setAutoUpdateEnabledState(newState);
-                            setAutoTechUpdateEnabled(newState);
-                        }} 
-                        variant="secondary" 
-                        className={`h-8 text-xs border transition-all duration-300 ${autoUpdateEnabled ? 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:bg-slate-700/50'}`}
-                        title="5分鐘自動更新"
-                    >
-                        <Clock size={14} className={autoUpdateEnabled ? "animate-pulse text-red-400" : ""} />
-                        {autoUpdateEnabled ? '自動更新中' : '自動更新'}
                     </Button>
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
                 </div>

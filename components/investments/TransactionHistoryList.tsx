@@ -14,11 +14,13 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
     const [candidates, setCandidates] = useState<StockTransaction[] | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [searched, setSearched] = useState(false);
+    const [alreadyMarkedCount, setAlreadyMarkedCount] = useState(0);
 
     const runDetection = () => {
         const found = detectRecurringCandidates(transactions.filter(t => !t.isRecurring));
         setCandidates(found);
         setSelectedIds(new Set(found.map(t => t.id)));
+        setAlreadyMarkedCount(transactions.filter(t => t.isRecurring).length);
         setSearched(true);
     };
 
@@ -95,7 +97,10 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                         </div>
                     ) : (
                         <div className="flex items-center justify-between">
-                            <span className="text-xs text-slate-500">未偵測到符合規律（同標的、約每月一次、金額相近）的定期定額交易，可能需要手動標記。</span>
+                            <span className="text-xs text-slate-500">
+                                在未標記的交易中，未偵測到符合規律（同標的、約每月一次、金額相近）的新候選。
+                                {alreadyMarkedCount > 0 && <>目前已有 <span className="font-bold text-slate-400">{alreadyMarkedCount}</span> 筆交易標記為定期定額，本次偵測不重複列入。</>}
+                            </span>
                             <button onClick={dismiss} className="text-slate-400 hover:text-white"><X size={14}/></button>
                         </div>
                     )}
@@ -112,7 +117,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                             <th className="p-3 font-medium text-right">總金額</th>
                             <th className="p-3 font-medium text-right">損益 / 報酬率</th>
                             <th className="p-3 font-medium text-right">日期</th>
-                            <th className="p-3 font-medium text-center" title="標記為定期定額後，DSS 回測分析會排除此筆交易，避免非訊號驅動的交易拉低訊號吻合率">定期定額</th>
+                            <th className="p-3 font-medium text-center" title="標記為定期定額可與一般交易做視覺區分；此標記會保留在備份資料中，匯入 DSS Lab 後其回測分析會排除這類非訊號驅動的交易">定期定額</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -167,7 +172,7 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                                         <button
                                             onClick={() => onToggleRecurring?.(tx.id)}
                                             disabled={!onToggleRecurring}
-                                            title={tx.isRecurring ? '取消定期定額標記' : '標記為定期定額（DSS 回測分析將排除此筆交易）'}
+                                            title={tx.isRecurring ? '取消定期定額標記' : '標記為定期定額（匯入 DSS Lab 後回測分析將排除此筆交易）'}
                                             className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                                                 tx.isRecurring
                                                 ? 'bg-sky-500/20 text-sky-300 border-sky-500/30 hover:bg-sky-500/30'
