@@ -9,7 +9,7 @@ import { Settings } from './views/Settings';
 import { GuideView } from './views/Guide';
 import { Budget } from './views/Budget';
 import { Investments } from './views/Investments';
-import { ViewState, Asset, Transaction, RecurringItem, AssetType, BudgetConfig, ApiKeyStatus, StockSnapshot, StockTransaction, Currency } from './types';
+import { ViewState, Asset, Transaction, RecurringItem, AssetType, BudgetConfig, ApiKeyStatus, StockSnapshot, StockTransaction, Currency, DividendEvent } from './types';
 import * as storage from './services/storage';
 import { calculateLoanBalance } from './services/finance';
 import { CheckCircle2, X } from 'lucide-react';
@@ -37,13 +37,14 @@ export default function App() {
   const [budgets, setBudgets] = useState<BudgetConfig[]>([]);
   const [stockHistory, setStockHistory] = useState<StockSnapshot[]>([]);
   const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
+  const [dividendEvents, setDividendEvents] = useState<Record<string, DividendEvent[]>>({});
 
   const [toast, setToast] = useState<{message: string, count: number} | null>(null);
   const [transactionFilter, setTransactionFilter] = useState('');
 
   // --- Refactored Hooks for Background Tasks ---
   // FIX: Destructure correct return values from the useStockEnrichment hook and derive the isEnrichingInBackground state.
-  const { enrichStatus, updatePrices, updateDividends } = useStockEnrichment({ setToast });
+  const { enrichStatus, updatePrices, updateDividends, updateDividendEvents } = useStockEnrichment({ setToast });
   const isEnrichingInBackground = enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating;
   const { takePortfolioSnapshot, takeStockSnapshot } = useDailySnapshot({ assets, transactions, setStockHistory });
 
@@ -55,6 +56,7 @@ export default function App() {
     setBudgets(storage.getBudgets());
     setStockHistory(storage.getStockHistory());
     setStockTransactions(storage.getStockTransactions());
+    setDividendEvents(storage.getDividendEvents());
   }, []);
 
   useEffect(() => {
@@ -300,8 +302,31 @@ export default function App() {
     updatePrices(idsToEnrich, handleEnrichmentSuccess);
   };
 
-  const handleUpdateDividends = (idsToEnrich: string[] | null = null) => {
-    updateDividends(idsToEnrich, handleEnrichmentSuccess);
+  const handleUpdateDividends = async (idsToEnrich: string[] | null = null) => {
+    await updateDividends(idsToEnrich, handleEnrichmentSuccess);
+
+    // 除了目前庫存，也要涵蓋「今年有交易紀錄但已全數賣出」的股票代號——
+    // 除息當下持有、事後才賣掉的股息不該因為股票已不在庫存而永遠抓不到。
+    const currentAssets = storage.getAssets();
+    const heldSymbols = currentAssets.filter(a => a.type === AssetType.STOCK && a.symbol).map(a => a.symbol!);
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    const soldOutThisYearSymbols = Array.from(new Set(
+        stockTransactions.filter(tx => tx.date >= yearStart).map(tx => tx.symbol)
+    )).filter(sym => !heldSymbols.includes(sym));
+
+    await updateDividendEvents(heldSymbols, soldOutThisYearSymbols, () => {
+        setDividendEvents(storage.getDividendEvents());
+    });
+  };
+
+  const handleMarkDividendEventsRecorded = (updates: { symbol: string; exDate: string }[]) => {
+    const current = storage.getDividendEvents();
+    updates.forEach(({ symbol, exDate }) => {
+        if (!current[symbol]) return;
+        current[symbol] = current[symbol].map(ev => ev.exDate === exDate ? { ...ev, recorded: true } : ev);
+    });
+    storage.saveDividendEvents(current);
+    setDividendEvents(current);
   };
 
   return (
@@ -327,7 +352,7 @@ export default function App() {
       {view === 'ASSETS' && <Assets assets={assets} onAdd={addAsset} onUpdate={updateAsset} onDelete={deleteAsset} />}
       {/* FIX: Pass the correct props to the Investments component as per its definition in types.ts. */}
       <div className={view === 'INVESTMENTS' ? 'block' : 'hidden'}>
-        <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} onToggleRecurringTransaction={handleToggleRecurringTransaction} onBulkMarkRecurringTransactions={handleBulkMarkRecurringTransactions} isActiveView={view === 'INVESTMENTS'} />
+        <Investments assets={assets} stockHistory={stockHistory} stockTransactions={stockTransactions} transactions={transactions} dividendEvents={dividendEvents} onAdd={addAsset} onUpdate={updateAsset} onUpdateMultiple={updateMultipleAssets} onDelete={deleteAsset} enrichStatus={enrichStatus} onUpdatePrices={handleUpdatePrices} onUpdateDividends={handleUpdateDividends} onImportTransactions={handleImportTransactions} onImportInventory={handleImportInventory} onToggleRecurringTransaction={handleToggleRecurringTransaction} onBulkMarkRecurringTransactions={handleBulkMarkRecurringTransactions} onAddDividendTransactions={addBatchTransactions} onMarkDividendEventsRecorded={handleMarkDividendEventsRecorded} isActiveView={view === 'INVESTMENTS'} />
       </div>
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}

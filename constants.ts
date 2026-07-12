@@ -10,6 +10,8 @@ export const STORAGE_KEYS = {
   STOCK_TRANSACTIONS: 'ft_stock_transactions', // New V6.3.0
   FEE_DISCOUNT: 'ft_stock_fee_discount', // New V5.9.3
   TECH_PARAMS: 'ft_tech_params', // New V7.1.0
+  DIVIDEND_EVENTS: 'ft_dividend_events', // New V7.10.0: 股息事件（獨立於 Asset，全賣出後仍保留）
+  DIVIDEND_SCANNED_AT: 'ft_dividend_scanned_at', // New V7.10.0: 各股票代號上次掃描股息的時間，用來降低重複掃描
 };
 
 export const EXCHANGE_RATES_DEFAULT = {

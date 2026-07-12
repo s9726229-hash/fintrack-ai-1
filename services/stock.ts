@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint, TechParameters, BacktestResult } from "../types";
+import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint, TechParameters, BacktestResult, DividendEvent } from "../types";
 import { getApiKey, getFeeDiscount, getTechParameters, getFinMindToken } from "./storage";
 
 const cleanJsonString = (text: string) => {
@@ -271,24 +271,38 @@ export const enrichStockBasicInfo = async (stock: Asset): Promise<Partial<Asset>
     }
 };
 
-/** 從 FinMind 官方股利資料（TaiwanStockDividend）計算近12個月合計現金股利(TTM DPS)、配息頻率、最近除息/發放日 */
-const fetchFinMindDividendTTM = async (symbol: string): Promise<{ dividendPerShare: number; dividendFrequency: string; exDate?: string; paymentDate?: string } | null> => {
+/** 從 FinMind 官方股利資料（TaiwanStockDividend）計算近12個月合計現金股利(TTM DPS)、配息頻率、最近除息/發放日，以及本年度所有除息事件清單 */
+const fetchFinMindDividendTTM = async (symbol: string): Promise<{ dividendPerShare: number; dividendFrequency: string; exDate?: string; paymentDate?: string; eventsThisYear: DividendEvent[] } | null> => {
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - 2);
     const data = await finmindFetch({ dataset: 'TaiwanStockDividend', data_id: symbol, start_date: startDate.toISOString().split('T')[0] });
     if (!data) return null;
 
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 366);
-
-    const ttmEntries = data.filter((d: any) => {
+    // FinMind 對同一次除息偶爾會有重複列（例如公告更正、補登），依除息日去重避免同一筆股息被算兩次（TTM 加總與事件清單都要用去重後的資料）
+    const dedupedByExDate = new Map<string, any>();
+    data.forEach((d: any) => {
         const exDateStr = d.CashExDividendTradingDate;
         const cash = Number(d.CashEarningsDistribution) || 0;
-        if (!exDateStr || cash <= 0) return false;
-        return new Date(exDateStr) >= cutoff;
+        if (!exDateStr || cash <= 0) return;
+        dedupedByExDate.set(exDateStr, d);
     });
+    const validEntries = Array.from(dedupedByExDate.values());
 
-    if (ttmEntries.length === 0) return { dividendPerShare: 0, dividendFrequency: 'N/A' };
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 366);
+    const ttmEntries = validEntries.filter((d: any) => new Date(d.CashExDividendTradingDate) >= cutoff);
+
+    const currentYear = new Date().getFullYear();
+    const eventsThisYear: DividendEvent[] = validEntries
+        .filter((d: any) => new Date(d.CashExDividendTradingDate).getFullYear() === currentYear)
+        .map((d: any) => ({
+            exDate: d.CashExDividendTradingDate,
+            paymentDate: d.CashDividendPaymentDate || undefined,
+            dividendPerShare: Number(d.CashEarningsDistribution),
+        }))
+        .sort((a, b) => a.exDate.localeCompare(b.exDate));
+
+    if (ttmEntries.length === 0) return { dividendPerShare: 0, dividendFrequency: 'N/A', eventsThisYear };
 
     const dividendPerShare = Math.round(ttmEntries.reduce((sum: number, d: any) => sum + Number(d.CashEarningsDistribution), 0) * 1000) / 1000;
     const count = ttmEntries.length;
@@ -301,7 +315,33 @@ const fetchFinMindDividendTTM = async (symbol: string): Promise<{ dividendPerSha
         dividendFrequency,
         exDate: latest?.CashExDividendTradingDate || undefined,
         paymentDate: latest?.CashDividendPaymentDate || undefined,
+        eventsThisYear,
     };
+};
+
+/** 合併新抓到的本年度除息事件與既有紀錄，保留已標記入帳(recorded)的狀態 */
+const mergeDividendEvents = (existing: DividendEvent[] | undefined, fresh: DividendEvent[]): DividendEvent[] | undefined => {
+    if (fresh.length === 0) return existing;
+    const existingMap = new Map((existing || []).map(e => [e.exDate, e]));
+    return fresh.map(e => ({ ...e, recorded: existingMap.get(e.exDate)?.recorded ?? false }));
+};
+
+/** 依除息日回推當時實際持有的股數（用交易紀錄逐筆加減，避免用目前股數誤算過去的股息金額） */
+export const getSharesHeldAtDate = (symbol: string, date: string, stockTransactions: StockTransaction[]): number => {
+    return stockTransactions
+        .filter(tx => tx.symbol === symbol && tx.date <= date)
+        .reduce((shares, tx) => shares + (tx.side === 'BUY' ? tx.shares : -tx.shares), 0);
+};
+
+/**
+ * 抓取單一股票代號本年度所有除息事件，並與既有紀錄合併（保留已標記入帳的 recorded 狀態）。
+ * 獨立於 Asset/庫存之外，即使股票已全數賣出、Asset 物件已不存在，仍可持續追蹤該年度的股息事件。
+ * FinMind 完全查無資料（無 token/興櫃股票等）時回傳 null，呼叫端應保留既有資料不覆蓋。
+ */
+export const fetchDividendEventsForSymbol = async (symbol: string, existingEvents: DividendEvent[] | undefined): Promise<DividendEvent[] | null> => {
+    const finmindResult = await fetchFinMindDividendTTM(symbol);
+    if (!finmindResult) return null;
+    return mergeDividendEvents(existingEvents, finmindResult.eventsThisYear) ?? [];
 };
 
 /**
@@ -311,7 +351,10 @@ const fetchFinMindDividendTTM = async (symbol: string): Promise<{ dividendPerSha
 export const enrichStockDividendInfo = async (stock: Asset): Promise<Partial<Asset> | null> => {
     if (stock.symbol) {
         const finmindResult = await fetchFinMindDividendTTM(stock.symbol);
-        if (finmindResult) return finmindResult;
+        if (finmindResult) {
+            const { eventsThisYear, ...ttmInfo } = finmindResult;
+            return ttmInfo;
+        }
     }
 
     try {

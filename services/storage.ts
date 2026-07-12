@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from '../constants';
-import { Asset, Transaction, RecurringItem, PortfolioSnapshot, BudgetConfig, StockSnapshot, StockTransaction } from '../types';
+import { Asset, Transaction, RecurringItem, PortfolioSnapshot, BudgetConfig, StockSnapshot, StockTransaction, DividendEvent } from '../types';
 
 export const getAssets = (): Asset[] => {
   const data = localStorage.getItem(STORAGE_KEYS.ASSETS);
@@ -73,6 +73,35 @@ export const getStockTransactions = (): StockTransaction[] => {
 
 export const saveStockTransactions = (transactions: StockTransaction[]) => {
     localStorage.setItem(STORAGE_KEYS.STOCK_TRANSACTIONS, JSON.stringify(transactions));
+};
+
+export const getDividendEvents = (): Record<string, DividendEvent[]> => {
+    const data = localStorage.getItem(STORAGE_KEYS.DIVIDEND_EVENTS);
+    const parsed: Record<string, DividendEvent[]> = data ? JSON.parse(data) : {};
+    // 讀取時依除息日去重（早期版本或 FinMind 重複資料列可能留下同一除息日兩筆紀錄），優先保留已標記入帳的那筆
+    Object.keys(parsed).forEach(symbol => {
+        const map = new Map<string, DividendEvent>();
+        parsed[symbol].forEach(ev => {
+            const existing = map.get(ev.exDate);
+            if (existing?.recorded) return;
+            map.set(ev.exDate, ev);
+        });
+        parsed[symbol] = Array.from(map.values());
+    });
+    return parsed;
+};
+
+export const saveDividendEvents = (events: Record<string, DividendEvent[]>) => {
+    localStorage.setItem(STORAGE_KEYS.DIVIDEND_EVENTS, JSON.stringify(events));
+};
+
+export const getDividendScannedAt = (): Record<string, number> => {
+    const data = localStorage.getItem(STORAGE_KEYS.DIVIDEND_SCANNED_AT);
+    return data ? JSON.parse(data) : {};
+};
+
+export const saveDividendScannedAt = (scannedAt: Record<string, number>) => {
+    localStorage.setItem(STORAGE_KEYS.DIVIDEND_SCANNED_AT, JSON.stringify(scannedAt));
 };
 
 export const getFeeDiscount = (): number => {
@@ -179,6 +208,8 @@ export const getFullDataJson = () => {
         [STORAGE_KEYS.STOCK_HISTORY]: getStockHistory(),
         [STORAGE_KEYS.STOCK_TRANSACTIONS]: getStockTransactions(),
         [STORAGE_KEYS.TECH_PARAMS]: getTechParameters(),
+        [STORAGE_KEYS.DIVIDEND_EVENTS]: getDividendEvents(),
+        [STORAGE_KEYS.DIVIDEND_SCANNED_AT]: getDividendScannedAt(),
         'ft_api_key': getApiKey(),
         'ft_finmind_token': getFinMindToken(),
         'ft_google_client_id': getGoogleClientId(),
@@ -236,6 +267,8 @@ export const importData = (jsonData: string) => {
     if (data[STORAGE_KEYS.BUDGETS]) saveBudgets(data[STORAGE_KEYS.BUDGETS]);
     if (data[STORAGE_KEYS.STOCK_HISTORY]) saveStockHistory(data[STORAGE_KEYS.STOCK_HISTORY]);
     if (data[STORAGE_KEYS.TECH_PARAMS]) saveTechParameters(data[STORAGE_KEYS.TECH_PARAMS]);
+    if (data[STORAGE_KEYS.DIVIDEND_EVENTS]) saveDividendEvents(data[STORAGE_KEYS.DIVIDEND_EVENTS]);
+    if (data[STORAGE_KEYS.DIVIDEND_SCANNED_AT]) saveDividendScannedAt(data[STORAGE_KEYS.DIVIDEND_SCANNED_AT]);
     if (data['ft_api_key']) saveApiKey(data['ft_api_key']);
     if (data['ft_finmind_token']) saveFinMindToken(data['ft_finmind_token']);
     if (data['ft_google_client_id']) saveGoogleClientId(data['ft_google_client_id']);

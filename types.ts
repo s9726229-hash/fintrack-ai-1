@@ -17,6 +17,13 @@ export enum AssetType {
   OTHER = 'OTHER',
 }
 
+export interface DividendEvent {
+  exDate: string; // 除息日
+  paymentDate?: string; // 發放日
+  dividendPerShare: number; // 該次每股股利
+  recorded?: boolean; // 是否已依此事件建立股息收入交易
+}
+
 export interface StockTransaction {
   id: string;
   date: string; // YYYY-MM-DD from '成交日期'
@@ -60,8 +67,8 @@ export interface Asset {
   isEtf?: boolean;
   dividendPerShare?: number; // 每股配息
   paymentDate?: string; // 發放日
-  isDividendRecorded?: boolean; // 標記該期股利是否已入帳
-  
+  isDividendRecorded?: boolean; // 標記該期股利是否已入帳（單筆用，已由獨立的 ft_dividend_events store 取代，保留避免破壞既有讀取）
+
   // --- V6.9.0 Dividend Dashboard ---
   dividendFrequency?: string; // e.g., 'Quarterly', 'Annual'
   exDate?: string; // 除息日

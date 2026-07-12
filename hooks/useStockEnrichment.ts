@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Asset, AssetType } from '../types';
+import { Asset, AssetType, DividendEvent } from '../types';
 import * as storage from '../services/storage';
-import { enrichStockBasicInfo, enrichStockDividendInfo, fetchMarketRegime } from '../services/stock';
+import { enrichStockBasicInfo, enrichStockDividendInfo, fetchDividendEventsForSymbol, fetchMarketRegime } from '../services/stock';
 
 interface UseStockEnrichmentProps {
   setToast: (toast: { message: string; count: number } | null) => void;
@@ -96,11 +96,63 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
   };
 
   const updateDividends = (idsToEnrich: string[] | null = null, onSuccess: (newAssets: Asset[]) => void) => {
-    if (enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating) return;
+    if (enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating) return Promise.resolve();
     const stocksToUpdate = getStocksToUpdate(idsToEnrich);
-    if (stocksToUpdate.length === 0) return;
-    enrichData('dividend', enrichStockDividendInfo, stocksToUpdate, onSuccess);
+    if (stocksToUpdate.length === 0) return Promise.resolve();
+    return enrichData('dividend', enrichStockDividendInfo, stocksToUpdate, onSuccess);
   };
 
-  return { enrichStatus, updatePrices, updateDividends };
+  const HELD_SYMBOL_COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000; // 目前庫存股票 3 天內不重複掃描
+
+  /**
+   * 掃描指定股票代號本年度的除息事件並存回獨立 store（不依附庫存/Asset，全數賣出後仍可追蹤）。
+   * 由呼叫端（App.tsx）在 updateDividends 完成後接續呼叫，因此不再檢查 enrichStatus 避免狀態競態。
+   *
+   * 為降低每次「AI 分析股息」的 FinMind 查詢量：已出清股票的股息事件是固定歷史資料，只要掃過一次就不再重掃；
+   * 目前庫存股票則有 3 天冷卻期。
+   */
+  const updateDividendEvents = async (heldSymbols: string[], soldOutSymbols: string[], onSuccess: () => void) => {
+    const scannedAt = storage.getDividendScannedAt();
+    const eventsMap = storage.getDividendEvents();
+    const now = Date.now();
+
+    const symbolsToScan = [
+      ...heldSymbols.filter(sym => !scannedAt[sym] || now - scannedAt[sym] > HELD_SYMBOL_COOLDOWN_MS),
+      ...soldOutSymbols.filter(sym => !scannedAt[sym]),
+    ];
+
+    if (symbolsToScan.length === 0) { onSuccess(); return; }
+
+    setEnrichStatus(prev => ({ ...prev, dividend: { isUpdating: true, progress: { current: 0, total: symbolsToScan.length } } }));
+
+    let processedCount = 0;
+
+    for (let i = 0; i < symbolsToScan.length; i += BATCH_SIZE) {
+      const batch = symbolsToScan.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (symbol) => {
+        try {
+          const events = await fetchDividendEventsForSymbol(symbol, eventsMap[symbol]);
+          // events 為 null 代表 FinMind 對這個代號就是沒有股利資料（例如從未配息過），
+          // 跟真的抓取失敗一樣都要記錄掃描時間，否則這類股票會每次都被重新掃描，白白浪費查詢量。
+          if (events) eventsMap[symbol] = events;
+          scannedAt[symbol] = now;
+        } catch (error) {
+          console.error(`Dividend events fetch failed for ${symbol}:`, error);
+        } finally {
+          processedCount++;
+          setEnrichStatus(prev => ({
+            ...prev,
+            dividend: { isUpdating: true, progress: { current: processedCount, total: symbolsToScan.length } }
+          }));
+        }
+      }));
+    }
+
+    storage.saveDividendEvents(eventsMap);
+    storage.saveDividendScannedAt(scannedAt);
+    onSuccess();
+    setEnrichStatus(prev => ({ ...prev, dividend: { isUpdating: false, progress: { current: 0, total: 0 } } }));
+  };
+
+  return { enrichStatus, updatePrices, updateDividends, updateDividendEvents };
 };

@@ -1,10 +1,9 @@
 ﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, MarketRegime } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins } from 'lucide-react';
-import { MarketRegimeBadge } from '../components/MarketRegimeBadge';
+import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, DividendEvent } from '../types';
+import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, CheckSquare } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
-import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, fetchMarketRegime, lookupStockName } from '../services/stock';
+import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, lookupStockName, getSharesHeldAtDate } from '../services/stock';
 import { getApiKey } from '../services/storage';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
@@ -14,6 +13,7 @@ interface InvestmentsProps {
     stockHistory: StockSnapshot[];
     stockTransactions: StockTransaction[];
     transactions: Transaction[]; // For dividend calculation
+    dividendEvents: Record<string, DividendEvent[]>; // symbol -> 本年度除息事件（獨立於庫存，全數賣出後仍保留）
     onAdd: (asset: Asset) => void;
     onUpdate: (asset: Asset) => void;
     onUpdateMultiple?: (assets: Asset[]) => void;
@@ -30,6 +30,8 @@ interface InvestmentsProps {
     onImportInventory: (assets: Partial<Asset>[]) => void;
     onToggleRecurringTransaction?: (id: string) => void;
     onBulkMarkRecurringTransactions?: (ids: string[]) => void;
+    onAddDividendTransactions?: (transactions: Transaction[]) => void;
+    onMarkDividendEventsRecorded?: (updates: { symbol: string; exDate: string }[]) => void;
     isActiveView?: boolean;
 }
 
@@ -49,35 +51,17 @@ const formatTimeAgo = (timestamp: number | undefined): { text: string; color: st
     return { text: `${days}天前`, color: 'text-red-500' };
 };
 
-const translateFrequency = (freq: string | undefined): string => {
-    if (!freq) return '未知';
-    const lowerFreq = freq.toLowerCase();
-    if (lowerFreq.includes('monthly')) return '月配';
-    if (lowerFreq.includes('quarterly')) return '季配';
-    if (lowerFreq.includes('semi-annual')) return '半年配';
-    if (lowerFreq.includes('annual')) return '年配';
-    return freq; // Fallback to original
-};
-
 export const Investments: React.FC<InvestmentsProps> = ({
-    assets, stockHistory, stockTransactions, transactions,
+    assets, stockHistory, stockTransactions, transactions, dividendEvents,
     onAdd, onUpdate, onDelete,
     enrichStatus, onUpdatePrices, onUpdateDividends,
-    onImportTransactions, onImportInventory, onToggleRecurringTransaction, onBulkMarkRecurringTransactions
+    onImportTransactions, onImportInventory, onToggleRecurringTransaction, onBulkMarkRecurringTransactions,
+    onAddDividendTransactions, onMarkDividendEventsRecorded
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [activeTab, setActiveTab] = useState<ActiveTab>('INVENTORY');
-    const [marketRegime, setMarketRegime] = useState<MarketRegime>(MarketRegime.NORMAL);
-    const [taiexInfo, setTaiexInfo] = useState<{ lastClose: number, dailyChange: number, changeAmount: number } | null>(null);
 
-    React.useEffect(() => {
-        fetchMarketRegime().then(r => {
-            setMarketRegime(r.regime);
-            setTaiexInfo({ lastClose: r.lastClose, dailyChange: r.dailyChange, changeAmount: r.changeAmount });
-        });
-    }, []);
-    
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inventoryFileInputRef = useRef<HTMLInputElement>(null);
     const hasApiKey = !!getApiKey();
@@ -115,13 +99,13 @@ export const Investments: React.FC<InvestmentsProps> = ({
             .reduce((sum, t) => sum + t.amount, 0);
 
         const totalPL = totalMarketValue - totalCost;
-        return { 
+        return {
             stats: { totalMarketValue, totalPL, totalPLPercent: totalCost > 0 ? (totalPL / totalCost) * 100 : 0 },
             allocationData: allocation,
             dividendStats: { realizedDividends, estimatedAnnualDividend }
         };
     }, [inventory, transactions]);
-    
+
     const baseStockNameMap = useMemo(() => {
         const map: Record<string, string> = {};
         stockTransactions.forEach(tx => {
@@ -158,6 +142,56 @@ export const Investments: React.FC<InvestmentsProps> = ({
         () => ({ ...fallbackNameMap, ...baseStockNameMap }),
         [fallbackNameMap, baseStockNameMap]
     );
+
+    // 本年度尚未入帳的股息事件（獨立 store，涵蓋目前庫存 + 今年已出清的股票；AI 估算備援的股票沒有事件清單所以不會出現）
+    const pendingDividendEvents = useMemo(() => {
+        const events: { key: string; symbol: string; name: string; exDate: string; paymentDate?: string; dividendPerShare: number; shares: number; amount: number }[] = [];
+        Object.entries(dividendEvents).forEach(([symbol, symbolEvents]) => {
+            symbolEvents.forEach(ev => {
+                if (ev.recorded) return;
+                const shares = getSharesHeldAtDate(symbol, ev.exDate, stockTransactions);
+                if (shares <= 0) return;
+                events.push({
+                    key: `${symbol}-${ev.exDate}`,
+                    symbol,
+                    name: stockNameMap[symbol] || symbol,
+                    exDate: ev.exDate,
+                    paymentDate: ev.paymentDate,
+                    dividendPerShare: ev.dividendPerShare,
+                    shares,
+                    amount: Math.round(shares * ev.dividendPerShare),
+                });
+            });
+        });
+        return events.sort((a, b) => a.exDate.localeCompare(b.exDate));
+    }, [dividendEvents, stockTransactions, stockNameMap]);
+
+    const [uncheckedEventKeys, setUncheckedEventKeys] = useState<Set<string>>(new Set());
+    const toggleEventKey = (key: string) => {
+        setUncheckedEventKeys(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
+
+    const handleGenerateDividendTransactions = () => {
+        const selected = pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key));
+        if (selected.length === 0) return;
+
+        const newTransactions: Transaction[] = selected.map(e => ({
+            id: crypto.randomUUID(),
+            date: e.paymentDate || e.exDate,
+            amount: e.amount,
+            category: '股息',
+            item: `${e.name} 股息`,
+            type: 'DIVIDEND',
+            source: 'MANUAL',
+        }));
+        onAddDividendTransactions?.(newTransactions);
+        onMarkDividendEventsRecorded?.(selected.map(e => ({ symbol: e.symbol, exDate: e.exDate })));
+        setUncheckedEventKeys(new Set());
+    };
 
     const { filteredStockTransactions, dateRangeLabel } = useMemo(() => {
         const now = new Date();
@@ -199,15 +233,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 <div>
                     <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
-                        <MarketRegimeBadge regime={marketRegime} />
-                        {taiexInfo && taiexInfo.lastClose > 0 && (
-                            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
-                                加權指數 <span className="text-slate-200 font-bold">{taiexInfo.lastClose.toFixed(2)}</span>
-                                <span className={taiexInfo.changeAmount > 0 ? 'text-red-400' : taiexInfo.changeAmount < 0 ? 'text-emerald-400' : 'text-slate-400'}>
-                                    {taiexInfo.changeAmount > 0 ? '▲' : taiexInfo.changeAmount < 0 ? '▼' : ''} {Math.abs(taiexInfo.changeAmount).toFixed(2)} ({taiexInfo.dailyChange > 0 ? '+' : ''}{taiexInfo.dailyChange.toFixed(2)}%)
-                                </span>
-                            </span>
-                        )}
                     </div>
                     <p className="text-xs text-slate-400 mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
@@ -323,26 +348,39 @@ export const Investments: React.FC<InvestmentsProps> = ({
                        <Card><div className="text-emerald-400 text-xs font-bold uppercase mb-1">本年已領股息</div><div className="text-3xl font-bold text-emerald-400 font-mono">+${dividendStats.realizedDividends.toLocaleString()}</div></Card>
                        <Card><div className="text-amber-400 text-xs font-bold uppercase mb-1">預估年收股息</div><div className="text-3xl font-bold text-amber-400 font-mono">+${dividendStats.estimatedAnnualDividend.toLocaleString()}</div></Card>
                    </div>
-                   <div className="bg-slate-800/50 border border-slate-700 rounded-2xl max-h-[70vh] flex flex-col">
-                        <div className="p-4 border-b border-slate-700"><h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><List size={16} className="text-amber-400"/> 股息明細</h3></div>
-                        <div className="flex-1 overflow-y-auto"><table className="w-full text-left">
-                            <thead className="sticky top-0 bg-slate-900 z-10"><tr className="text-xs text-slate-400 uppercase">
-                                <th className="p-3 font-medium">標的</th><th className="p-3 font-medium">頻率</th><th className="p-3 font-medium text-right">DPS (近一年)</th>
-                                <th className="p-3 font-medium text-right">預估年收 (殖利率)</th><th className="p-3 font-medium">日期 (除息/發放)</th>
-                            </tr></thead>
-                            <tbody>{inventory.length > 0 ? inventory.map(pos => {
-                                const estYield = (pos.avgCost && pos.dividendPerShare) ? (pos.dividendPerShare / pos.avgCost) * 100 : 0;
-                                const estAnnual = (pos.shares || 0) * (pos.dividendPerShare || 0);
-                                return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0">
-                                    <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-500 font-mono">{pos.symbol}</p></td>
-                                    <td className="p-3"><span className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded-full">{translateFrequency(pos.dividendFrequency)}</span></td>
-                                    <td className="p-3 text-right font-mono text-slate-300">合計: ${pos.dividendPerShare?.toFixed(2) || '-'}</td>
-                                    <td className="p-3 text-right"><p className="font-bold text-amber-400 font-mono">${estAnnual.toLocaleString(undefined, {maximumFractionDigits:0})}</p><p className="text-xs text-slate-500 font-mono">{estYield > 0 ? `${estYield.toFixed(1)}%` : '-'}</p></td>
-                                    <td className="p-3"><p className="text-xs text-slate-300 font-mono">{pos.exDate || 'N/A'}</p><p className="text-xs text-slate-500 font-mono">{pos.paymentDate || 'N/A'}</p></td>
-                                </tr>);
-                            }) : (<tr><td colSpan={5} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
-                        </table></div>
-                   </div>
+
+                   {pendingDividendEvents.length > 0 && (
+                        <div className="bg-slate-800/50 border border-amber-500/30 rounded-2xl overflow-hidden">
+                            <div className="p-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
+                                <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><CheckSquare size={16} className="text-amber-400"/> 本年度未入帳股息（依 FinMind 實際配息資料偵測）</h3>
+                                <Button
+                                    onClick={handleGenerateDividendTransactions}
+                                    disabled={pendingDividendEvents.every(e => uncheckedEventKeys.has(e.key))}
+                                    className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"
+                                >
+                                    產生 {pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).length} 筆股息交易（共 $
+                                    {pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).reduce((s, e) => s + e.amount, 0).toLocaleString()}）
+                                </Button>
+                            </div>
+                            <div className="divide-y divide-slate-800 max-h-72 overflow-y-auto">
+                                {pendingDividendEvents.map(e => (
+                                    <label key={e.key} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-800/60">
+                                        <input
+                                            type="checkbox"
+                                            checked={!uncheckedEventKeys.has(e.key)}
+                                            onChange={() => toggleEventKey(e.key)}
+                                            className="w-4 h-4 accent-amber-500 shrink-0"
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-bold text-white truncate">{e.name} <span className="text-xs text-slate-500 font-mono">{e.symbol}</span></p>
+                                            <p className="text-xs text-slate-500 font-mono">除息 {e.exDate}{e.paymentDate ? ` · 發放 ${e.paymentDate}` : ''} · {e.shares.toLocaleString()}股 × ${e.dividendPerShare}</p>
+                                        </div>
+                                        <p className="font-mono font-bold text-emerald-400 shrink-0">+${e.amount.toLocaleString()}</p>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                   )}
                 </div>
             )}
 
