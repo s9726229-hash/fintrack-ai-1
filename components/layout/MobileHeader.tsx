@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ViewState } from '../../types';
-import { Settings } from 'lucide-react';
+import { Settings, ListTree } from 'lucide-react';
 
 interface MobileHeaderProps {
   onChangeView: (view: ViewState) => void;
@@ -17,8 +17,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ onChangeView }) => {
         FinTrack AI
       </div>
       
-      <div className="ml-auto">
-         <button onClick={() => onChangeView('SETTINGS')} className="p-2 text-slate-400 hover:text-white transition-colors">
+      <div className="ml-auto flex items-center gap-1">
+         <button onClick={() => onChangeView('GUIDE')} className="p-2 text-slate-400 hover:text-white transition-colors" title="版本紀錄">
+            <ListTree size={22} />
+         </button>
+         <button onClick={() => onChangeView('SETTINGS')} className="p-2 text-slate-400 hover:text-white transition-colors" title="系統設定">
             <Settings size={24} />
          </button>
       </div>

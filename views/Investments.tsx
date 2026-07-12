@@ -244,7 +244,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded-2xl max-h-[70vh] flex flex-col">
                         <div className="p-4 border-b border-slate-700"><h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><List size={16} className="text-violet-400" /> 庫存明細</h3></div>
-                        <div className="flex-1 overflow-y-auto"><table className="w-full text-left">
+                        <div className="flex-1 overflow-y-auto">
+                            {/* 桌面版：表格 */}
+                            <table className="w-full text-left hidden md:table">
                             <thead className="sticky top-0 bg-slate-900 z-10"><tr className="text-xs text-slate-400 uppercase">
                                 <th className="p-3 font-medium">股票</th>
                                 <th className="p-3 font-medium text-right">持股</th>
@@ -274,7 +276,44 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                     </div></td>
                                 </tr>);
                             }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
-                        </table></div>
+                            </table>
+
+                            {/* 手機版：卡片 */}
+                            <div className="md:hidden divide-y divide-slate-800">
+                                {inventory.length > 0 ? inventory.map(pos => {
+                                    const perf = calculateStockPerformance(pos, transactions);
+                                    const priceDiff = (pos.currentPrice || 0) - (pos.avgCost || 0);
+                                    const priceColor = priceDiff > 0 ? 'text-red-400' : priceDiff < 0 ? 'text-emerald-400' : 'text-white';
+                                    const plColor = perf.netProfit > 0 ? 'text-red-400' : perf.netProfit < 0 ? 'text-emerald-400' : 'text-white';
+                                    const timeAgo = formatTimeAgo(pos.lastUpdated);
+                                    return (
+                                        <div key={pos.id} className="p-3">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-white truncate">{pos.name}</p>
+                                                    <p className="text-xs text-slate-500 font-mono">{pos.symbol} · {pos.shares?.toLocaleString()}股</p>
+                                                </div>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <button onClick={() => onUpdatePrices([pos.id])} className="p-1.5 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價"><RefreshCw size={14}/></button>
+                                                    <button onClick={() => handleOpenModal(pos)} className="p-1.5 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯"><Edit2 size={14}/></button>
+                                                    <button onClick={() => onDelete(pos.id)} className="p-1.5 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500" title="刪除"><Trash2 size={14}/></button>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-end mt-2">
+                                                <div>
+                                                    <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
+                                                    <p className="text-[10px] text-slate-500">均價 {pos.avgCost?.toFixed(2) ?? '-'} · <span className={timeAgo.color}>{timeAgo.text}</span></p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                                                    <p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }) : (<div className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</div>)}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

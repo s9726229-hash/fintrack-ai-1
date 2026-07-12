@@ -562,12 +562,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             </p>
                          </div>
                       </div>
-                      <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 flex-wrap gap-1">
-                          <button onClick={() => setActiveMainChart('TREND')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeMainChart === 'TREND' ? 'bg-primary text-white shadow' : 'text-slate-400 hover:text-white'}`}>資產趨勢</button>
-                          <button onClick={() => setActiveMainChart('WATERFALL')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeMainChart === 'WATERFALL' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>資產演進</button>
-                          <button onClick={() => setActiveMainChart('CASH_FLOW')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeMainChart === 'CASH_FLOW' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>本月金流</button>
-                          <button onClick={() => setActiveMainChart('MONTHLY_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeMainChart === 'MONTHLY_INCOME' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>月度收支</button>
-                          <button onClick={() => setActiveMainChart('ANNUAL_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${activeMainChart === 'ANNUAL_INCOME' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>年度收支</button>
+                      <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 gap-1 overflow-x-auto no-scrollbar max-w-full">
+                          <button onClick={() => setActiveMainChart('TREND')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'TREND' ? 'bg-primary text-white shadow' : 'text-slate-400 hover:text-white'}`}>資產趨勢</button>
+                          <button onClick={() => setActiveMainChart('WATERFALL')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'WATERFALL' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>資產演進</button>
+                          <button onClick={() => setActiveMainChart('CASH_FLOW')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'CASH_FLOW' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>本月金流</button>
+                          <button onClick={() => setActiveMainChart('MONTHLY_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'MONTHLY_INCOME' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>月度收支</button>
+                          <button onClick={() => setActiveMainChart('ANNUAL_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'ANNUAL_INCOME' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>年度收支</button>
                       </div>
                   </div>
                   

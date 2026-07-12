@@ -9,24 +9,25 @@ interface MobileBottomNavProps {
   onChangeView: (view: ViewState) => void;
 }
 
-const NavItemMobile = ({ 
-  view, current, icon: Icon, onClick 
-}: { 
-  view: ViewState; current: ViewState; icon: any; onClick: (v: ViewState) => void 
+const NavItemMobile = ({
+  view, current, icon: Icon, label, onClick
+}: {
+  view: ViewState; current: ViewState; icon: any; label: string; onClick: (v: ViewState) => void
 }) => {
   const isActive = view === current;
   return (
     <button
       onClick={() => onClick(view)}
-      className={`flex flex-col items-center justify-center w-full h-full transition-all active:scale-95 ${
-        isActive 
-          ? 'text-primary' 
+      className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all active:scale-95 ${
+        isActive
+          ? 'text-primary'
           : 'text-slate-500 hover:text-slate-300'
       }`}
     >
-      <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-primary/10 shadow-[0_0_10px_rgba(139,92,246,0.2)]' : ''}`}>
-         <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+      <div className={`p-1 rounded-xl transition-all ${isActive ? 'bg-primary/10 shadow-[0_0_10px_rgba(139,92,246,0.2)]' : ''}`}>
+         <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
       </div>
+      <span className="text-[9px] leading-none font-medium">{label}</span>
     </button>
   );
 };
@@ -35,12 +36,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ currentView, o
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 pb-safe z-50">
       <div className="grid grid-cols-6 h-16">
-        <NavItemMobile view="DASHBOARD" current={currentView} icon={LayoutGrid} onClick={onChangeView} />
-        <NavItemMobile view="ASSETS" current={currentView} icon={PieChart} onClick={onChangeView} />
-        <NavItemMobile view="INVESTMENTS" current={currentView} icon={TrendingUp} onClick={onChangeView} />
-        <NavItemMobile view="TRANSACTIONS" current={currentView} icon={ScrollText} onClick={onChangeView} />
-        <NavItemMobile view="RECURRING" current={currentView} icon={CalendarClock} onClick={onChangeView} />
-        <NavItemMobile view="BUDGET" current={currentView} icon={Target} onClick={onChangeView} />
+        <NavItemMobile view="DASHBOARD" current={currentView} icon={LayoutGrid} label="總覽" onClick={onChangeView} />
+        <NavItemMobile view="ASSETS" current={currentView} icon={PieChart} label="資產" onClick={onChangeView} />
+        <NavItemMobile view="INVESTMENTS" current={currentView} icon={TrendingUp} label="股票" onClick={onChangeView} />
+        <NavItemMobile view="TRANSACTIONS" current={currentView} icon={ScrollText} label="記帳" onClick={onChangeView} />
+        <NavItemMobile view="RECURRING" current={currentView} icon={CalendarClock} label="固定收支" onClick={onChangeView} />
+        <NavItemMobile view="BUDGET" current={currentView} icon={Target} label="預算" onClick={onChangeView} />
       </div>
     </div>
   );
