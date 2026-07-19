@@ -19,7 +19,6 @@ const getAI = () => {
 // FinMind Session-Level Cache (一個 Session 只打一次 FinMind)
 // ============================================================
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
-const CF_WORKER = 'https://gentle-voice-bcca.s9726229.workers.dev';
 
 // K線歷史快取 (symbol → close陣列)
 const klineCache: Record<string, { closes: number[], timestamp: number }> = {};
@@ -54,6 +53,13 @@ let stockNameMap: Map<string, string> = new Map();
 let stockInfoLoaded = false;
 
 /** 通用 FinMind fetch，自動帶 token（若有）*/
+// 側欄 FinMind 燈號依真實請求結果更新：連線/回應失敗才轉紅，查無資料（空結果）不算連線異常
+const dispatchFinMindStatus = (status: 'online' | 'offline') => {
+    try {
+        window.dispatchEvent(new CustomEvent('api-status-change', { detail: { api: 'finmind', status } }));
+    } catch { /* SSR/測試環境無 window 時忽略 */ }
+};
+
 const finmindFetch = async (params: Record<string, string>): Promise<any[] | null> => {
     const token = getFinMindToken();
     const url = new URL(FINMIND_BASE);
@@ -61,10 +67,15 @@ const finmindFetch = async (params: Record<string, string>): Promise<any[] | nul
     if (token) url.searchParams.set('token', token);
     try {
         const res = await fetch(url.toString());
-        if (!res.ok) return null;
+        if (!res.ok) {
+            dispatchFinMindStatus('offline');
+            return null;
+        }
         const json = await res.json();
+        dispatchFinMindStatus('online');
         return Array.isArray(json.data) && json.data.length > 0 ? json.data : null;
     } catch {
+        dispatchFinMindStatus('offline');
         return null;
     }
 };
@@ -626,46 +637,6 @@ export const fetchInstitutionalData = async (symbol: string) => {
             return result;
         }
         return null;
-    } catch {
-        return null;
-    }
-};
-
-// ===== 即時現價：Cloudflare Worker → TWSE 備援 =====
-/**
- * 從 TWSE msgArray 物件解析出最佳可用價格。
- * 優先序：z（最近成交價）→ 買賣中間價 (b/a 各取第一檔) → o（開盤價，最後手段）。
- * z 在集合競價瞬間或冷門股無成交間隔時常為 "-"，此時用買賣報價中點更貼近現價。
- */
-
-/** 從 Worker /api/realtime 取得即時行情（含漲跌資料） */
-const fetchTWSEData = async (symbol: string): Promise<{ price: number, change: number | null, changePercent: number | null } | null> => {
-    await loadStockInfoMap();
-    const isOtc = otcSymbolSet.has(symbol);
-    const prefixOrder = isOtc ? ['otc', 'tse'] : ['tse', 'otc'];
-    for (const prefix of prefixOrder) {
-        const exCh = `${prefix}_${symbol}.tw`;
-        try {
-            const res = await fetch(`${CF_WORKER}/api/realtime?ex_ch=${exCh}`);
-            if (!res.ok) continue;
-            const data = await res.json();
-            const item = Array.isArray(data) ? data[0] : null;
-            if (!item || item.stockNo !== symbol || !item.price) continue;
-            return { price: item.price, change: item.change ?? null, changePercent: item.changePercent ?? null };
-        } catch { /* try next prefix */ }
-    }
-    return null;
-};
-
-/** 開盤中從 CF Worker 抓大盤即時指數（tse_t00.tw） */
-const fetchTAIEXRealtime = async (): Promise<{ price: number; change: number | null; changePercent: number | null } | null> => {
-    try {
-        const res = await fetch(`${CF_WORKER}/api/realtime?ex_ch=tse_t00.tw`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        const item = Array.isArray(data) ? data[0] : null;
-        if (!item || !item.price) return null;
-        return { price: item.price, change: item.change ?? null, changePercent: item.changePercent ?? null };
     } catch {
         return null;
     }

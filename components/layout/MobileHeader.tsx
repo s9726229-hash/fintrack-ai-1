@@ -18,10 +18,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ onChangeView }) => {
       </div>
       
       <div className="ml-auto flex items-center gap-1">
-         <button onClick={() => onChangeView('GUIDE')} className="p-2 text-slate-400 hover:text-white transition-colors" title="版本紀錄">
+         <button onClick={() => onChangeView('GUIDE')} className="p-2.5 text-slate-400 hover:text-white transition-colors" title="版本紀錄" aria-label="版本紀錄">
             <ListTree size={22} />
          </button>
-         <button onClick={() => onChangeView('SETTINGS')} className="p-2 text-slate-400 hover:text-white transition-colors" title="系統設定">
+         <button onClick={() => onChangeView('SETTINGS')} className="p-2.5 text-slate-400 hover:text-white transition-colors" title="系統設定" aria-label="系統設定">
             <Settings size={24} />
          </button>
       </div>

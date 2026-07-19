@@ -39,6 +39,8 @@ const NavItem = ({
   return (
     <button
       onClick={() => onClick(view)}
+      aria-label={label}
+      aria-current={isActive ? 'page' : undefined}
       className={`flex items-center justify-between w-full p-3 rounded-xl transition-all duration-200 ${
         isActive 
           ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(139,92,246,0.15)]' 
@@ -55,7 +57,7 @@ const NavItem = ({
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isEnrichingInBackground = false }) => {
-  const [apiStatus, setApiStatus] = React.useState({ finmind: 'online', twse: 'online' });
+  const [apiStatus, setApiStatus] = React.useState({ finmind: 'online' });
 
   React.useEffect(() => {
     const handleStatusChange = (e: any) => {
@@ -76,14 +78,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
             FinTrack AI
           </h1>
           <div className="flex items-center gap-2 flex-wrap mt-1.5">
-            <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">V7.9.0</span>
+            <span className="text-[11px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">V7.11.0</span>
             <div className="flex items-center gap-1" title={apiStatus.finmind === 'online' ? "FinMind API 連線正常" : "FinMind API 連線失敗"}>
                 <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.finmind === 'online' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]'}`}></div>
-                <span className={`text-[9px] font-bold ${apiStatus.finmind === 'online' ? 'text-emerald-500/80' : 'text-red-500/80'}`}>FinMind</span>
-            </div>
-            <div className="flex items-center gap-1" title={apiStatus.twse === 'online' ? "TWSE Proxy 連線正常" : "TWSE Proxy 連線失敗"}>
-                <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.twse === 'online' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]'}`}></div>
-                <span className={`text-[9px] font-bold ${apiStatus.twse === 'online' ? 'text-emerald-500/80' : 'text-red-500/80'}`}>TWSE</span>
+                <span className={`text-[10px] font-bold ${apiStatus.finmind === 'online' ? 'text-emerald-500/80' : 'text-red-500/80'}`}>FinMind</span>
             </div>
           </div>
         </div>
@@ -103,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
       </nav>
 
       <div className="p-4 mt-auto">
-         <button onClick={() => onChangeView('SETTINGS')} className="flex items-center justify-center w-full text-slate-400 hover:text-white transition-colors py-2 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-slate-600">
+         <button onClick={() => onChangeView('SETTINGS')} aria-label="系統設定" className="flex items-center justify-center w-full text-slate-400 hover:text-white transition-colors py-2 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-slate-600">
            <Settings size={16} className="mr-2"/> <span className="text-sm">系統設定</span>
          </button>
       </div>

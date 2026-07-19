@@ -138,8 +138,9 @@ export const Assets: React.FC<AssetsProps> = ({ assets, onAdd, onUpdate, onDelet
         onClose={() => setIsModalOpen(false)} 
         formData={formData} 
         setFormData={setFormData} 
-        editingId={editingId} 
-        onSubmit={handleSubmit} 
+        editingId={editingId}
+        onSubmit={handleSubmit}
+        cashAccounts={assets.filter(a => a.type === AssetType.CASH).map(a => ({ id: a.id, name: a.name }))}
       />
     </div>
   );

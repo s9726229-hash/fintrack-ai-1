@@ -38,17 +38,17 @@ interface InvestmentsProps {
 type ActiveTab = 'INVENTORY' | 'HISTORY' | 'DIVIDEND';
 
 const formatTimeAgo = (timestamp: number | undefined): { text: string; color: string } => {
-    if (!timestamp) return { text: 'N/A', color: 'text-slate-500' };
+    if (!timestamp) return { text: 'N/A', color: 'text-slate-400' };
     const now = Date.now();
     const seconds = Math.floor((now - timestamp) / 1000);
 
-    if (seconds < 60) return { text: '幾秒前', color: 'text-slate-500' };
+    if (seconds < 60) return { text: '幾秒前', color: 'text-slate-400' };
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return { text: `${minutes}分鐘前`, color: 'text-slate-500' };
+    if (minutes < 60) return { text: `${minutes}分鐘前`, color: 'text-slate-400' };
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return { text: `${hours}小時前`, color: 'text-slate-500' };
+    if (hours < 24) return { text: `${hours}小時前`, color: 'text-slate-400' };
     const days = Math.floor(hours / 24);
-    return { text: `${days}天前`, color: 'text-red-500' };
+    return { text: `${days}天前`, color: 'text-red-400' };
 };
 
 export const Investments: React.FC<InvestmentsProps> = ({
@@ -275,10 +275,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>股息分析</button>
                 </div>
                 <div className="relative flex items-center gap-2">
-                    <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20">
-                        {!enrichStatus.dividend.isUpdating && <Landmark size={14}/>}
-                        {enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}
-                    </Button>
+                    {activeTab === 'INVENTORY' && (
+                        <Button onClick={() => onUpdatePrices(null)} variant="secondary" disabled={isEnriching || inventory.length === 0} loading={enrichStatus.price.isUpdating} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20">
+                            {!enrichStatus.price.isUpdating && <RefreshCw size={14}/>}
+                            {enrichStatus.price.isUpdating ? `更新中...(${enrichStatus.price.progress.current}/${enrichStatus.price.progress.total})` : '更新全部現價'}
+                        </Button>
+                    )}
+                    {activeTab === 'DIVIDEND' && (
+                        <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} title={!hasApiKey ? '需先在「系統設定」輸入 API 金鑰才能分析股息' : undefined} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20">
+                            {!enrichStatus.dividend.isUpdating && <Landmark size={14}/>}
+                            {enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}
+                        </Button>
+                    )}
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
                 </div>
             </div>
@@ -309,18 +317,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                 const plColor = perf.netProfit > 0 ? 'text-red-400' : perf.netProfit < 0 ? 'text-emerald-400' : 'text-white';
                                 const timeAgo = formatTimeAgo(pos.lastUpdated);
                                 return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
-                                    <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-500 font-mono">{pos.symbol}</p></td>
+                                    <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-400 font-mono">{pos.symbol}</p></td>
                                     <td className="p-3 text-right font-mono text-slate-200 font-medium">{pos.shares?.toLocaleString()}股</td>
                                     <td className="p-3 text-right">
                                         <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
-                                        <div className="flex items-center justify-end gap-1.5"><p className={`text-[10px] ${timeAgo.color}`}>{timeAgo.text}</p><p className="text-xs text-slate-500 font-mono">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
+                                        <div className="flex items-center justify-end gap-1.5"><p className={`text-[11px] ${timeAgo.color}`}>{timeAgo.text}</p><p className="text-xs text-slate-400 font-mono">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
                                     </td>
 
                                     <td className="p-3 text-right"><p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
                                     <td className="p-3 text-center"><div className="flex items-center justify-center gap-1">
-                                        <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價"><RefreshCw size={14}/></button>
-                                        <button onClick={() => handleOpenModal(pos)} className="p-2 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯"><Edit2 size={14}/></button>
-                                        <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500" title="刪除"><Trash2 size={14}/></button>
+                                        <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={14}/></button>
+                                        <button onClick={() => handleOpenModal(pos)} className="p-2 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={14}/></button>
+                                        <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500 ml-2" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={14}/></button>
                                     </div></td>
                                 </tr>);
                             }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
@@ -339,18 +347,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                             <div className="flex justify-between items-start gap-2">
                                                 <div className="min-w-0">
                                                     <p className="font-bold text-white truncate">{pos.name}</p>
-                                                    <p className="text-xs text-slate-500 font-mono">{pos.symbol} · {pos.shares?.toLocaleString()}股</p>
+                                                    <p className="text-xs text-slate-400 font-mono">{pos.symbol} · {pos.shares?.toLocaleString()}股</p>
                                                 </div>
                                                 <div className="flex items-center gap-1 shrink-0">
-                                                    <button onClick={() => onUpdatePrices([pos.id])} className="p-1.5 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價"><RefreshCw size={14}/></button>
-                                                    <button onClick={() => handleOpenModal(pos)} className="p-1.5 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯"><Edit2 size={14}/></button>
-                                                    <button onClick={() => onDelete(pos.id)} className="p-1.5 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500" title="刪除"><Trash2 size={14}/></button>
+                                                    <button onClick={() => onUpdatePrices([pos.id])} className="p-3 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={16}/></button>
+                                                    <button onClick={() => handleOpenModal(pos)} className="p-3 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={16}/></button>
+                                                    <button onClick={() => onDelete(pos.id)} className="p-3 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500 ml-2" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={16}/></button>
                                                 </div>
                                             </div>
                                             <div className="flex justify-between items-end mt-2">
                                                 <div>
                                                     <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
-                                                    <p className="text-[10px] text-slate-500">均價 {pos.avgCost?.toFixed(2) ?? '-'} · <span className={timeAgo.color}>{timeAgo.text}</span></p>
+                                                    <p className="text-[11px] text-slate-400">均價 {pos.avgCost?.toFixed(2) ?? '-'} · <span className={timeAgo.color}>{timeAgo.text}</span></p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
@@ -369,7 +377,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 <div className="space-y-6 animate-fade-in">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        <Card><div className="text-emerald-400 text-xs font-bold uppercase mb-1">本年已領股息</div><div className="text-3xl font-bold text-emerald-400 font-mono">+${dividendStats.realizedDividends.toLocaleString()}</div></Card>
-                       <Card><div className="text-amber-400 text-xs font-bold uppercase mb-1">預估年收股息</div><div className="text-3xl font-bold text-amber-400 font-mono">+${dividendStats.estimatedAnnualDividend.toLocaleString()}</div></Card>
+                       <Card><div className="text-amber-400 text-xs font-bold uppercase mb-1">預估年收股息</div><div className="text-3xl font-bold text-amber-400 font-mono">+${Math.round(dividendStats.estimatedAnnualDividend).toLocaleString()}</div></Card>
                    </div>
 
                    {pendingDividendEvents.length > 0 && (
@@ -402,6 +410,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                                     </label>
                                 ))}
                             </div>
+                        </div>
+                   )}
+
+                   {allDividendEvents.length === 0 && (
+                        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-8 text-center space-y-3">
+                            <Coins size={32} className="mx-auto text-slate-400"/>
+                            <p className="text-sm font-bold text-slate-200">尚未掃描股息資料</p>
+                            {hasApiKey ? (
+                                <p className="text-xs text-slate-400 leading-relaxed">按右上方「AI 分析股息」，系統會依 FinMind 實際配息資料，<br className="hidden md:block"/>找出你持股的本年度除息事件並協助入帳。</p>
+                            ) : (
+                                <p className="text-xs text-slate-400 leading-relaxed">「AI 分析股息」需要 API 金鑰才能使用，<br className="hidden md:block"/>請先前往「系統設定」輸入金鑰後再回來掃描。</p>
+                            )}
                         </div>
                    )}
 

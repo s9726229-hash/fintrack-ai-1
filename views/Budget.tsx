@@ -56,7 +56,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
         .filter(t => 
             t.type === 'EXPENSE' && 
             new Date(t.date) >= thirtyDaysAgo && 
-            t.category !== '投資' && // Exclude Investments
+            t.category !== '投資' && t.category !== '還款' && // 投資與債務還款不屬於可控消費
             !t.note?.includes('Auto-Executed') // Exclude Fixed Recurring
         )
         .sort((a, b) => b.amount - a.amount)
@@ -114,8 +114,8 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
   if (totalPercent > 80) totalStatusColor = 'bg-amber-500';
   if (totalPercent > 100) totalStatusColor = 'bg-red-500';
 
-  // Logic 2: Filter Categories (Remove '投資')
-  const DISPLAY_CATEGORIES = EXPENSE_CATEGORIES.filter(c => c !== '投資');
+  // Logic 2: Filter Categories (Remove '投資'/'還款' — 不可控支出不納入預算監控)
+  const DISPLAY_CATEGORIES = EXPENSE_CATEGORIES.filter(c => c !== '投資' && c !== '還款');
 
   return (
     <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
@@ -165,7 +165,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
               </div>
           )}
           <h3 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2">
-              <Zap size={16} className="text-amber-400"/> 各類別預算監控 (排除投資)
+              <Zap size={16} className="text-amber-400"/> 各類別預算監控 (排除投資/還款)
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {DISPLAY_CATEGORIES.map(cat => {
@@ -230,7 +230,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
               </h3>
               <div className="flex items-center gap-2 mb-3 bg-rose-500/10 p-2 rounded text-[10px] text-rose-300 border border-rose-500/20">
                   <AlertTriangle size={12}/>
-                  <span>系統僅監控前 5 大單筆消費 (排除投資/固定扣款)</span>
+                  <span>系統僅監控前 5 大單筆消費 (排除投資/還款/固定扣款)</span>
               </div>
               
               <div className="space-y-2 mb-4">

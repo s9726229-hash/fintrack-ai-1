@@ -12,6 +12,8 @@ interface AssetFormModalProps {
   setFormData: (data: Partial<Asset>) => void;
   editingId: string | null;
   onSubmit: () => void;
+  /** 現金/存款帳戶清單，供負債選擇每月扣款帳戶 */
+  cashAccounts?: { id: string; name: string }[];
 }
 
 const TYPE_CONFIG: Record<AssetType, { icon: any, label: string, colorClass: string }> = {
@@ -24,8 +26,8 @@ const TYPE_CONFIG: Record<AssetType, { icon: any, label: string, colorClass: str
   [AssetType.OTHER]: { icon: Coins, label: '其他資產', colorClass: 'text-slate-400' },
 };
 
-export const AssetFormModal: React.FC<AssetFormModalProps> = ({ 
-  isOpen, onClose, formData, setFormData, editingId, onSubmit 
+export const AssetFormModal: React.FC<AssetFormModalProps> = ({
+  isOpen, onClose, formData, setFormData, editingId, onSubmit, cashAccounts = []
 }) => {
     
   const handleAmountChange = (key: 'originalAmount' | 'exchangeRate', value: number) => {
@@ -197,6 +199,21 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                       />
                     </div>
                 </div>
+                {cashAccounts.length > 0 && (
+                    <div>
+                        <label className="block text-[10px] text-red-400/70 mb-1 flex items-center gap-1">
+                            <Wallet size={12}/> 每月扣款帳戶（用於扣款帳戶餘額監控）
+                        </label>
+                        <Select
+                            className="border-red-500/30 focus:border-red-500 bg-red-500/5 text-red-100"
+                            value={formData.paymentAccountId || ''}
+                            onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value || undefined })}
+                        >
+                            <option value="">未設定</option>
+                            {cashAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </Select>
+                    </div>
+                )}
                 <p className="text-[10px] text-red-400/50">
                     * 系統將依據起始日自動攤提本金，您無需手動更新餘額。
                 </p>

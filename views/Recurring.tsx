@@ -10,6 +10,7 @@ import {
   Clock
 } from 'lucide-react';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../constants';
+import { formatMoney } from '../services/format';
 
 interface RecurringProps {
   items: RecurringItem[];
@@ -183,7 +184,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                 <div>
                    <span className="text-slate-400 block text-xs">預估每月結餘</span>
                    <span className={`font-mono text-lg font-bold ${stats.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                      ${stats.balance.toLocaleString()}
+                      {formatMoney(stats.balance)}
                    </span>
                 </div>
                 <div>

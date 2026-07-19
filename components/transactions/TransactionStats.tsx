@@ -2,6 +2,7 @@
 import React from 'react';
 import { Card } from '../ui';
 import { Wallet, TrendingUp, TrendingDown } from 'lucide-react';
+import { formatMoney } from '../../services/format';
 
 interface TransactionStatsProps {
   income: number;
@@ -17,7 +18,7 @@ export const TransactionStats: React.FC<TransactionStatsProps> = ({ income, expe
          <div className="flex flex-col">
              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Balance (結餘)</span>
              <span className={`text-2xl font-mono font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                 ${balance.toLocaleString()}
+                 {formatMoney(balance)}
              </span>
          </div>
          <div className="flex flex-col items-end gap-1">
@@ -40,7 +41,7 @@ export const TransactionStats: React.FC<TransactionStatsProps> = ({ income, expe
                   <Wallet size={16} className="text-primary"/>
               </div>
               <div className={`text-2xl font-bold font-mono ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                  ${balance.toLocaleString()}
+                  {formatMoney(balance)}
               </div>
           </Card>
           <Card className="p-4 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">

@@ -18,16 +18,18 @@ const NavItemMobile = ({
   return (
     <button
       onClick={() => onClick(view)}
+      aria-label={label}
+      aria-current={isActive ? 'page' : undefined}
       className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all active:scale-95 ${
         isActive
           ? 'text-primary'
-          : 'text-slate-500 hover:text-slate-300'
+          : 'text-slate-400 hover:text-slate-300'
       }`}
     >
       <div className={`p-1 rounded-xl transition-all ${isActive ? 'bg-primary/10 shadow-[0_0_10px_rgba(139,92,246,0.2)]' : ''}`}>
          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
       </div>
-      <span className="text-[9px] leading-none font-medium">{label}</span>
+      <span className="text-[11px] leading-none font-medium">{label}</span>
     </button>
   );
 };

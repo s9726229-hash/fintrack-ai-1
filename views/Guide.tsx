@@ -39,10 +39,29 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-slate-800 space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.9.0 財務管理獨立版：股票 DSS 分析家族搬遷至 DSS Lab" date="Latest" color="text-sky-400">
+        <FeatureSection title="V7.11.0 財務規劃工具：寬限期衝擊、現金跑道、提前還款模擬" date="Latest" color="text-cyan-400">
+            <FeatureItem icon={Target} title="寬限期衝擊預警與現金跑道" description="Dashboard 新增規劃區：明列每筆貸款寬限期結束日與月付跳升金額、寬限後固定結餘預估，並以「流動現金 ÷ 每月淨流出」計算現金跑道（現在 vs 寬限後）。" />
+            <FeatureItem icon={Activity} title="利息成本儀表與提前還款模擬" description="顯示每月/每年利息總額與佔固定收入比例，各貸款利息明細；提前還款模擬器可試算月付變化與至清償為止可省下的總利息。" />
+            <FeatureItem icon={ShieldCheck} title="扣款帳戶餘額監控" description="負債可指定每月扣款帳戶（資產管理→編輯負債），Dashboard 監控帳戶餘額還能扣幾個月，低於 6 個月時警示。" />
+            <FeatureItem icon={Sparkles} title="風險提示、還款類別與多還本金回饋" description="財務摘要新增配置風險（股票/槓桿佔比）與淨資產轉正推估；新增「還款」支出類別（排除於預算監控）；固定還款高於最低應繳時顯示加速還本的正向回饋。房貸寬限期內月付改依實際利息計算。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.10.0 股息自動入帳 & 全站 UI/UX 打磨" color="text-emerald-400">
+            <FeatureItem icon={Sparkles} title="股息入帳引導" description="「股息分析」分頁依 FinMind 實際配息資料偵測本年度除息事件，列出待入帳股息並可勾選一鍵產生收支記帳的股息交易；已入帳紀錄依除息月份持續顯示，不再因產生交易而消失。" />
+            <FeatureItem icon={RefreshCw} title="庫存總覽新增「更新全部現價」" description="不必再逐檔點更新，一鍵批次刷新全部持股現價（純現價更新，不含技術分析）。" />
+            <FeatureItem icon={Eye} title="介面一致性與可及性提升" description="金額格式全站統一（負號前置、一律取整）；股息分頁補上空狀態引導與按鈕停用原因說明；低對比小字提亮、最小字級提升至 11px；手機版操作按鈕加大觸控範圍並拉開「刪除」間距；導覽按鈕補上無障礙標籤。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.9.0 財務管理獨立版：股票 DSS 分析家族搬遷至 DSS Lab" color="text-sky-400">
             <FeatureItem icon={GitBranch} title="股票 DSS 分析拆分為獨立專案" description="DSS 實驗室、選股掃描、回測分析、技術監控等股票量化分析功能已搬遷至獨立的 DSS Lab 專案（另行部署），FinTrackAI 本體專注於財務管理與股票庫存/交易/股息記錄。" />
             <FeatureItem icon={ShieldCheck} title="精簡本體、移除孤兒程式碼" description="移除本體內已無畫面使用的 DSS 相關程式碼與死碼，降低維護複雜度；股票交易資料可透過匯出/匯入備份 JSON 單向帶入 DSS Lab 使用。" />
         </FeatureSection>
+
+        <div className="relative pl-8">
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl px-4 py-3 text-xs text-slate-400 leading-relaxed">
+                以下為 <span className="font-bold text-slate-300">分拆前歷史紀錄</span>：V7.6.x 及更早版本描述的 DSS 分析、選股掃描、技術監控等功能，現已搬遷至獨立的 DSS Lab 專案，不再存在於 FinTrackAI 本體。
+            </div>
+        </div>
 
         <FeatureSection title="V7.6.7 醞釀優先順序修正 & 決策流程圖" color="text-violet-400">
             <FeatureItem icon={Zap} title="乖離過熱優先於斜率買進" description="修正醞釀邏輯：乖離已達停利門檻時，不再因為斜率剛好上升就誤判為「醞釀買進」，改為優先顯示「醞釀停利/高位勿追」，避免乖離過熱、籌碼轉空卻顯示買進提示的矛盾畫面。" />

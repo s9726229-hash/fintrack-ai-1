@@ -55,6 +55,7 @@ export interface Asset {
   termYears?: number;
   paidYears?: number; // Deprecated in favor of startDate calculation, but kept for compatibility
   interestOnlyPeriod?: number; // Grace period in years (New V5.2)
+  paymentAccountId?: string; // 每月扣款的現金帳戶（Asset id），用於扣款帳戶餘額監控
 
   // --- Stock Specific ---
   symbol?: string;

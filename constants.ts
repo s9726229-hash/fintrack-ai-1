@@ -21,7 +21,7 @@ export const EXCHANGE_RATES_DEFAULT = {
 };
 
 export const EXPENSE_CATEGORIES = [
-  '餐飲', '交通', '娛樂', '購物', '居住', '帳單', '醫療', '教育', '家庭', '其他'
+  '餐飲', '交通', '娛樂', '購物', '居住', '帳單', '醫療', '教育', '家庭', '還款', '其他'
 ];
 
 export const INCOME_CATEGORIES = [

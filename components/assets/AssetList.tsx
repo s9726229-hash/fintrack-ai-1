@@ -3,6 +3,7 @@ import React from 'react';
 import { Asset, AssetType, Currency } from '../../types';
 import { ASSET_TYPE_COLORS, ASSET_TYPE_LABELS } from '../../constants';
 import { Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { formatMoney } from '../../services/format';
 
 interface AssetListProps {
   filteredAssets: Asset[];
@@ -57,20 +58,20 @@ export const AssetList: React.FC<AssetListProps> = ({
                  {subtotalAssets > 0 && (
                      <div className="flex items-center gap-1.5">
                          <span className="text-slate-400">資產小計</span>
-                         <span className="font-mono font-bold text-emerald-400">${subtotalAssets.toLocaleString()}</span>
+                         <span className="font-mono font-bold text-emerald-400">{formatMoney(subtotalAssets)}</span>
                      </div>
                  )}
                  {subtotalDebt > 0 && (
                      <div className="flex items-center gap-1.5">
                          <span className="text-slate-400">負債小計</span>
-                         <span className="font-mono font-bold text-red-400">-${subtotalDebt.toLocaleString()}</span>
+                         <span className="font-mono font-bold text-red-400">{formatMoney(-subtotalDebt)}</span>
                      </div>
                  )}
                  {filterType === 'ALL' && subtotalDebt > 0 && subtotalAssets > 0 && (
                      <div className="flex items-center gap-1.5">
                          <span className="text-slate-400">淨值小計</span>
                          <span className={`font-mono font-bold ${subtotalNet < 0 ? 'text-red-400' : 'text-white'}`}>
-                             {subtotalNet < 0 ? '-' : ''}${Math.abs(subtotalNet).toLocaleString()}
+                             {formatMoney(subtotalNet)}
                          </span>
                      </div>
                  )}
