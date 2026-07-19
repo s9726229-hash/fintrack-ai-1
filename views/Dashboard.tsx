@@ -4,7 +4,7 @@ import { Asset, Transaction, AssetType, RecurringItem, BudgetConfig, ViewState, 
 import {
     Sparkles, TrendingUp, AlertTriangle, Wallet, CreditCard,
     BarChart3, Target, Flag, Bell, ArrowRight, PieChart as PieIcon, LineChart as LineIcon,
-    ShieldAlert
+    ShieldAlert, ChevronDown
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area, PieChart, Pie
@@ -14,6 +14,38 @@ import { getHistory } from '../services/storage';
 import { formatMoney } from '../services/format';
 import { calculateStockPerformance } from '../services/stock';
 import { InvestmentStats } from '../components/investments/InvestmentStats';
+
+// 可收合的次要區塊：預設狀態由呼叫端決定，首屏必見的內容(淨值趨勢/本月現金流)不使用此元件
+const CollapsibleSection: React.FC<{
+  title: string;
+  icon: React.ReactNode;
+  accentClass: string; // e.g. "text-amber-400" — 需為完整 class 字串以配合 Tailwind CDN 的即時掃描
+  defaultOpen?: boolean;
+  subtitle?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ title, icon, accentClass, defaultOpen = true, subtitle, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="border-slate-700/50 bg-slate-900/40 p-0 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-6 py-4 text-left hover:bg-slate-800/30 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`shrink-0 ${accentClass}`}>{icon}</div>
+          <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
+            <h3 className="font-bold text-white text-lg">{title}</h3>
+            {subtitle && <span className="text-xs text-slate-400">{subtitle}</span>}
+          </div>
+        </div>
+        <ChevronDown size={18} className={`text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="px-6 pb-6 border-t border-slate-800 pt-4 animate-fade-in">{children}</div>}
+    </Card>
+  );
+};
 
 interface DashboardProps {
   assets: Asset[];
@@ -653,118 +685,152 @@ export const Dashboard: React.FC<DashboardProps> = ({
          </div>
       )}
 
-      {/* 2. Key Metrics Cards (Interactive) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 2. Financial Pulse — 淨值趨勢 + 本月現金流：一眼可見的兩個核心指標，不用捲動、不共用 Tab */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card
-            className={netWorth < 0
-                ? "bg-gradient-to-br from-red-900/40 to-slate-800 border-red-500/40 relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all"
-                : "bg-gradient-to-br from-primary/20 to-slate-800 border-primary/30 relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:shadow-xl transition-all"}
+            className={`cursor-pointer hover:border-slate-600 transition-colors ${netWorth < 0 ? 'border-red-500/40' : 'border-slate-700/50'}`}
             onClick={() => onChangeView('ASSETS')}
         >
-            <div className="absolute right-[-20px] top-[-20px] opacity-10 group-hover:opacity-20 transition-opacity">
-                {netWorth < 0 ? <AlertTriangle size={100} /> : <Sparkles size={100} />}
+            <div className={`text-sm font-medium mb-1 flex items-center gap-2 ${netWorth < 0 ? 'text-red-300' : 'text-slate-400'}`}>
+                {netWorth < 0 ? <AlertTriangle size={16}/> : <TrendingUp size={16}/>} 淨資產趨勢
             </div>
-            <div className={`text-sm font-medium mb-2 flex items-center gap-2 ${netWorth < 0 ? 'text-red-300' : 'text-primary-300'}`}>
-                {netWorth < 0 ? <AlertTriangle size={16}/> : <TrendingUp size={16}/>} 淨資產總額 (Net Worth)
-            </div>
-            <div className="flex items-baseline gap-2 flex-wrap">
-                <div className={`text-4xl font-bold tracking-tight font-mono ${netWorth < 0 ? 'text-red-400' : 'text-white'}`}>
+            <div className="flex items-baseline gap-2 flex-wrap mb-1">
+                <div className={`text-3xl md:text-4xl font-bold tracking-tight font-numeric tabular-nums ${netWorth < 0 ? 'text-red-400' : 'text-white'}`}>
                   {formatMoney(netWorth)}
                 </div>
                 {netWorthTrend && (
-                    <span className={`text-xs font-mono font-bold flex items-center gap-0.5 ${netWorthTrend.diff > 0 ? 'text-red-400' : netWorthTrend.diff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    <span className={`text-sm font-numeric tabular-nums font-bold flex items-center gap-0.5 ${netWorthTrend.diff > 0 ? 'text-rose-400' : netWorthTrend.diff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                         {netWorthTrend.diff > 0 ? '▲' : netWorthTrend.diff < 0 ? '▼' : ''}
                         {netWorthTrend.diff !== 0 ? Math.abs(netWorthTrend.diff).toLocaleString() : '0'}
                         {netWorthTrend.pct !== null && ` (${netWorthTrend.diff >= 0 ? '+' : '-'}${Math.abs(netWorthTrend.pct).toFixed(1)}%)`}
                     </span>
                 )}
             </div>
-            <div className={`mt-4 text-xs transition-colors ${netWorth < 0 ? 'text-red-300/70 group-hover:text-red-300' : 'text-slate-400 group-hover:text-primary-300'}`}>
-               {netWorth < 0 ? '負債大於資產，建議檢視還款計畫' : '資產 - 負債 (系統即時結算)'} {netWorthTrend && '· 近30天'}
-            </div>
-        </Card>
-        
-        <Card 
-            className="cursor-pointer hover:scale-[1.02] hover:shadow-xl hover:border-emerald-500/50 transition-all group flex flex-col justify-between"
-            onClick={() => onChangeView('ASSETS')}
-        >
-            <div>
-                <div className="text-slate-400 text-sm font-medium mb-2 flex items-center gap-2 group-hover:text-emerald-400 transition-colors">
-                    <Wallet size={16} className="text-emerald-400"/> 總資產 (Assets)
+            <p className="text-xs text-slate-500 mb-3">
+                {netWorth < 0 ? '負債大於資產，建議檢視還款計畫' : '資產 − 負債'}{netWorthTrend && ' · 近30天'}
+            </p>
+            {historyData.length >= 2 ? (
+                <div className="h-16 -mx-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={historyData.slice(-30)} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="pulseNetWorth" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={netWorthTrend && netWorthTrend.diff < 0 ? '#34d399' : '#fb7185'} stopOpacity={0.35}/>
+                                    <stop offset="95%" stopColor={netWorthTrend && netWorthTrend.diff < 0 ? '#34d399' : '#fb7185'} stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <Area type="monotone" dataKey="netWorth" stroke={netWorthTrend && netWorthTrend.diff < 0 ? '#34d399' : '#fb7185'} strokeWidth={2} fill="url(#pulseNetWorth)" isAnimationActive={false} />
+                        </AreaChart>
+                    </ResponsiveContainer>
                 </div>
-                <div className="text-3xl font-bold text-white tracking-tight font-mono mb-2">
-                  {formatMoney(totalAssets)}
-                </div>
-            </div>
-            
-            {/* Asset Allocation Breakdown */}
-            {totalAssets > 0 && (
-                <div className="mt-auto">
-                    <div className="flex gap-x-3 gap-y-1 text-xs text-slate-400 flex-wrap">
-                        {dataByType.sort((a, b) => b.value - a.value).slice(0, 3).map(d => (
-                            <div key={d.typeCode} className="flex items-center gap-1 group-hover:text-slate-300 transition-colors">
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ASSET_TYPE_COLORS[d.typeCode] || '#94a3b8' }}></div>
-                                <span>{d.name} {((d.value / totalAssets) * 100).toFixed(0)}%</span>
-                            </div>
-                        ))}
-                        {dataByType.length > 3 && <span className="text-xs">...</span>}
-                    </div>
-                </div>
+            ) : (
+                <p className="text-xs text-slate-600 h-16 flex items-center">累積更多天數的資料後將顯示趨勢圖</p>
             )}
         </Card>
 
-        <Card 
-            className="cursor-pointer hover:scale-[1.02] hover:shadow-xl hover:border-red-500/50 transition-all group flex flex-col justify-between"
-            onClick={() => {
-                window.location.hash = 'debt';
-                onChangeView('ASSETS');
-            }}
-        >
-            <div>
-                <div className="text-slate-400 text-sm font-medium mb-2 flex items-center gap-2 group-hover:text-red-400 transition-colors">
-                    <CreditCard size={16} className="text-red-400"/> 總負債 (Debt)
-                </div>
-                <div className="text-3xl font-bold text-red-400 tracking-tight font-mono mb-2">
-                  {formatMoney(totalDebt)}
-                </div>
+        <Card className="border-slate-700/50">
+            <div className="text-sm font-medium mb-1 flex items-center gap-2 text-slate-400">
+                <Wallet size={16}/> 本月現金流
             </div>
-
-            {/* Debt Breakdown */}
-            {totalDebt > 0 && (
-                <div className="mt-auto">
-                    <div className="flex gap-x-3 gap-y-1 text-xs text-slate-400 flex-wrap">
-                        {assets.filter(a => a.type === AssetType.DEBT).sort((a, b) => b.amount - a.amount).slice(0, 3).map(d => (
-                            <div key={d.id} className="flex items-center gap-1 group-hover:text-red-300 transition-colors">
-                                <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                                <span>{d.name} {((d.amount / totalDebt) * 100).toFixed(0)}%</span>
-                            </div>
-                        ))}
-                        {assets.filter(a => a.type === AssetType.DEBT).length > 3 && <span className="text-xs">...</span>}
+            {monthlySummary.hasData ? (<>
+                <div className="flex items-baseline gap-2 flex-wrap mb-4">
+                    <div className={`text-3xl md:text-4xl font-bold tracking-tight font-numeric tabular-nums ${monthlySummary.netFlow >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {monthlySummary.netFlow >= 0 ? '+' : '−'}{formatMoney(Math.abs(monthlySummary.netFlow))}
+                    </div>
+                    <span className="text-xs text-slate-500">{monthlySummary.netFlow >= 0 ? '淨流入' : '淨流出'} · {now.getMonth() + 1} 月</span>
+                </div>
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-8 shrink-0">收入</span>
+                        <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (monthlySummary.income / Math.max(monthlySummary.income, monthlySummary.expense, 1)) * 100)}%` }} />
+                        </div>
+                        <span className="text-xs font-numeric tabular-nums text-slate-300 w-24 text-right shrink-0">{formatMoney(monthlySummary.income)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-8 shrink-0">支出</span>
+                        <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-500 rounded-full" style={{ width: `${Math.min(100, (monthlySummary.expense / Math.max(monthlySummary.income, monthlySummary.expense, 1)) * 100)}%` }} />
+                        </div>
+                        <span className="text-xs font-numeric tabular-nums text-slate-300 w-24 text-right shrink-0">{formatMoney(monthlySummary.expense)}</span>
                     </div>
                 </div>
+                {monthlySummary.savingsRate !== null && (
+                    <p className="text-xs text-slate-500 mt-3">
+                        儲蓄率 <span className={`font-numeric tabular-nums font-bold ${monthlySummary.savingsRate >= 20 ? 'text-emerald-400' : monthlySummary.savingsRate >= 0 ? 'text-amber-400' : 'text-red-400'}`}>{monthlySummary.savingsRate.toFixed(1)}%</span>
+                    </p>
+                )}
+            </>) : (
+                <p className="text-xs text-slate-600 py-8">本月尚無記帳資料</p>
             )}
         </Card>
       </div>
 
-      {/* 本月財務摘要（規則式白話分析，不呼叫 AI） */}
-      {monthlySummary.hasData && (
-        <Card className="border-slate-700/50 bg-slate-900/40 p-6">
-            <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3 flex-wrap">
-                <Sparkles size={18} className="text-cyan-400"/>
-                <h3 className="font-bold text-white text-lg">本月財務摘要</h3>
-                <span className="text-xs text-slate-400">{now.getMonth() + 1} 月 · 依記帳與庫存資料自動整理</span>
+      {/* 3. Key Metrics Strip（總資產/總負債，縮小版，取代原本大卡） */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+            onClick={() => onChangeView('ASSETS')}
+            className="text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 transition-colors"
+        >
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                <div className="text-xs text-slate-400 flex items-center gap-1.5"><Wallet size={13} className="text-emerald-400"/> 總資產</div>
+                <div className="text-lg font-bold text-white font-numeric tabular-nums">{formatMoney(totalAssets)}</div>
             </div>
+            {totalAssets > 0 && (
+                <div className="flex gap-x-3 gap-y-1 text-xs text-slate-500 flex-wrap">
+                    {dataByType.sort((a, b) => b.value - a.value).slice(0, 3).map(d => (
+                        <div key={d.typeCode} className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ASSET_TYPE_COLORS[d.typeCode] || '#94a3b8' }}></div>
+                            <span>{d.name} {((d.value / totalAssets) * 100).toFixed(0)}%</span>
+                        </div>
+                    ))}
+                    {dataByType.length > 3 && <span>...</span>}
+                </div>
+            )}
+        </button>
+
+        <button
+            onClick={() => { window.location.hash = 'debt'; onChangeView('ASSETS'); }}
+            className="text-left bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 transition-colors"
+        >
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                <div className="text-xs text-slate-400 flex items-center gap-1.5"><CreditCard size={13} className="text-red-400"/> 總負債</div>
+                <div className="text-lg font-bold text-red-400 font-numeric tabular-nums">{formatMoney(totalDebt)}</div>
+            </div>
+            {totalDebt > 0 && (
+                <div className="flex gap-x-3 gap-y-1 text-xs text-slate-500 flex-wrap">
+                    {assets.filter(a => a.type === AssetType.DEBT).sort((a, b) => b.amount - a.amount).slice(0, 3).map(d => (
+                        <div key={d.id} className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                            <span>{d.name} {((d.amount / totalDebt) * 100).toFixed(0)}%</span>
+                        </div>
+                    ))}
+                    {assets.filter(a => a.type === AssetType.DEBT).length > 3 && <span>...</span>}
+                </div>
+            )}
+        </button>
+      </div>
+
+      {/* 4. 本月財務摘要（規則式白話分析，不呼叫 AI）— 可收合，預設展開 */}
+      {monthlySummary.hasData && (
+        <CollapsibleSection
+            title="本月財務摘要"
+            icon={<Sparkles size={18}/>}
+            accentClass="text-cyan-400"
+            subtitle={`${now.getMonth() + 1} 月 · 依記帳與庫存資料自動整理`}
+            defaultOpen={true}
+        >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 text-sm leading-relaxed">
                 {/* 現金流 */}
                 <div className="flex items-start gap-3">
                     <div className="text-cyan-400 bg-cyan-500/10 p-2 rounded-lg border border-cyan-500/20 shrink-0"><Wallet size={16}/></div>
                     <p className="text-slate-300">
                         <span className="font-bold text-slate-200">現金流：</span>
-                        本月收入 <span className="font-mono text-emerald-400">{formatMoney(monthlySummary.income)}</span>、支出 <span className="font-mono text-rose-400">{formatMoney(monthlySummary.expense)}</span>，
+                        本月收入 <span className="font-numeric tabular-nums text-emerald-400">{formatMoney(monthlySummary.income)}</span>、支出 <span className="font-numeric tabular-nums text-rose-400">{formatMoney(monthlySummary.expense)}</span>，
                         {monthlySummary.netFlow >= 0 ? '淨流入 ' : '淨流出 '}
-                        <span className={`font-mono font-bold ${monthlySummary.netFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatMoney(Math.abs(monthlySummary.netFlow))}</span>
+                        <span className={`font-numeric tabular-nums font-bold ${monthlySummary.netFlow >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{formatMoney(Math.abs(monthlySummary.netFlow))}</span>
                         {monthlySummary.flowDiff !== 0 && (
-                            <>，比上月{monthlySummary.flowDiff > 0 ? '改善' : '惡化'} <span className="font-mono">{formatMoney(Math.abs(monthlySummary.flowDiff))}</span></>
+                            <>，比上月{monthlySummary.flowDiff > 0 ? '改善' : '惡化'} <span className="font-numeric tabular-nums">{formatMoney(Math.abs(monthlySummary.flowDiff))}</span></>
                         )}
                         {monthlySummary.driver && Math.abs(monthlySummary.driver.delta) > 1000 && (
                             <>，主因是「{monthlySummary.driver.category}」支出{monthlySummary.driver.delta > 0 ? '增加' : '減少'} <span className="font-mono">{formatMoney(Math.abs(monthlySummary.driver.delta))}</span></>
@@ -847,36 +913,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     );
                 })()}
             </div>
-        </Card>
+        </CollapsibleSection>
       )}
 
-      {/* Bento Grid layout */}
-      <div className="flex flex-col gap-6">
-          {/* Main View (Full width) - Charts Tabs */}
-          <div className="w-full">
-              <Card className="border-slate-700/50 bg-slate-900/40 h-[400px] flex flex-col">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-800 pb-4">
-                      <div className="flex items-center gap-3">
-                         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-[0_0_15px_rgba(var(--color-primary),0.2)]">
-                            <BarChart3 size={20}/>
-                         </div>
-                         <div>
-                            <h3 className="text-lg font-bold text-white">
-                                {activeMainChart === 'WATERFALL' ? '資產配置演進' : activeMainChart === 'TREND' ? '總資產與負債趨勢' : activeMainChart === 'MONTHLY_INCOME' ? '歷史月度淨收益' : activeMainChart === 'ANNUAL_INCOME' ? '歷史年度淨收益' : '本月金流與分類'}
-                            </h3>
-                            <p className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
-                                <span>{activeMainChart === 'WATERFALL' ? '各類資產的成長貢獻' : activeMainChart === 'TREND' ? '歷史資產累積與淨值變化' : activeMainChart === 'MONTHLY_INCOME' ? '每月最終結算之正負收益' : activeMainChart === 'ANNUAL_INCOME' ? '年度最終結算之正負收益' : '每日收入與支出分佈 (含股票收益)'}</span>
-                                {activeMainChart === 'MONTHLY_INCOME' && monthlyIncomeTrend && (
-                                    <span className={`font-mono font-bold flex items-center gap-0.5 ${monthlyIncomeTrend.diff > 0 ? 'text-red-400' : monthlyIncomeTrend.diff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                        本月 vs 上月：
-                                        {monthlyIncomeTrend.diff > 0 ? '▲' : monthlyIncomeTrend.diff < 0 ? '▼' : ''}
-                                        {Math.abs(monthlyIncomeTrend.diff).toLocaleString()}
-                                        {monthlyIncomeTrend.pct !== null && ` (${monthlyIncomeTrend.diff >= 0 ? '+' : '-'}${Math.abs(monthlyIncomeTrend.pct).toFixed(1)}%)`}
-                                    </span>
-                                )}
-                            </p>
-                         </div>
-                      </div>
+      {/* 5. 深入圖表分析 — 可收合，預設收合(淨值趨勢/本月金流已在首屏呈現，這裡是進階圖表) */}
+      <CollapsibleSection
+          title={activeMainChart === 'WATERFALL' ? '資產配置演進' : activeMainChart === 'TREND' ? '總資產與負債趨勢' : activeMainChart === 'MONTHLY_INCOME' ? '歷史月度淨收益' : activeMainChart === 'ANNUAL_INCOME' ? '歷史年度淨收益' : '本月金流與分類'}
+          icon={<BarChart3 size={18}/>}
+          accentClass="text-primary"
+          defaultOpen={false}
+          subtitle={activeMainChart === 'WATERFALL' ? '各類資產的成長貢獻' : activeMainChart === 'TREND' ? '歷史資產累積與淨值變化' : activeMainChart === 'MONTHLY_INCOME' ? '每月最終結算之正負收益' : activeMainChart === 'ANNUAL_INCOME' ? '年度最終結算之正負收益' : '每日收入與支出分佈 (含股票收益)'}
+      >
+              <Card className="border-slate-700/50 bg-slate-900/40 h-[400px] flex flex-col p-0">
+                  <div className="flex flex-col md:flex-row justify-end items-start md:items-center mb-4 gap-4">
+                      {activeMainChart === 'MONTHLY_INCOME' && monthlyIncomeTrend && (
+                          <span className={`text-xs font-numeric tabular-nums font-bold flex items-center gap-0.5 mr-auto ${monthlyIncomeTrend.diff > 0 ? 'text-rose-400' : monthlyIncomeTrend.diff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                              本月 vs 上月：
+                              {monthlyIncomeTrend.diff > 0 ? '▲' : monthlyIncomeTrend.diff < 0 ? '▼' : ''}
+                              {Math.abs(monthlyIncomeTrend.diff).toLocaleString()}
+                              {monthlyIncomeTrend.pct !== null && ` (${monthlyIncomeTrend.diff >= 0 ? '+' : '-'}${Math.abs(monthlyIncomeTrend.pct).toFixed(1)}%)`}
+                          </span>
+                      )}
                       <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 gap-1 overflow-x-auto no-scrollbar max-w-full">
                           <button onClick={() => setActiveMainChart('TREND')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'TREND' ? 'bg-primary text-white shadow' : 'text-slate-400 hover:text-white'}`}>資產趨勢</button>
                           <button onClick={() => setActiveMainChart('WATERFALL')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'WATERFALL' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>資產演進</button>
@@ -885,7 +942,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           <button onClick={() => setActiveMainChart('ANNUAL_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'ANNUAL_INCOME' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>年度收支</button>
                       </div>
                   </div>
-                  
+
                   <div className="flex-1 w-full min-h-0">
                       {activeMainChart === 'WATERFALL' ? (
                           <ResponsiveContainer width="100%" height="100%">
@@ -1062,17 +1119,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       )}
                   </div>
               </Card>
-          </div>
+      </CollapsibleSection>
 
-          {/* Bottom layout */}
-          <div className="w-full">
-                 {/* 債務與規劃中心：KPI 指標列 + 分頁（整合原本五張債務卡） */}
-                 <Card className="border-slate-700/50 bg-slate-900/40 p-6 flex flex-col">
-                      <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
-                          <Target size={20} className="text-amber-400" />
-                          <h3 className="font-bold text-white text-lg">債務與規劃</h3>
-                      </div>
+      {/* 5.5 預算執行度 — 可收合，預設收合 */}
+      {budgetProgressData.length > 0 && (
+        <CollapsibleSection
+            title="預算執行度"
+            icon={<Target size={18}/>}
+            accentClass="text-amber-400"
+            defaultOpen={false}
+            subtitle={`${currentMonth + 1} 月 · ${budgetProgressData.filter(b => b.percentage >= 100).length} 項已超支`}
+        >
+            <div className="space-y-3">
+                {budgetProgressData.map(b => {
+                    const over = b.percentage >= 100;
+                    const warn = b.percentage >= 80 && !over;
+                    return (
+                        <div key={b.name}>
+                            <div className="flex items-baseline justify-between text-sm mb-1">
+                                <span className="text-slate-300">{b.name}</span>
+                                <span className={`font-numeric tabular-nums ${over ? 'text-red-400 font-bold' : warn ? 'text-amber-400' : 'text-slate-400'}`}>
+                                    {formatMoney(b.spent)} / {formatMoney(b.limit)}
+                                </span>
+                            </div>
+                            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full ${over ? 'bg-red-500' : warn ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                    style={{ width: `${Math.min(100, b.percentage)}%` }}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </CollapsibleSection>
+      )}
 
+      {/* 6. 債務與規劃中心：KPI 指標列 + 分頁（整合原本五張債務卡）— 可收合，預設展開(近期主力功能) */}
+      <CollapsibleSection
+          title="債務與規劃"
+          icon={<Target size={20}/>}
+          accentClass="text-amber-400"
+          defaultOpen={true}
+      >
                       {allDebtPayments.length > 0 ? (<>
                           {(() => {
                               const totalPay = allDebtPayments.reduce((s, d) => s + d.estimatedPayment, 0);
@@ -1307,9 +1396,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               <Button variant="ghost" onClick={() => { window.location.hash = 'debt'; onChangeView('ASSETS'); }} className="text-xs mt-2">前往設定</Button>
                           </div>
                       )}
-                 </Card>
-          </div>
-      </div>
+      </CollapsibleSection>
     </div>
   );
 };
