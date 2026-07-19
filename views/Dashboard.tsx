@@ -4,7 +4,7 @@ import { Asset, Transaction, AssetType, RecurringItem, BudgetConfig, ViewState, 
 import {
     Sparkles, TrendingUp, AlertTriangle, Wallet, CreditCard,
     BarChart3, Target, Flag, Bell, ArrowRight, PieChart as PieIcon, LineChart as LineIcon,
-    Calculator, ShieldAlert, Hourglass, Landmark
+    ShieldAlert
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area, PieChart, Pie
@@ -43,6 +43,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [totalDebt, setTotalDebt] = useState(0);
   
   const [activeMainChart, setActiveMainChart] = useState<'WATERFALL' | 'TREND' | 'CASH_FLOW' | 'MONTHLY_INCOME' | 'ANNUAL_INCOME'>('TREND');
+  const [activeDebtTab, setActiveDebtTab] = useState<'OVERVIEW' | 'GRACE' | 'INTEREST' | 'ACCOUNT' | 'SIM'>('OVERVIEW');
   const [historyData, setHistoryData] = useState<any[]>([]);
 
   // Waterfall Chart Data
@@ -1065,25 +1066,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Bottom layout */}
           <div className="w-full">
-                 {/* Debt Overview Card */}
+                 {/* 債務與規劃中心：KPI 指標列 + 分頁（整合原本五張債務卡） */}
                  <Card className="border-slate-700/50 bg-slate-900/40 p-6 flex flex-col">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-800 pb-4">
-                          <div className="flex items-center gap-2">
-                              <Target size={20} className="text-amber-400" />
-                              <h3 className="font-bold text-white text-lg">每月還款總覽</h3>
-                          </div>
-                          {allDebtPayments.length > 0 && (
-                              <div className="flex items-center gap-3 bg-red-500/10 px-4 py-2 rounded-lg border border-red-500/30">
-                                  <span className="text-sm font-bold text-red-200">總計應繳</span>
-                                  <span className="text-2xl font-black text-red-400 font-mono">
-                                      ${allDebtPayments.reduce((s, d) => s + d.estimatedPayment, 0).toLocaleString()}
-                                  </span>
-                                  <span className="text-xs text-red-400/70">/ 月</span>
-                              </div>
-                          )}
+                      <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+                          <Target size={20} className="text-amber-400" />
+                          <h3 className="font-bold text-white text-lg">債務與規劃</h3>
                       </div>
 
-                      {allDebtPayments.length > 0 ? (
+                      {allDebtPayments.length > 0 ? (<>
+                          {(() => {
+                              const totalPay = allDebtPayments.reduce((s, d) => s + d.estimatedPayment, 0);
+                              const minAccountMonths = financialPlanning.accountChecks.length > 0 ? financialPlanning.accountChecks[0].monthsCovered : null;
+                              const minGraceLeft = financialPlanning.graceImpacts.length > 0 ? Math.min(...financialPlanning.graceImpacts.map(g => g.monthsLeft)) : null;
+                              const runwayY = financialPlanning.runwayNow !== null ? financialPlanning.runwayNow / 12 : null;
+                              const tiles: { tab: typeof activeDebtTab; label: string; value: string; sub?: string; tone: 'red' | 'amber' | 'normal' }[] = [
+                                  { tab: 'OVERVIEW', label: '總計應繳', value: `${formatMoney(totalPay)}/月`, tone: 'normal' },
+                                  { tab: 'INTEREST', label: '每月利息', value: financialPlanning.monthlyInterest > 0 ? formatMoney(financialPlanning.monthlyInterest) : '—', tone: financialPlanning.fixedIncome > 0 && financialPlanning.monthlyInterest / financialPlanning.fixedIncome > 0.3 ? 'amber' : 'normal' },
+                                  { tab: 'GRACE', label: '現金跑道', value: runwayY !== null ? `${runwayY.toFixed(1)} 年` : '無耗損', sub: financialPlanning.runwayAfter !== null && financialPlanning.totalJump > 0 ? `寬限後 ${(financialPlanning.runwayAfter / 12).toFixed(1)} 年` : undefined, tone: runwayY !== null && runwayY < 1 ? 'red' : runwayY !== null && runwayY < 3 ? 'amber' : 'normal' },
+                                  { tab: 'ACCOUNT', label: '扣款帳戶', value: minAccountMonths !== null ? `剩 ${minAccountMonths} 個月` : '未設定', tone: minAccountMonths !== null && minAccountMonths < 6 ? 'red' : minAccountMonths !== null && minAccountMonths < 12 ? 'amber' : 'normal' },
+                                  { tab: 'GRACE', label: '寬限倒數', value: minGraceLeft !== null ? `${minGraceLeft} 個月` : '無', tone: minGraceLeft !== null && minGraceLeft < 12 ? 'amber' : 'normal' },
+                              ];
+                              return (
+                                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                                      {tiles.map((t, i) => (
+                                          <button key={i} onClick={() => setActiveDebtTab(t.tab)} aria-label={`${t.label} ${t.value}`} className={`text-left rounded-lg p-3 border transition-all cursor-pointer hover:border-slate-500 ${t.tone === 'red' ? 'bg-red-500/10 border-red-500/30' : t.tone === 'amber' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-slate-800/50 border-slate-700'}`}>
+                                              <p className="text-[11px] text-slate-400 mb-0.5">{t.label}</p>
+                                              <p className={`font-mono font-bold text-sm ${t.tone === 'red' ? 'text-red-400' : t.tone === 'amber' ? 'text-amber-400' : 'text-slate-200'}`}>{t.value}</p>
+                                              {t.sub && <p className="text-[11px] text-slate-400 mt-0.5">{t.sub}</p>}
+                                          </button>
+                                      ))}
+                                  </div>
+                              );
+                          })()}
+                          <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 gap-1 overflow-x-auto no-scrollbar max-w-full mb-4 self-start">
+                              {([['OVERVIEW', '還款總覽'], ['GRACE', '寬限與跑道'], ['INTEREST', '利息成本'], ['ACCOUNT', '扣款帳戶'], ['SIM', '提前還款模擬']] as const).map(([k, label]) => (
+                                  <button key={k} onClick={() => setActiveDebtTab(k)} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeDebtTab === k ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>{label}</button>
+                              ))}
+                          </div>
+
+                          {activeDebtTab === 'OVERVIEW' && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {allDebtPayments.map(debt => (
                                   <div key={debt.id} className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
@@ -1119,16 +1140,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                   </div>
                               ))}
                           </div>
-                      ) : (
-                          <div className="flex flex-col items-center justify-center text-center opacity-50 py-12 bg-slate-800/20 rounded-xl border border-slate-700/30 border-dashed">
-                              <Flag size={40} className="text-slate-600 mb-3" />
-                              <p className="text-slate-400 text-sm">目前沒有任何貸款項目</p>
-                              <Button variant="ghost" onClick={() => { window.location.hash = 'debt'; onChangeView('ASSETS'); }} className="text-xs mt-2">前往設定</Button>
-                          </div>
                       )}
 
-                      {/* 多還本金正向回饋 */}
-                      {financialPlanning.overpayments.length > 0 && (
+                      {/* 多還本金正向回饋（還款總覽分頁） */}
+                      {activeDebtTab === 'OVERVIEW' && financialPlanning.overpayments.length > 0 && (
                           <div className="mt-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-4 py-3 space-y-1">
                               {financialPlanning.overpayments.map(o => (
                                   <p key={o.debtName} className="text-xs text-emerald-300 leading-relaxed">
@@ -1137,168 +1152,162 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               ))}
                           </div>
                       )}
+
+                      {/* 寬限與跑道分頁 */}
+                      {activeDebtTab === 'GRACE' && (
+                          <div className="space-y-4 animate-fade-in">
+                              {financialPlanning.graceImpacts.length > 0 ? (
+                                  financialPlanning.graceImpacts.map(g => (
+                                      <div key={g.name} className="bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 text-sm text-slate-300 leading-relaxed">
+                                          「{g.name}」寬限期至 <span className="font-mono text-amber-300">{g.graceEnd.getFullYear()}-{String(g.graceEnd.getMonth() + 1).padStart(2, '0')}</span>（剩 {g.monthsLeft} 個月），
+                                          屆時月付 <span className="font-mono">{formatMoney(g.current)}</span> → <span className="font-mono font-bold text-red-400">{formatMoney(g.after)}</span>
+                                          （每月增加 <span className="font-mono font-bold text-red-400">{formatMoney(g.jump)}</span>）。
+                                      </div>
+                                  ))
+                              ) : (
+                                  <p className="text-sm text-slate-400">目前沒有仍在寬限期的貸款。</p>
+                              )}
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div className="bg-slate-800/50 rounded-lg p-3">
+                                      <p className="text-xs text-slate-400 mb-1">每月固定結餘（現在）</p>
+                                      <p className={`font-mono font-bold text-lg ${financialPlanning.fixedBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(financialPlanning.fixedBalance)}</p>
+                                  </div>
+                                  {financialPlanning.totalJump > 0 && (
+                                      <div className="bg-slate-800/50 rounded-lg p-3">
+                                          <p className="text-xs text-slate-400 mb-1">寬限期結束後（預估）</p>
+                                          <p className={`font-mono font-bold text-lg ${financialPlanning.postGraceBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(financialPlanning.postGraceBalance)}</p>
+                                      </div>
+                                  )}
+                              </div>
+                              <div className="text-sm text-slate-300 leading-relaxed border-t border-slate-800 pt-3">
+                                  流動現金 <span className="font-mono text-emerald-400">{formatMoney(financialPlanning.liquidCash)}</span>。
+                                  {financialPlanning.runwayNow !== null ? (
+                                      <>以目前固定結餘估算，現金跑道約 <span className={`font-mono font-bold ${financialPlanning.runwayNow < 12 ? 'text-red-400' : financialPlanning.runwayNow < 36 ? 'text-amber-400' : 'text-slate-200'}`}>{(financialPlanning.runwayNow / 12).toFixed(1)} 年</span>
+                                      {financialPlanning.runwayAfter !== null && financialPlanning.totalJump > 0 && (
+                                          <>；寬限期結束後將縮短為約 <span className={`font-mono font-bold ${financialPlanning.runwayAfter < 12 ? 'text-red-400' : financialPlanning.runwayAfter < 36 ? 'text-amber-400' : 'text-slate-200'}`}>{(financialPlanning.runwayAfter / 12).toFixed(1)} 年</span></>
+                                      )}。</>
+                                  ) : (
+                                      <>目前固定收支為正，現金不會因固定開銷而耗損。</>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+
+                      {/* 利息成本分頁 */}
+                      {activeDebtTab === 'INTEREST' && (
+                          <div className="space-y-4 animate-fade-in">
+                              {financialPlanning.monthlyInterest > 0 ? (
+                                  <>
+                                      <div className="grid grid-cols-2 gap-3 text-sm">
+                                          <div className="bg-slate-800/50 rounded-lg p-3">
+                                              <p className="text-xs text-slate-400 mb-1">每月利息（近似）</p>
+                                              <p className="font-mono font-bold text-lg text-rose-400">{formatMoney(financialPlanning.monthlyInterest)}</p>
+                                          </div>
+                                          <div className="bg-slate-800/50 rounded-lg p-3">
+                                              <p className="text-xs text-slate-400 mb-1">一年約</p>
+                                              <p className="font-mono font-bold text-lg text-rose-400">{formatMoney(financialPlanning.monthlyInterest * 12)}</p>
+                                          </div>
+                                      </div>
+                                      {financialPlanning.fixedIncome > 0 && (
+                                          <p className="text-sm text-slate-300 leading-relaxed">
+                                              利息佔每月固定收入 <span className={`font-mono font-bold ${financialPlanning.monthlyInterest / financialPlanning.fixedIncome > 0.3 ? 'text-red-400' : 'text-amber-400'}`}>{((financialPlanning.monthlyInterest / financialPlanning.fixedIncome) * 100).toFixed(0)}%</span>
+                                              ——這是「什麼都不做也會流出去」的成本，評估賣股還債或提前還款時以此為基準。
+                                          </p>
+                                      )}
+                                      <div className="space-y-1.5 border-t border-slate-800 pt-3">
+                                          {financialPlanning.interestItems.map(i => (
+                                              <div key={i.name} className="flex items-center justify-between text-xs">
+                                                  <span className="text-slate-400">{i.name}</span>
+                                                  <span className="font-mono text-rose-300">{formatMoney(i.monthly)}/月</span>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </>
+                              ) : (
+                                  <p className="text-sm text-slate-400">貸款尚未設定利率，無法估算利息成本。</p>
+                              )}
+                          </div>
+                      )}
+
+                      {/* 扣款帳戶分頁 */}
+                      {activeDebtTab === 'ACCOUNT' && (
+                          <div className="animate-fade-in">
+                              {financialPlanning.accountChecks.length > 0 ? (
+                                  <div className="space-y-3">
+                                      {financialPlanning.accountChecks.map(a => (
+                                          <div key={a.accountName} className={`rounded-lg px-4 py-3 border ${a.monthsCovered < 6 ? 'bg-red-500/5 border-red-500/30' : a.monthsCovered < 12 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-slate-800/50 border-slate-700'}`}>
+                                              <div className="flex items-center justify-between text-sm">
+                                                  <span className="font-bold text-slate-200">{a.accountName}</span>
+                                                  <span className="font-mono text-slate-300">{formatMoney(a.balance)}</span>
+                                              </div>
+                                              <p className="text-xs text-slate-400 mt-1">
+                                                  每月扣 <span className="font-mono">{formatMoney(a.totalPay)}</span>（{a.debtNames.join('、')}）
+                                                  → 約可再扣 <span className={`font-mono font-bold ${a.monthsCovered < 6 ? 'text-red-400' : a.monthsCovered < 12 ? 'text-amber-400' : 'text-emerald-400'}`}>{a.monthsCovered} 個月</span>
+                                                  {a.monthsCovered < 6 && <span className="text-red-300">，餘額偏低，請留意補足以免扣款失敗</span>}
+                                              </p>
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : (
+                                  <p className="text-sm text-slate-400">
+                                      尚未為貸款指定扣款帳戶。到「資產管理」編輯負債（例如信貸、房貸），選擇「每月扣款帳戶」後，這裡會監控帳戶餘額還能扣幾個月。
+                                  </p>
+                              )}
+                          </div>
+                      )}
+
+                      {/* 提前還款模擬分頁 */}
+                      {activeDebtTab === 'SIM' && (
+                          <div className="space-y-4 animate-fade-in">
+                              <div className="flex gap-3 flex-wrap">
+                                  <Select value={simDebtId} onChange={e => setSimDebtId(e.target.value)} className="flex-1 min-w-[140px] bg-slate-900">
+                                      <option value="">選擇貸款...</option>
+                                      {financialPlanning.debts.filter(d => d.interestRate && d.termYears).map(d => (
+                                          <option key={d.id} value={d.id}>{d.name}（{formatMoney(d.amount)}）</option>
+                                      ))}
+                                  </Select>
+                                  <Input
+                                      type="number"
+                                      placeholder="提前還款金額"
+                                      aria-label="提前還款金額"
+                                      value={simAmount}
+                                      onChange={e => setSimAmount(e.target.value)}
+                                      className="flex-1 min-w-[140px] font-mono bg-slate-900"
+                                  />
+                              </div>
+                              {prepaySimulation ? (
+                                  prepaySimulation.payoff ? (
+                                      <p className="text-sm text-emerald-300">這筆金額已足以清償「{prepaySimulation.debtName}」全部剩餘本金。</p>
+                                  ) : (
+                                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-4 py-3 text-sm text-slate-300 space-y-1.5 leading-relaxed">
+                                          <p>
+                                              「{prepaySimulation.debtName}」當月月付 <span className="font-mono">{formatMoney(prepaySimulation.currentMonthly)}</span> → <span className="font-mono font-bold text-emerald-400">{formatMoney(prepaySimulation.newMonthly)}</span>
+                                              （每月減少 <span className="font-mono font-bold text-emerald-400">{formatMoney(prepaySimulation.monthlySaved)}</span>）
+                                          </p>
+                                          {prepaySimulation.inGrace && (
+                                              <p className="text-xs text-slate-400">
+                                                  寬限期後月付 {formatMoney(prepaySimulation.postGraceOld)} → <span className="text-emerald-400">{formatMoney(prepaySimulation.postGraceNew)}</span>
+                                              </p>
+                                          )}
+                                          <p>
+                                              至清償為止總利息約可省下 <span className="font-mono font-bold text-emerald-400">{formatMoney(prepaySimulation.interestSaved)}</span>
+                                          </p>
+                                          <p className="text-[11px] text-slate-400">* 以「月付金重新計算、年期不變」估算；若選擇維持月付金縮短年期，省下的利息會更多。</p>
+                                      </div>
+                                  )
+                              ) : (
+                                  <p className="text-xs text-slate-400">選擇貸款並輸入金額，試算月付變化與可省下的總利息。例如：拿一部分股票獲利提前還信貸。</p>
+                              )}
+                          </div>
+                      )}
+                      </>) : (
+                          <div className="flex flex-col items-center justify-center text-center opacity-50 py-12 bg-slate-800/20 rounded-xl border border-slate-700/30 border-dashed">
+                              <Flag size={40} className="text-slate-600 mb-3" />
+                              <p className="text-slate-400 text-sm">目前沒有任何貸款項目</p>
+                              <Button variant="ghost" onClick={() => { window.location.hash = 'debt'; onChangeView('ASSETS'); }} className="text-xs mt-2">前往設定</Button>
+                          </div>
+                      )}
                  </Card>
-
-                 {/* 財務風險與規劃 */}
-                 {financialPlanning.debts.length > 0 && (
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                         {/* 寬限期衝擊 + 現金跑道 */}
-                         <Card className="border-slate-700/50 bg-slate-900/40 p-6 space-y-4">
-                             <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                                 <Hourglass size={18} className="text-amber-400"/>
-                                 <h3 className="font-bold text-white text-lg">寬限期衝擊與現金跑道</h3>
-                             </div>
-                             {financialPlanning.graceImpacts.length > 0 ? (
-                                 financialPlanning.graceImpacts.map(g => (
-                                     <div key={g.name} className="bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 text-sm text-slate-300 leading-relaxed">
-                                         「{g.name}」寬限期至 <span className="font-mono text-amber-300">{g.graceEnd.getFullYear()}-{String(g.graceEnd.getMonth() + 1).padStart(2, '0')}</span>（剩 {g.monthsLeft} 個月），
-                                         屆時月付 <span className="font-mono">{formatMoney(g.current)}</span> → <span className="font-mono font-bold text-red-400">{formatMoney(g.after)}</span>
-                                         （每月增加 <span className="font-mono font-bold text-red-400">{formatMoney(g.jump)}</span>）。
-                                     </div>
-                                 ))
-                             ) : (
-                                 <p className="text-sm text-slate-400">目前沒有仍在寬限期的貸款。</p>
-                             )}
-                             <div className="grid grid-cols-2 gap-3 text-sm">
-                                 <div className="bg-slate-800/50 rounded-lg p-3">
-                                     <p className="text-xs text-slate-400 mb-1">每月固定結餘（現在）</p>
-                                     <p className={`font-mono font-bold text-lg ${financialPlanning.fixedBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(financialPlanning.fixedBalance)}</p>
-                                 </div>
-                                 {financialPlanning.totalJump > 0 && (
-                                     <div className="bg-slate-800/50 rounded-lg p-3">
-                                         <p className="text-xs text-slate-400 mb-1">寬限期結束後（預估）</p>
-                                         <p className={`font-mono font-bold text-lg ${financialPlanning.postGraceBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(financialPlanning.postGraceBalance)}</p>
-                                     </div>
-                                 )}
-                             </div>
-                             <div className="text-sm text-slate-300 leading-relaxed border-t border-slate-800 pt-3">
-                                 流動現金 <span className="font-mono text-emerald-400">{formatMoney(financialPlanning.liquidCash)}</span>。
-                                 {financialPlanning.runwayNow !== null ? (
-                                     <>以目前固定結餘估算，現金跑道約 <span className={`font-mono font-bold ${financialPlanning.runwayNow < 12 ? 'text-red-400' : financialPlanning.runwayNow < 36 ? 'text-amber-400' : 'text-slate-200'}`}>{(financialPlanning.runwayNow / 12).toFixed(1)} 年</span>
-                                     {financialPlanning.runwayAfter !== null && financialPlanning.totalJump > 0 && (
-                                         <>；寬限期結束後將縮短為約 <span className={`font-mono font-bold ${financialPlanning.runwayAfter < 12 ? 'text-red-400' : financialPlanning.runwayAfter < 36 ? 'text-amber-400' : 'text-slate-200'}`}>{(financialPlanning.runwayAfter / 12).toFixed(1)} 年</span></>
-                                     )}。</>
-                                 ) : (
-                                     <>目前固定收支為正，現金不會因固定開銷而耗損。</>
-                                 )}
-                             </div>
-                         </Card>
-
-                         {/* 利息成本儀表 */}
-                         <Card className="border-slate-700/50 bg-slate-900/40 p-6 space-y-4">
-                             <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                                 <Landmark size={18} className="text-rose-400"/>
-                                 <h3 className="font-bold text-white text-lg">利息成本</h3>
-                             </div>
-                             {financialPlanning.monthlyInterest > 0 ? (
-                                 <>
-                                     <div className="grid grid-cols-2 gap-3 text-sm">
-                                         <div className="bg-slate-800/50 rounded-lg p-3">
-                                             <p className="text-xs text-slate-400 mb-1">每月利息（近似）</p>
-                                             <p className="font-mono font-bold text-lg text-rose-400">{formatMoney(financialPlanning.monthlyInterest)}</p>
-                                         </div>
-                                         <div className="bg-slate-800/50 rounded-lg p-3">
-                                             <p className="text-xs text-slate-400 mb-1">一年約</p>
-                                             <p className="font-mono font-bold text-lg text-rose-400">{formatMoney(financialPlanning.monthlyInterest * 12)}</p>
-                                         </div>
-                                     </div>
-                                     {financialPlanning.fixedIncome > 0 && (
-                                         <p className="text-sm text-slate-300 leading-relaxed">
-                                             利息佔每月固定收入 <span className={`font-mono font-bold ${financialPlanning.monthlyInterest / financialPlanning.fixedIncome > 0.3 ? 'text-red-400' : 'text-amber-400'}`}>{((financialPlanning.monthlyInterest / financialPlanning.fixedIncome) * 100).toFixed(0)}%</span>
-                                             ——這是「什麼都不做也會流出去」的成本，評估賣股還債或提前還款時以此為基準。
-                                         </p>
-                                     )}
-                                     <div className="space-y-1.5 border-t border-slate-800 pt-3">
-                                         {financialPlanning.interestItems.map(i => (
-                                             <div key={i.name} className="flex items-center justify-between text-xs">
-                                                 <span className="text-slate-400">{i.name}</span>
-                                                 <span className="font-mono text-rose-300">{formatMoney(i.monthly)}/月</span>
-                                             </div>
-                                         ))}
-                                     </div>
-                                 </>
-                             ) : (
-                                 <p className="text-sm text-slate-400">貸款尚未設定利率，無法估算利息成本。</p>
-                             )}
-                         </Card>
-
-                         {/* 扣款帳戶餘額監控 */}
-                         <Card className="border-slate-700/50 bg-slate-900/40 p-6 space-y-4">
-                             <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                                 <Wallet size={18} className="text-sky-400"/>
-                                 <h3 className="font-bold text-white text-lg">扣款帳戶餘額</h3>
-                             </div>
-                             {financialPlanning.accountChecks.length > 0 ? (
-                                 <div className="space-y-3">
-                                     {financialPlanning.accountChecks.map(a => (
-                                         <div key={a.accountName} className={`rounded-lg px-4 py-3 border ${a.monthsCovered < 6 ? 'bg-red-500/5 border-red-500/30' : a.monthsCovered < 12 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-slate-800/50 border-slate-700'}`}>
-                                             <div className="flex items-center justify-between text-sm">
-                                                 <span className="font-bold text-slate-200">{a.accountName}</span>
-                                                 <span className="font-mono text-slate-300">{formatMoney(a.balance)}</span>
-                                             </div>
-                                             <p className="text-xs text-slate-400 mt-1">
-                                                 每月扣 <span className="font-mono">{formatMoney(a.totalPay)}</span>（{a.debtNames.join('、')}）
-                                                 → 約可再扣 <span className={`font-mono font-bold ${a.monthsCovered < 6 ? 'text-red-400' : a.monthsCovered < 12 ? 'text-amber-400' : 'text-emerald-400'}`}>{a.monthsCovered} 個月</span>
-                                                 {a.monthsCovered < 6 && <span className="text-red-300">，餘額偏低，請留意補足以免扣款失敗</span>}
-                                             </p>
-                                         </div>
-                                     ))}
-                                 </div>
-                             ) : (
-                                 <p className="text-sm text-slate-400">
-                                     尚未為貸款指定扣款帳戶。到「資產管理」編輯負債（例如信貸、房貸），選擇「每月扣款帳戶」後，這裡會監控帳戶餘額還能扣幾個月。
-                                 </p>
-                             )}
-                         </Card>
-
-                         {/* 提前還款模擬器 */}
-                         <Card className="border-slate-700/50 bg-slate-900/40 p-6 space-y-4">
-                             <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                                 <Calculator size={18} className="text-emerald-400"/>
-                                 <h3 className="font-bold text-white text-lg">提前還款模擬</h3>
-                             </div>
-                             <div className="flex gap-3 flex-wrap">
-                                 <Select value={simDebtId} onChange={e => setSimDebtId(e.target.value)} className="flex-1 min-w-[140px] bg-slate-900">
-                                     <option value="">選擇貸款...</option>
-                                     {financialPlanning.debts.filter(d => d.interestRate && d.termYears).map(d => (
-                                         <option key={d.id} value={d.id}>{d.name}（{formatMoney(d.amount)}）</option>
-                                     ))}
-                                 </Select>
-                                 <Input
-                                     type="number"
-                                     placeholder="提前還款金額"
-                                     aria-label="提前還款金額"
-                                     value={simAmount}
-                                     onChange={e => setSimAmount(e.target.value)}
-                                     className="flex-1 min-w-[140px] font-mono bg-slate-900"
-                                 />
-                             </div>
-                             {prepaySimulation ? (
-                                 prepaySimulation.payoff ? (
-                                     <p className="text-sm text-emerald-300">這筆金額已足以清償「{prepaySimulation.debtName}」全部剩餘本金。</p>
-                                 ) : (
-                                     <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-4 py-3 text-sm text-slate-300 space-y-1.5 leading-relaxed">
-                                         <p>
-                                             「{prepaySimulation.debtName}」當月月付 <span className="font-mono">{formatMoney(prepaySimulation.currentMonthly)}</span> → <span className="font-mono font-bold text-emerald-400">{formatMoney(prepaySimulation.newMonthly)}</span>
-                                             （每月減少 <span className="font-mono font-bold text-emerald-400">{formatMoney(prepaySimulation.monthlySaved)}</span>）
-                                         </p>
-                                         {prepaySimulation.inGrace && (
-                                             <p className="text-xs text-slate-400">
-                                                 寬限期後月付 {formatMoney(prepaySimulation.postGraceOld)} → <span className="text-emerald-400">{formatMoney(prepaySimulation.postGraceNew)}</span>
-                                             </p>
-                                         )}
-                                         <p>
-                                             至清償為止總利息約可省下 <span className="font-mono font-bold text-emerald-400">{formatMoney(prepaySimulation.interestSaved)}</span>
-                                         </p>
-                                         <p className="text-[11px] text-slate-400">* 以「月付金重新計算、年期不變」估算；若選擇維持月付金縮短年期，省下的利息會更多。</p>
-                                     </div>
-                                 )
-                             ) : (
-                                 <p className="text-xs text-slate-400">選擇貸款並輸入金額，試算月付變化與可省下的總利息。例如：拿一部分股票獲利提前還信貸。</p>
-                             )}
-                         </Card>
-                     </div>
-                 )}
           </div>
       </div>
     </div>
