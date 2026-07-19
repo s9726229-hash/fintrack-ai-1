@@ -286,10 +286,10 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       {/* Header */}
       <div className="flex justify-between items-center">
          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <ScrollText className="text-amber-400" size={24}/> 收支記帳
+            <h2 className="text-[19px] font-semibold text-[#3D3428] flex items-center gap-2">
+                <ScrollText className="text-[#C4523A]" size={22}/> 收支記帳
             </h2>
-            <p className="text-xs text-slate-400 mt-1">記錄每日開銷、收入與發票管理</p>
+            <p className="text-xs text-[#A69B87] mt-1">記錄每日開銷、收入與發票管理</p>
          </div>
          <div className="flex items-center gap-2">
             <input
@@ -300,19 +300,19 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               className="hidden"
             />
             <Button
+              theme="warm"
               variant="secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={isParsing}
-              className="bg-slate-700 hover:bg-slate-600"
             >
               {isParsing ? <Loader2 size={16} className="animate-spin"/> : <UploadCloud size={16}/>}
               <span className="hidden md:inline">{isParsing ? '解析中...' : '匯入電子發票'}</span>
             </Button>
-            <button 
+            <button
                 onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg shadow-lg shadow-primary/20 transition-all active:scale-95"
+                className="flex items-center gap-2 px-4 py-2 bg-[#C4523A] hover:bg-[#AD452F] text-white rounded-full transition-all active:scale-95"
             >
-                <Plus size={20}/> 
+                <Plus size={20}/>
                 <span className="hidden md:inline font-bold text-sm">新增紀錄</span>
             </button>
          </div>
@@ -335,10 +335,10 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           />
       </div>
 
-      <div className="mt-4 mb-4">
-          <button 
+      <div className="hidden md:block mt-4 mb-4">
+          <button
              onClick={() => setShowCharts(!showCharts)}
-             className="w-full py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-white transition-all"
+             className="w-full py-2 bg-white hover:bg-[#FBF7F0] border border-[#EDE4D6] rounded-lg flex items-center justify-center gap-2 text-xs text-[#A69B87] hover:text-[#3D3428] transition-all"
           >
              {showCharts ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
              {showCharts ? '隱藏分析圖表' : '展開圖表分析 (趨勢與支出結構)'}
@@ -347,11 +347,13 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       </div>
 
       {showCharts && (
-          <TransactionCharts 
-            dailyTrendData={dailyTrendData} 
-            expenseStructure={expenseStructure} 
-            hasExpense={rangeStats.expense > 0} 
-          />
+          <div className="hidden md:block">
+              <TransactionCharts
+                dailyTrendData={dailyTrendData}
+                expenseStructure={expenseStructure}
+                hasExpense={rangeStats.expense > 0}
+              />
+          </div>
       )}
 
       <TransactionList 
@@ -367,59 +369,59 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         editingData={editingTransaction}
       />
       
-      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="電子發票匯入預覽">
+      <Modal theme="warm" isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="電子發票匯入預覽">
           <div className="space-y-4">
-              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 grid grid-cols-3 divide-x divide-slate-700 text-center">
+              <div className="bg-[#FBF7F0] p-4 rounded-xl border border-[#EDE4D6] grid grid-cols-3 divide-x divide-[#EDE4D6] text-center">
                   <div>
-                      <p className="text-xs text-slate-400">CSV總筆數</p>
-                      <p className="text-xl font-bold font-mono text-white">{importStats.total}</p>
+                      <p className="text-xs text-[#A69B87]">CSV總筆數</p>
+                      <p className="text-xl font-bold tabular-nums text-[#3D3428]">{importStats.total}</p>
                   </div>
                   <div>
-                      <p className="text-xs text-slate-400">本次新增</p>
-                      <p className="text-xl font-bold font-mono text-emerald-400">{importStats.new}</p>
+                      <p className="text-xs text-[#A69B87]">本次新增</p>
+                      <p className="text-xl font-bold tabular-nums text-[#6B9080]">{importStats.new}</p>
                   </div>
                   <div>
-                      <p className="text-xs text-slate-400">重複跳過</p>
-                      <p className="text-xl font-bold font-mono text-slate-500">{importStats.skipped}</p>
+                      <p className="text-xs text-[#A69B87]">重複跳過</p>
+                      <p className="text-xl font-bold tabular-nums text-[#A69B87]">{importStats.skipped}</p>
                   </div>
               </div>
-              
-              <h4 className="text-sm font-bold text-slate-300 pt-2">預計匯入 {importStats.new} 筆新交易：</h4>
-              
+
+              <h4 className="text-sm font-bold text-[#3D3428] pt-2">預計匯入 {importStats.new} 筆新交易：</h4>
+
               <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
                   {newInvoices.map(t => (
                       editingInvoiceId === t.id ? (
-                        <div key={t.id} className="bg-slate-700/80 p-3 rounded-lg space-y-3 border border-primary/50 shadow-lg">
+                        <div key={t.id} className="bg-[#FBF7F0] p-3 rounded-lg space-y-3 border border-[#C4523A]/40 shadow-lg">
                             <div>
-                                <label className="text-xs text-slate-400">項目</label>
-                                <Input value={editFormData.item} onChange={e => setEditFormData({...editFormData, item: e.target.value})} className="h-8 text-sm"/>
+                                <label className="text-xs text-[#A69B87]">項目</label>
+                                <Input theme="warm" value={editFormData.item} onChange={e => setEditFormData({...editFormData, item: e.target.value})} className="h-8 text-sm"/>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-xs text-slate-400">類別</label>
-                                    <Select value={editFormData.category} onChange={e => setEditFormData({...editFormData, category: e.target.value})} className="h-8 text-sm">
+                                    <label className="text-xs text-[#A69B87]">類別</label>
+                                    <Select theme="warm" value={editFormData.category} onChange={e => setEditFormData({...editFormData, category: e.target.value})} className="h-8 text-sm">
                                         {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                     </Select>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-slate-400">金額</label>
-                                    <Input type="number" value={editFormData.amount} onChange={e => setEditFormData({...editFormData, amount: Number(e.target.value)})} className="h-8 text-sm font-mono"/>
+                                    <label className="text-xs text-[#A69B87]">金額</label>
+                                    <Input theme="warm" type="number" value={editFormData.amount} onChange={e => setEditFormData({...editFormData, amount: Number(e.target.value)})} className="h-8 text-sm"/>
                                 </div>
                             </div>
                             <div className="flex gap-2 justify-end">
-                                <Button onClick={handleCancelInvoiceEdit} variant="secondary" className="px-2 py-1 text-xs">取消</Button>
-                                <Button onClick={handleSaveInvoiceEdit} className="px-2 py-1 text-xs">儲存</Button>
+                                <Button theme="warm" onClick={handleCancelInvoiceEdit} variant="secondary" className="px-2 py-1 text-xs">取消</Button>
+                                <Button theme="warm" onClick={handleSaveInvoiceEdit} className="px-2 py-1 text-xs">儲存</Button>
                             </div>
                         </div>
                       ) : (
-                        <div key={t.id} className="bg-slate-800 p-2 rounded-lg flex justify-between items-center text-sm group hover:bg-slate-700/50">
+                        <div key={t.id} className="bg-[#FBF7F0] p-2 rounded-lg flex justify-between items-center text-sm group hover:bg-[#F3ECDF]">
                             <div>
-                                <p className="font-bold text-white">{t.item}</p>
-                                <p className="text-xs text-slate-400">{t.date} • {t.category}</p>
+                                <p className="font-bold text-[#3D3428]">{t.item}</p>
+                                <p className="text-xs text-[#A69B87]">{t.date} • {t.category}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <p className="font-mono text-slate-300">${t.amount.toLocaleString()}</p>
-                                <button onClick={() => handleStartInvoiceEdit(t)} className="p-1.5 text-slate-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                <p className="tabular-nums text-[#3D3428]">${t.amount.toLocaleString()}</p>
+                                <button onClick={() => handleStartInvoiceEdit(t)} className="p-1.5 text-[#A69B87] hover:text-[#3D3428] opacity-0 group-hover:opacity-100 transition-opacity">
                                     <Pencil size={12}/>
                                 </button>
                             </div>
@@ -427,15 +429,15 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                       )
                   ))}
                   {newInvoices.length === 0 && (
-                    <div className="text-center py-10 text-slate-500 text-sm">
+                    <div className="text-center py-10 text-[#A69B87] text-sm">
                         沒有可匯入的新發票紀錄。
                     </div>
                   )}
               </div>
 
-              <div className="flex gap-2 pt-4 border-t border-slate-700">
-                  <Button variant="secondary" onClick={() => setIsImportModalOpen(false)} className="flex-1">取消</Button>
-                  <Button onClick={handleConfirmImport} disabled={newInvoices.length === 0} className="flex-1">
+              <div className="flex gap-2 pt-4 border-t border-[#EDE4D6]">
+                  <Button theme="warm" variant="secondary" onClick={() => setIsImportModalOpen(false)} className="flex-1">取消</Button>
+                  <Button theme="warm" onClick={handleConfirmImport} disabled={newInvoices.length === 0} className="flex-1">
                       <FileCheck2 size={16} className="mr-2"/> 確認匯入
                   </Button>
               </div>

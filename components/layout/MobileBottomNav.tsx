@@ -22,11 +22,11 @@ const NavItemMobile = ({
       aria-current={isActive ? 'page' : undefined}
       className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all active:scale-95 ${
         isActive
-          ? 'text-primary'
-          : 'text-slate-400 hover:text-slate-300'
+          ? 'text-[#C4523A]'
+          : 'text-[#A69B87] hover:text-[#3D3428]'
       }`}
     >
-      <div className={`p-1 rounded-xl transition-all ${isActive ? 'bg-primary/10 shadow-[0_0_10px_rgba(139,92,246,0.2)]' : ''}`}>
+      <div className={`p-1 rounded-xl transition-all ${isActive ? 'bg-[#FBEAEA]' : ''}`}>
          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
       </div>
       <span className="text-[11px] leading-none font-medium">{label}</span>
@@ -36,7 +36,7 @@ const NavItemMobile = ({
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ currentView, onChangeView }) => {
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 pb-safe z-50">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-[#EDE4D6] pb-safe z-50">
       <div className="grid grid-cols-6 h-16">
         <NavItemMobile view="DASHBOARD" current={currentView} icon={LayoutGrid} label="總覽" onClick={onChangeView} />
         <NavItemMobile view="ASSETS" current={currentView} icon={PieChart} label="資產" onClick={onChangeView} />

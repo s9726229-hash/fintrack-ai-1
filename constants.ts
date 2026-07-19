@@ -47,3 +47,15 @@ export const ASSET_TYPE_LABELS: Record<string, string> = {
   DEBT: '負債',
   OTHER: '其他',
 };
+
+// 溫暖親民風格（DESIGN_v2）專用分類色：淺底色 + 對應深色文字，僅供 warm 主題頁面（資產管理/股票投資）使用，
+// 不影響既有 ASSET_TYPE_COLORS（Dashboard 圖表等深色頁面仍使用原色）。
+export const ASSET_TYPE_WARM_COLORS: Record<string, { text: string; bg: string; bar: string }> = {
+  CASH: { text: '#6B9080', bg: '#EAF1EC', bar: '#6B9080' },
+  STOCK: { text: '#C86B6B', bg: '#FBEAEA', bar: '#C86B6B' },
+  FUND: { text: '#C86B6B', bg: '#FBEAEA', bar: '#C86B6B' },
+  REAL_ESTATE: { text: '#B08968', bg: '#F3ECDF', bar: '#B08968' },
+  CRYPTO: { text: '#C08A3E', bg: '#F7EEDD', bar: '#C08A3E' },
+  DEBT: { text: '#B45B45', bg: '#F6E4DE', bar: '#B45B45' },
+  OTHER: { text: '#8A7A63', bg: '#F3ECDF', bar: '#8A7A63' },
+};

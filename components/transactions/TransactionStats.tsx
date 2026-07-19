@@ -14,51 +14,51 @@ export const TransactionStats: React.FC<TransactionStatsProps> = ({ income, expe
   return (
     <>
       {/* Mobile: Compact Dashboard */}
-      <div className="md:hidden flex items-center justify-between bg-slate-800 rounded-xl p-3 border border-slate-700/50 mb-3 shadow-inner">
+      <div className="md:hidden flex items-center justify-between bg-white rounded-xl p-3 border border-[#EDE4D6] mb-3">
          <div className="flex flex-col">
-             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Balance (結餘)</span>
-             <span className={`text-2xl font-mono font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
+             <span className="text-[10px] text-[#A69B87] uppercase font-bold tracking-wider">Balance (結餘)</span>
+             <span className={`text-2xl font-bold tabular-nums ${balance >= 0 ? 'text-[#3D3428]' : 'text-[#6B9080]'}`}>
                  {formatMoney(balance)}
              </span>
          </div>
          <div className="flex flex-col items-end gap-1">
              <div className="flex items-center gap-2 text-xs">
-                <span className="text-emerald-400 font-mono font-medium">+${income.toLocaleString()}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span className="text-[#C4523A] font-medium tabular-nums">+${income.toLocaleString()}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#C4523A]"></span>
              </div>
              <div className="flex items-center gap-2 text-xs">
-                <span className="text-rose-400 font-mono font-medium">-${expense.toLocaleString()}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <span className="text-[#6B9080] font-medium tabular-nums">-${expense.toLocaleString()}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#6B9080]"></span>
              </div>
          </div>
       </div>
 
       {/* Desktop: Expanded Cards */}
       <div className="hidden md:grid grid-cols-3 gap-4 mb-4">
-          <Card className="p-4 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">
+          <Card theme="warm" className="p-4">
               <div className="flex justify-between items-start mb-2">
-                  <span className="text-slate-400 text-xs font-bold uppercase">總結餘 (Balance)</span>
-                  <Wallet size={16} className="text-primary"/>
+                  <span className="text-[#A69B87] text-xs font-bold uppercase">總結餘 (Balance)</span>
+                  <Wallet size={16} className="text-[#C4523A]"/>
               </div>
-              <div className={`text-2xl font-bold font-mono ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
+              <div className={`text-2xl font-bold tabular-nums ${balance >= 0 ? 'text-[#3D3428]' : 'text-[#6B9080]'}`}>
                   {formatMoney(balance)}
               </div>
           </Card>
-          <Card className="p-4 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">
+          <Card theme="warm" className="p-4">
               <div className="flex justify-between items-start mb-2">
-                  <span className="text-emerald-400/80 text-xs font-bold uppercase">總收入 (Income)</span>
-                  <TrendingUp size={16} className="text-emerald-500"/>
+                  <span className="text-[#C4523A]/80 text-xs font-bold uppercase">總收入 (Income)</span>
+                  <TrendingUp size={16} className="text-[#C4523A]"/>
               </div>
-              <div className="text-2xl font-bold text-emerald-400 font-mono">
+              <div className="text-2xl font-bold text-[#C4523A] tabular-nums">
                   +${income.toLocaleString()}
               </div>
           </Card>
-          <Card className="p-4 bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">
+          <Card theme="warm" className="p-4">
               <div className="flex justify-between items-start mb-2">
-                  <span className="text-rose-400/80 text-xs font-bold uppercase">總支出 (Expense)</span>
-                  <TrendingDown size={16} className="text-rose-500"/>
+                  <span className="text-[#6B9080]/80 text-xs font-bold uppercase">總支出 (Expense)</span>
+                  <TrendingDown size={16} className="text-[#6B9080]"/>
               </div>
-              <div className="text-2xl font-bold text-rose-400 font-mono">
+              <div className="text-2xl font-bold text-[#6B9080] tabular-nums">
                   -${expense.toLocaleString()}
               </div>
           </Card>

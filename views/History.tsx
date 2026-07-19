@@ -113,14 +113,14 @@ const StatusBadge = ({ status }: { status: string }) => {
 
   if (isVerifying) {
     return (
-      <span title={title} className="flex items-center gap-1.5 text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-1 rounded-full cursor-help">
+      <span title={title} className="flex items-center gap-1.5 text-xs font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-1 rounded-full cursor-help">
         <Clock size={12} />
         驗證中 (Verifying)
       </span>
     );
   }
   return (
-    <span title={title} className="flex items-center gap-1.5 text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded-full cursor-help">
+    <span title={title} className="flex items-center gap-1.5 text-xs font-bold bg-[#EAF1EC] text-[#6B9080] border border-[#6B9080]/20 px-2 py-1 rounded-full cursor-help">
       <CheckCircle2 size={12} />
       驗證通過 (Verified)
     </span>
@@ -130,41 +130,41 @@ const StatusBadge = ({ status }: { status: string }) => {
 export const HistoryView: React.FC = () => {
   return (
     <div className="space-y-8 animate-fade-in p-2 md:p-6 pb-24">
-      <div className="bg-gradient-to-r from-cyan-500/10 to-slate-800 p-8 rounded-2xl border border-cyan-500/20 shadow-2xl relative overflow-hidden">
-         <div className="absolute right-0 top-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
-         <h2 className="text-3xl font-bold text-white flex items-center gap-3 relative z-10">
-            <Bot className="text-cyan-400"/> AI 調校日誌
+      <div className="bg-gradient-to-r from-[#FBEAEA] to-white p-8 rounded-2xl border border-[#EDE4D6] relative overflow-hidden">
+         <div className="absolute right-0 top-0 w-64 h-64 bg-[#FBEAEA] rounded-full blur-3xl pointer-events-none"></div>
+         <h2 className="text-3xl font-bold text-[#3D3428] flex items-center gap-3 relative z-10">
+            <Bot className="text-[#C4523A]"/> AI 調校日誌
          </h2>
-         <p className="text-slate-300 mt-2 relative z-10">追蹤 AI 開發助理對此應用程式的每一次調整與優化紀錄。</p>
+         <p className="text-[#8A7A63] mt-2 relative z-10">追蹤 AI 開發助理對此應用程式的每一次調整與優化紀錄。</p>
       </div>
 
-      <div className="relative pl-4 border-l-2 border-slate-700 ml-4">
+      <div className="relative pl-4 border-l-2 border-[#EDE4D6] ml-4">
         {logs.slice(0, 10).map((log, index) => (
           <div key={index} className="mb-10 pl-8 relative">
-            <div className="absolute -left-[11px] top-1 w-5 h-5 bg-slate-800 border-4 border-primary rounded-full ring-8 ring-slate-900"></div>
-            
-            <Card className="shadow-lg hover:border-slate-600 transition-colors">
+            <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-4 border-[#C4523A] rounded-full ring-8 ring-[#FBF7F0]"></div>
+
+            <Card theme="warm" className="hover:border-[#C4A98A] transition-colors">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
                     <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded-md border border-slate-700">
+                        <span className="text-xs tabular-nums text-[#A69B87] bg-[#FBF7F0] px-2 py-1 rounded-md border border-[#EDE4D6]">
                           Build {log.build}
                         </span>
-                        <span className="text-xs text-slate-400">{log.date}</span>
+                        <span className="text-xs text-[#A69B87]">{log.date}</span>
                     </div>
                     <StatusBadge status={log.status} />
                 </div>
-                
-                <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                   <GitCommit className="text-primary/70" size={20}/> {log.title}
+
+                <h3 className="text-xl font-bold text-[#3D3428] mb-2 flex items-center gap-2">
+                   <GitCommit className="text-[#C4523A]/70" size={20}/> {log.title}
                 </h3>
-                
+
                 <ul className="mt-4 space-y-3 list-none">
                     {log.changes.map((change, i) => {
                         const Icon = change.icon;
                         return (
-                            <li key={i} className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                            <li key={i} className="flex items-start gap-3 p-3 bg-[#FBF7F0] rounded-lg border border-[#EDE4D6]">
                                 <Icon size={20} className={`${change.color} mt-0.5 shrink-0`} />
-                                <p className="text-slate-300 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: change.text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>') }} />
+                                <p className="text-[#3D3428] text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: change.text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-[#3D3428]">$1</strong>') }} />
                             </li>
                         );
                     })}

@@ -73,12 +73,13 @@ export const InvestmentInputModal: React.FC<InvestmentInputModalProps> = ({ isOp
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={editingAsset ? '編輯持股' : '新增持股'}>
+        <Modal theme="warm" isOpen={isOpen} onClose={onClose} title={editingAsset ? '編輯持股' : '新增持股'}>
             <div className="space-y-4">
-                <p className="text-sm text-slate-400">請輸入持股基本資訊，詳細名稱與市價可稍後使用「AI 補完」功能自動填入。</p>
+                <p className="text-sm text-[#A69B87]">請輸入持股基本資訊，詳細名稱與市價可稍後使用「AI 補完」功能自動填入。</p>
                 <div>
-                    <label className="text-xs text-slate-400">股票代號</label>
+                    <label className="text-xs text-[#A69B87]">股票代號</label>
                     <Input
+                        theme="warm"
                         autoFocus
                         value={formData.symbol || ''}
                         onChange={e => { handleFieldChange('symbol', e.target.value); setLookupName(null); }}
@@ -86,29 +87,29 @@ export const InvestmentInputModal: React.FC<InvestmentInputModalProps> = ({ isOp
                         placeholder="例如: 2330 或 00878"
                     />
                     <div className="h-5 mt-1">
-                        {isLooking && <p className="text-xs text-slate-500">查詢中...</p>}
+                        {isLooking && <p className="text-xs text-[#A69B87]">查詢中...</p>}
                         {!isLooking && lookupName && (
-                            <p className="text-xs text-emerald-400 font-bold">✓ {lookupName}</p>
+                            <p className="text-xs text-[#6B9080] font-bold">✓ {lookupName}</p>
                         )}
                         {!isLooking && !lookupName && formData.symbol && (
-                            <p className="text-xs text-slate-500">（找不到股票名稱，將以代號儲存）</p>
+                            <p className="text-xs text-[#A69B87]">（找不到股票名稱，將以代號儲存）</p>
                         )}
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs text-slate-400">持有股數</label>
-                        <Input type="number" value={formData.shares || ''} onChange={e => handleFieldChange('shares', Number(e.target.value))} placeholder="1000" />
+                        <label className="text-xs text-[#A69B87]">持有股數</label>
+                        <Input theme="warm" type="number" value={formData.shares || ''} onChange={e => handleFieldChange('shares', Number(e.target.value))} placeholder="1000" />
                     </div>
                     <div>
-                        <label className="text-xs text-slate-400">平均成本</label>
-                        <Input type="number" value={formData.avgCost || ''} onChange={e => handleFieldChange('avgCost', Number(e.target.value))} placeholder="650.0" />
+                        <label className="text-xs text-[#A69B87]">平均成本</label>
+                        <Input theme="warm" type="number" value={formData.avgCost || ''} onChange={e => handleFieldChange('avgCost', Number(e.target.value))} placeholder="650.0" />
                     </div>
                 </div>
 
                 <div className="pt-4 flex gap-2">
-                    <Button variant="secondary" onClick={onClose} className="flex-1">取消</Button>
-                    <Button onClick={handleSave} className="flex-1">
+                    <Button theme="warm" variant="secondary" onClick={onClose} className="flex-1">取消</Button>
+                    <Button theme="warm" onClick={handleSave} className="flex-1">
                         {editingAsset ? '儲存變更' : '確認新增'}
                     </Button>
                 </div>

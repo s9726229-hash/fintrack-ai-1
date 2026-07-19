@@ -29,10 +29,10 @@ const CATEGORY_STYLE: Record<string, { color: string, icon: any }> = {
 export const TransactionCharts: React.FC<TransactionChartsProps> = ({ dailyTrendData, expenseStructure, hasExpense }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 animate-fade-in px-1">
-        <Card className="lg:col-span-2 h-[280px] flex flex-col">
+        <Card theme="warm" className="lg:col-span-2 h-[280px] flex flex-col">
             <div className="flex justify-between items-center mb-2">
-               <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                  <CalendarDays size={16} className="text-cyan-400"/> 收支總覽趨勢
+               <h3 className="text-sm font-bold text-[#3D3428] flex items-center gap-2">
+                  <CalendarDays size={16} className="text-[#C4523A]"/> 收支總覽趨勢
                </h3>
             </div>
             <div className="flex-1 w-full min-h-0">
@@ -40,37 +40,37 @@ export const TransactionCharts: React.FC<TransactionChartsProps> = ({ dailyTrend
                   <AreaChart data={dailyTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <defs>
                           <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#C4523A" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#C4523A" stopOpacity={0}/>
                           </linearGradient>
                           <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#6B9080" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#6B9080" stopOpacity={0}/>
                           </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} opacity={0.5}/>
-                      <XAxis dataKey="day" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
-                      <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val/1000}k`} width={30} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} itemStyle={{ fontSize: '12px' }} />
-                      <Area type="monotone" dataKey="income" stroke="#10b981" fillOpacity={1} fill="url(#colorIncome)" strokeWidth={2} />
-                      <Area type="monotone" dataKey="expense" stroke="#f43f5e" fillOpacity={1} fill="url(#colorExpense)" strokeWidth={2} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F3ECDF" vertical={false} opacity={0.8}/>
+                      <XAxis dataKey="day" stroke="#A69B87" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
+                      <YAxis stroke="#A69B87" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val/1000}k`} width={30} />
+                      <Tooltip contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #EDE4D6', borderRadius: '8px' }} itemStyle={{ fontSize: '12px' }} />
+                      <Area type="monotone" dataKey="income" stroke="#C4523A" fillOpacity={1} fill="url(#colorIncome)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="expense" stroke="#6B9080" fillOpacity={1} fill="url(#colorExpense)" strokeWidth={2} />
                   </AreaChart>
                </ResponsiveContainer>
             </div>
         </Card>
 
-        <Card className="h-[280px] overflow-y-auto">
-            <h3 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">
-               <DollarSign size={16} className="text-amber-400"/> 支出結構分析
+        <Card theme="warm" className="h-[280px] overflow-y-auto">
+            <h3 className="text-sm font-bold text-[#3D3428] mb-4 flex items-center gap-2">
+               <DollarSign size={16} className="text-amber-600"/> 支出結構分析
             </h3>
-            
+
             {hasExpense ? (
               <div className="space-y-4">
-                  <div className="h-3 w-full bg-slate-700/50 rounded-full flex overflow-hidden">
+                  <div className="h-3 w-full bg-[#F3ECDF] rounded-full flex overflow-hidden">
                       {expenseStructure.map((item, index) => {
                           const style = CATEGORY_STYLE[item.name] || CATEGORY_STYLE['default'];
                           return (
-                              <div 
+                              <div
                                   key={index}
                                   className={`${style.color} h-full`}
                                   style={{ width: `${item.percent}%` }}
@@ -85,12 +85,12 @@ export const TransactionCharts: React.FC<TransactionChartsProps> = ({ dailyTrend
                           return (
                               <div key={index} className="flex items-center justify-between group">
                                   <div className="flex items-center gap-2">
-                                      <div className={`w-6 h-6 rounded-md ${style.color} bg-opacity-20 flex items-center justify-center text-white/90`}>
+                                      <div className={`w-6 h-6 rounded-md ${style.color} bg-opacity-20 flex items-center justify-center text-[#3D3428]/90`}>
                                           <Icon size={12} />
                                       </div>
-                                      <div className="text-xs text-slate-200">{item.name} <span className="text-slate-500">({item.percent.toFixed(0)}%)</span></div>
+                                      <div className="text-xs text-[#3D3428]">{item.name} <span className="text-[#A69B87]">({item.percent.toFixed(0)}%)</span></div>
                                   </div>
-                                  <div className="font-mono text-xs font-bold text-slate-300">
+                                  <div className="text-xs font-bold text-[#3D3428] tabular-nums">
                                       ${item.value.toLocaleString()}
                                   </div>
                               </div>
@@ -99,8 +99,8 @@ export const TransactionCharts: React.FC<TransactionChartsProps> = ({ dailyTrend
                   </div>
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-2 pb-10">
-                  <Wallet size={24} className="opacity-20"/>
+              <div className="h-full flex flex-col items-center justify-center text-[#A69B87] gap-2 pb-10">
+                  <Wallet size={24} className="opacity-30"/>
                   <p className="text-xs">區間內尚無支出紀錄</p>
               </div>
             )}

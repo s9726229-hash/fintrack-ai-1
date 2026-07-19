@@ -108,16 +108,16 @@ export const Assets: React.FC<AssetsProps> = ({ assets, onAdd, onUpdate, onDelet
       {/* Header */}
       <div className="flex justify-between items-center">
          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Wallet className="text-emerald-400"/> 資產管理
+            <h2 className="text-[19px] font-semibold text-[#3D3428] flex items-center gap-2">
+                <Wallet className="text-[#C4523A]"/> 資產管理
             </h2>
-            <p className="text-xs text-slate-400 mt-1">追蹤現金、房產與各類資產淨值總覽</p>
+            <p className="text-xs text-[#A69B87] mt-1">追蹤現金、房產與各類資產淨值總覽</p>
          </div>
-         <button 
-             onClick={handleAdd} 
-             className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all active:scale-95"
+         <button
+             onClick={handleAdd}
+             className="px-4 py-2 bg-[#C4523A] hover:bg-[#AD452F] text-white rounded-full text-sm font-medium flex items-center gap-2 transition-all active:scale-95"
          >
-             <Plus size={16}/> 
+             <Plus size={16}/>
              <span className="hidden md:inline">新增資產</span>
          </button>
       </div>

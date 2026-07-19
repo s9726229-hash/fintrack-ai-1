@@ -17,13 +17,13 @@ interface AssetFormModalProps {
 }
 
 const TYPE_CONFIG: Record<AssetType, { icon: any, label: string, colorClass: string }> = {
-  [AssetType.CASH]: { icon: Wallet, label: '現金/存款', colorClass: 'text-emerald-400' },
-  [AssetType.STOCK]: { icon: TrendingUp, label: '股票投資', colorClass: 'text-violet-400' },
-  [AssetType.FUND]: { icon: Landmark, label: '共同基金', colorClass: 'text-pink-400' },
-  [AssetType.CRYPTO]: { icon: Bitcoin, label: '加密貨幣', colorClass: 'text-amber-400' },
-  [AssetType.REAL_ESTATE]: { icon: Home, label: '房地產', colorClass: 'text-cyan-400' },
-  [AssetType.DEBT]: { icon: CreditCard, label: '負債/貸款', colorClass: 'text-red-400' },
-  [AssetType.OTHER]: { icon: Coins, label: '其他資產', colorClass: 'text-slate-400' },
+  [AssetType.CASH]: { icon: Wallet, label: '現金/存款', colorClass: 'text-[#6B9080]' },
+  [AssetType.STOCK]: { icon: TrendingUp, label: '股票投資', colorClass: 'text-[#C86B6B]' },
+  [AssetType.FUND]: { icon: Landmark, label: '共同基金', colorClass: 'text-[#C86B6B]' },
+  [AssetType.CRYPTO]: { icon: Bitcoin, label: '加密貨幣', colorClass: 'text-[#C08A3E]' },
+  [AssetType.REAL_ESTATE]: { icon: Home, label: '房地產', colorClass: 'text-[#B08968]' },
+  [AssetType.DEBT]: { icon: CreditCard, label: '負債/貸款', colorClass: 'text-[#B45B45]' },
+  [AssetType.OTHER]: { icon: Coins, label: '其他資產', colorClass: 'text-[#A69B87]' },
 };
 
 export const AssetFormModal: React.FC<AssetFormModalProps> = ({
@@ -52,20 +52,21 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
     : null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editingId ? "編輯資產" : "新增資產"}>
+    <Modal theme="warm" isOpen={isOpen} onClose={onClose} title={editingId ? "編輯資產" : "新增資產"}>
         <div className="space-y-6">
           <div>
-            <label className="block text-sm text-slate-400 mb-2 font-medium">資產名稱 (Name)</label>
-            <Input 
-                value={formData.name || ''} 
-                onChange={e => setFormData({...formData, name: e.target.value})} 
+            <label className="block text-sm text-[#A69B87] mb-2 font-medium">資產名稱 (Name)</label>
+            <Input
+                theme="warm"
+                value={formData.name || ''}
+                onChange={e => setFormData({...formData, name: e.target.value})}
                 placeholder="例如：薪轉戶、台積電 (2330)、富邦房貸..."
-                className="text-lg bg-slate-900 border-slate-700 focus:border-primary"
+                className="text-lg"
             />
           </div>
 
           <div>
-             <label className="block text-sm text-slate-400 mb-2 font-medium">資產類別 (Type)</label>
+             <label className="block text-sm text-[#A69B87] mb-2 font-medium">資產類別 (Type)</label>
              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {[
                     AssetType.CASH, AssetType.STOCK, AssetType.FUND,
@@ -74,10 +75,10 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                     const config = TYPE_CONFIG[type];
                     const isSelected = formData.type === type;
                     const isDebt = type === AssetType.DEBT;
-                    let bgClass = "bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:border-slate-600";
+                    let bgClass = "bg-[#FBF7F0] border-[#EDE4D6] text-[#A69B87] hover:bg-white hover:border-[#C4A98A]";
                     if (isSelected) {
-                        if (isDebt) bgClass = "bg-red-500/20 border-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.3)]";
-                        else bgClass = "bg-primary/20 border-primary text-white shadow-[0_0_10px_rgba(139,92,246,0.3)]";
+                        if (isDebt) bgClass = "bg-[#F6E4DE] border-[#B45B45] text-[#3D3428]";
+                        else bgClass = "bg-[#FBEAEA] border-[#C4523A] text-[#3D3428]";
                     }
 
                     return (
@@ -86,7 +87,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                             onClick={() => setFormData({...formData, type: type})}
                             className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-200 group ${bgClass}`}
                         >
-                            <config.icon size={24} className={`mb-2 ${isSelected ? 'text-white' : config.colorClass} group-hover:scale-110 transition-transform`} />
+                            <config.icon size={24} className={`mb-2 ${isSelected ? (isDebt ? 'text-[#B45B45]' : 'text-[#C4523A]') : config.colorClass} group-hover:scale-110 transition-transform`} />
                             <span className="text-xs font-bold">{config.label}</span>
                         </button>
                     )
@@ -94,58 +95,60 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
              </div>
           </div>
 
-          <div className="relative border border-slate-700 rounded-xl p-4 bg-slate-900/30">
-             <div className="absolute -top-3 left-3 bg-slate-800 px-2 text-xs font-bold text-amber-400 flex items-center gap-1">
+          <div className="relative border border-[#EDE4D6] rounded-xl p-4 bg-[#FBF7F0]">
+             <div className="absolute -top-3 left-3 bg-white px-2 text-xs font-bold text-amber-600 flex items-center gap-1">
                 <Coins size={12}/> {formData.type === AssetType.DEBT ? '貸款原始金額' : '金額與幣別'}
              </div>
              <div className="flex gap-4">
                  <div className="w-1/3">
-                    <label className="block text-[10px] text-slate-500 mb-1 uppercase">幣別</label>
-                    <Select value={formData.currency} onChange={e => {
+                    <label className="block text-[10px] text-[#A69B87] mb-1 uppercase">幣別</label>
+                    <Select theme="warm" value={formData.currency} onChange={e => {
                         setFormData({...formData, currency: e.target.value as Currency});
                         if(e.target.value === Currency.TWD) handleAmountChange('exchangeRate', 1);
-                    }} className="bg-slate-900 h-12">
+                    }} className="h-12">
                         {Object.values(Currency).map(c => <option key={c} value={c}>{c}</option>)}
                     </Select>
                  </div>
                  <div className="flex-1">
-                    <label className="block text-[10px] text-slate-500 mb-1 uppercase">
+                    <label className="block text-[10px] text-[#A69B87] mb-1 uppercase">
                         {formData.type === AssetType.DEBT ? '原始貸款總額 (Original)' : `金額 (${formData.currency})`}
                     </label>
-                    <Input 
-                        type="number" 
-                        value={formData.originalAmount || ''} 
+                    <Input
+                        theme="warm"
+                        type="number"
+                        value={formData.originalAmount || ''}
                         onChange={e => handleAmountChange('originalAmount', parseFloat(e.target.value))}
-                        className="font-mono text-xl h-12 bg-slate-900 border-slate-700 focus:border-primary"
+                        className="text-xl h-12"
                         placeholder="0.00"
                     />
                  </div>
              </div>
              {formData.currency !== Currency.TWD && (
-                 <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between animate-fade-in">
+                 <div className="mt-3 pt-3 border-t border-[#EDE4D6] flex items-center justify-between animate-fade-in">
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">匯率</span>
-                        <Input 
-                            type="number" 
-                            value={formData.exchangeRate || ''} 
+                        <span className="text-xs text-[#A69B87]">匯率</span>
+                        <Input
+                            theme="warm"
+                            type="number"
+                            value={formData.exchangeRate || ''}
                             onChange={e => handleAmountChange('exchangeRate', parseFloat(e.target.value))}
-                            className="font-mono text-sm w-20 py-1 px-2 h-auto"
+                            className="text-sm w-20 py-1 px-2 h-auto"
                         />
                     </div>
                     <div className="text-right">
-                        <span className="text-xs text-slate-500 mr-2">折合台幣</span>
-                        <span className="text-base font-bold text-emerald-400 font-mono">NT$ {formData.amount?.toLocaleString()}</span>
+                        <span className="text-xs text-[#A69B87] mr-2">折合台幣</span>
+                        <span className="text-base font-bold text-[#3D3428] tabular-nums">NT$ {formData.amount?.toLocaleString()}</span>
                     </div>
                  </div>
              )}
-             
+
              {formData.type === AssetType.DEBT && formData.startDate && (
-                 <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between animate-fade-in">
-                    <div className="text-xs text-slate-400 flex items-center gap-1">
+                 <div className="mt-3 pt-3 border-t border-[#EDE4D6] flex items-center justify-between animate-fade-in">
+                    <div className="text-xs text-[#A69B87] flex items-center gap-1">
                         <Calculator size={12}/> 系統試算當前剩餘本金
                     </div>
                     <div className="text-right">
-                        <span className="text-base font-bold text-red-400 font-mono">
+                        <span className="text-base font-bold text-[#B45B45] tabular-nums">
                             ${calculatedPreview !== null ? calculatedPreview.toLocaleString() : '-'}
                         </span>
                     </div>
@@ -154,58 +157,63 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
           </div>
 
           {formData.type === AssetType.DEBT && (
-             <div className="bg-red-500/5 p-4 rounded-xl border border-red-500/20 space-y-4 animate-fade-in">
-                <h4 className="text-sm font-bold text-red-300 flex items-center gap-2">
+             <div className="bg-[#F6E4DE]/40 p-4 rounded-xl border border-[#B45B45]/20 space-y-4 animate-fade-in">
+                <h4 className="text-sm font-bold text-[#B45B45] flex items-center gap-2">
                     <CreditCard size={16}/> 貸款詳細資訊
                 </h4>
                 <div>
-                     <label className="block text-xs text-red-400/70 mb-1 flex items-center gap-1">
+                     <label className="block text-xs text-[#B45B45]/80 mb-1 flex items-center gap-1">
                          <Calendar size={12}/> 貸款起始日 (Start Date)
                      </label>
-                     <Input 
+                     <Input
+                        theme="warm"
                         type="date"
-                        className="border-red-500/30 focus:border-red-500 bg-red-500/5 text-red-100"
+                        className="border-[#B45B45]/30 focus:border-[#B45B45]"
                         value={formData.startDate || ''}
                         onChange={e => setFormData({...formData, startDate: e.target.value})}
                      />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[10px] text-red-400/70 mb-1">年利率 (%)</label>
-                      <Input 
-                        className="border-red-500/30 focus:border-red-500 bg-red-500/5 text-red-100 placeholder-red-800" 
-                        type="number" 
-                        value={formData.interestRate || ''} 
+                      <label className="block text-[10px] text-[#B45B45]/80 mb-1">年利率 (%)</label>
+                      <Input
+                        theme="warm"
+                        className="border-[#B45B45]/30 focus:border-[#B45B45]"
+                        type="number"
+                        value={formData.interestRate || ''}
                         onChange={e => setFormData({...formData, interestRate: parseFloat(e.target.value)})}
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-red-400/70 mb-1">總年期 (年)</label>
-                      <Input 
-                        className="border-red-500/30 focus:border-red-500 bg-red-500/5 text-red-100 placeholder-red-800" 
-                        type="number" 
-                        value={formData.termYears || ''} 
+                      <label className="block text-[10px] text-[#B45B45]/80 mb-1">總年期 (年)</label>
+                      <Input
+                        theme="warm"
+                        className="border-[#B45B45]/30 focus:border-[#B45B45]"
+                        type="number"
+                        value={formData.termYears || ''}
                         onChange={e => setFormData({...formData, termYears: parseFloat(e.target.value)})}
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-red-400/70 mb-1">寬限期 (年)</label>
-                      <Input 
-                        className="border-red-500/30 focus:border-red-500 bg-red-500/5 text-red-100 placeholder-red-800" 
-                        type="number" 
+                      <label className="block text-[10px] text-[#B45B45]/80 mb-1">寬限期 (年)</label>
+                      <Input
+                        theme="warm"
+                        className="border-[#B45B45]/30 focus:border-[#B45B45]"
+                        type="number"
                         placeholder="0"
-                        value={formData.interestOnlyPeriod || ''} 
+                        value={formData.interestOnlyPeriod || ''}
                         onChange={e => setFormData({...formData, interestOnlyPeriod: parseFloat(e.target.value)})}
                       />
                     </div>
                 </div>
                 {cashAccounts.length > 0 && (
                     <div>
-                        <label className="block text-[10px] text-red-400/70 mb-1 flex items-center gap-1">
+                        <label className="block text-[10px] text-[#B45B45]/80 mb-1 flex items-center gap-1">
                             <Wallet size={12}/> 每月扣款帳戶（用於扣款帳戶餘額監控）
                         </label>
                         <Select
-                            className="border-red-500/30 focus:border-red-500 bg-red-500/5 text-red-100"
+                            theme="warm"
+                            className="border-[#B45B45]/30 focus:border-[#B45B45]"
                             value={formData.paymentAccountId || ''}
                             onChange={e => setFormData({ ...formData, paymentAccountId: e.target.value || undefined })}
                         >
@@ -214,14 +222,14 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                         </Select>
                     </div>
                 )}
-                <p className="text-[10px] text-red-400/50">
+                <p className="text-[10px] text-[#B45B45]/70">
                     * 系統將依據起始日自動攤提本金，您無需手動更新餘額。
                 </p>
              </div>
           )}
 
           <div className="pt-2">
-            <Button className="w-full py-3.5 text-lg font-bold shadow-xl shadow-primary/20" onClick={onSubmit}>
+            <Button theme="warm" className="w-full py-3.5 text-lg font-bold" onClick={onSubmit}>
                 {editingId ? '儲存變更' : '確認新增資產'}
             </Button>
           </div>

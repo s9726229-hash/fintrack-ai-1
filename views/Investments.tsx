@@ -255,28 +255,28 @@ export const Investments: React.FC<InvestmentsProps> = ({
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h2 className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp className="text-violet-400"/> 股票投資</h2>
+                        <h2 className="text-[19px] font-semibold text-[#3D3428] flex items-center gap-2"><TrendingUp className="text-[#C4523A]"/> 股票投資</h2>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
+                    <p className="text-xs text-[#A69B87] mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <input type="file" ref={inventoryFileInputRef} onChange={handleInventoryFileChange} accept=".csv" className="hidden" />
-                    <Button variant="secondary" onClick={() => inventoryFileInputRef.current?.click()}><ClipboardList size={16}/> 匯入庫存</Button>
+                    <Button theme="warm" variant="secondary" onClick={() => inventoryFileInputRef.current?.click()}><ClipboardList size={16}/> 匯入庫存</Button>
                     <input type="file" ref={fileInputRef} onChange={handleTransactionFileChange} accept=".csv" className="hidden" />
-                    <Button variant="secondary" onClick={() => fileInputRef.current?.click()}><UploadCloud size={16}/> 匯入交易</Button>
-                    <Button onClick={() => handleOpenModal()} className="bg-gradient-to-r from-violet-600 to-primary shadow-lg shadow-violet-500/20"><PlusCircle size={16}/> 新增持股</Button>
+                    <Button theme="warm" variant="secondary" onClick={() => fileInputRef.current?.click()}><UploadCloud size={16}/> 匯入交易</Button>
+                    <Button theme="warm" onClick={() => handleOpenModal()}><PlusCircle size={16}/> 新增持股</Button>
                 </div>
             </div>
-            
-            <div className="flex items-center justify-between border-b border-slate-700 flex-wrap gap-y-2">
+
+            <div className="flex items-center justify-between border-b border-[#EDE4D6] flex-wrap gap-y-2">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => setActiveTab('INVENTORY')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'INVENTORY' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>庫存總覽</button>
-                    <button onClick={() => setActiveTab('HISTORY')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'HISTORY' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>交易紀錄</button>
-                    <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-white border-primary' : 'text-slate-400 border-transparent hover:text-white'}`}>股息分析</button>
+                    <button onClick={() => setActiveTab('INVENTORY')} className={`px-1 py-3 text-sm border-b-2 transition-all ${activeTab === 'INVENTORY' ? 'text-[#C4523A] border-[#C4523A] font-bold' : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'}`}>庫存總覽</button>
+                    <button onClick={() => setActiveTab('HISTORY')} className={`px-1 py-3 text-sm border-b-2 transition-all ${activeTab === 'HISTORY' ? 'text-[#C4523A] border-[#C4523A] font-bold' : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'}`}>交易紀錄</button>
+                    <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-[#C4523A] border-[#C4523A] font-bold' : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'}`}>股息分析</button>
                 </div>
                 <div className="relative flex items-center gap-2">
                     {activeTab === 'INVENTORY' && (
-                        <Button onClick={() => onUpdatePrices(null)} variant="secondary" disabled={isEnriching || inventory.length === 0} loading={enrichStatus.price.isUpdating} className="h-8 text-xs bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20">
+                        <Button onClick={() => onUpdatePrices(null)} theme="warm" variant="secondary" disabled={isEnriching || inventory.length === 0} loading={enrichStatus.price.isUpdating} className="h-8 text-xs">
                             {!enrichStatus.price.isUpdating && <RefreshCw size={14}/>}
                             {enrichStatus.price.isUpdating ? `更新中...(${enrichStatus.price.progress.current}/${enrichStatus.price.progress.total})` : '更新全部現價'}
                         </Button>
@@ -293,17 +293,17 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
             {activeTab === 'INVENTORY' && (
                 <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card><div className="text-slate-400 text-xs font-bold uppercase mb-1">庫存總市值</div><div className="text-2xl font-bold text-white font-mono">${stats.totalMarketValue.toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
-                        <Card><div className="text-slate-400 text-xs font-bold uppercase mb-1">未實現總損益</div><div className={`text-2xl font-bold font-mono ${stats.totalPL > 0 ? 'text-red-400' : stats.totalPL < 0 ? 'text-emerald-400' : 'text-white'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPL < 0 ? '-' : ''}${Math.abs(stats.totalPL).toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
-                        <Card><div className="text-slate-400 text-xs font-bold uppercase mb-1">總報酬率</div><div className={`text-2xl font-bold font-mono ${stats.totalPL > 0 ? 'text-red-400' : stats.totalPL < 0 ? 'text-emerald-400' : 'text-white'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(2)}%</div></Card>
+                    <div className="grid grid-cols-3 gap-2 md:gap-4">
+                        <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">庫存總市值</div><div className="text-sm md:text-2xl font-bold text-[#3D3428] tabular-nums truncate">${stats.totalMarketValue.toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
+                        <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">未實現總損益</div><div className={`text-sm md:text-2xl font-bold tabular-nums truncate ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPL < 0 ? '-' : ''}${Math.abs(stats.totalPL).toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
+                        <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">總報酬率</div><div className={`text-sm md:text-2xl font-bold tabular-nums truncate ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(2)}%</div></Card>
                     </div>
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-2xl max-h-[70vh] flex flex-col">
-                        <div className="p-4 border-b border-slate-700"><h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><List size={16} className="text-violet-400" /> 庫存明細</h3></div>
+                    <div className="bg-white border border-[#EDE4D6] rounded-2xl max-h-[70vh] flex flex-col">
+                        <div className="p-4 border-b border-[#EDE4D6]"><h3 className="text-sm font-bold text-[#3D3428] flex items-center gap-2"><List size={16} className="text-[#C4523A]" /> 庫存明細</h3></div>
                         <div className="flex-1 overflow-y-auto">
                             {/* 桌面版：表格 */}
                             <table className="w-full text-left hidden md:table">
-                            <thead className="sticky top-0 bg-slate-900 z-10"><tr className="text-xs text-slate-400 uppercase">
+                            <thead className="sticky top-0 bg-[#FBF7F0] z-10"><tr className="text-xs text-[#8A7A63] uppercase">
                                 <th className="p-3 font-medium">股票</th>
                                 <th className="p-3 font-medium text-right">持股</th>
                                 <th className="p-3 font-medium text-right">價格</th>
@@ -313,61 +313,52 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             <tbody>{inventory.length > 0 ? inventory.map(pos => {
                                 const perf = calculateStockPerformance(pos, transactions);
                                 const priceDiff = (pos.currentPrice || 0) - (pos.avgCost || 0);
-                                const priceColor = priceDiff > 0 ? 'text-red-400' : priceDiff < 0 ? 'text-emerald-400' : 'text-white';
-                                const plColor = perf.netProfit > 0 ? 'text-red-400' : perf.netProfit < 0 ? 'text-emerald-400' : 'text-white';
+                                const priceColor = priceDiff > 0 ? 'text-[#C4523A]' : priceDiff < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
+                                const plColor = perf.netProfit > 0 ? 'text-[#C4523A]' : perf.netProfit < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
                                 const timeAgo = formatTimeAgo(pos.lastUpdated);
-                                return (<tr key={pos.id} className="border-b border-slate-800 last:border-b-0 hover:bg-slate-800 transition-colors">
-                                    <td className="p-3"><p className="font-bold text-white truncate">{pos.name}</p><p className="text-xs text-slate-400 font-mono">{pos.symbol}</p></td>
-                                    <td className="p-3 text-right font-mono text-slate-200 font-medium">{pos.shares?.toLocaleString()}股</td>
+                                return (<tr key={pos.id} className="border-b border-[#F3ECDF] last:border-b-0 hover:bg-[#FBF7F0] transition-colors">
+                                    <td className="p-3"><p className="font-bold text-[#3D3428] truncate">{pos.name}</p><p className="text-xs text-[#A69B87] tabular-nums">{pos.symbol}</p></td>
+                                    <td className="p-3 text-right tabular-nums text-[#3D3428] font-medium">{pos.shares?.toLocaleString()}股</td>
                                     <td className="p-3 text-right">
-                                        <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
-                                        <div className="flex items-center justify-end gap-1.5"><p className={`text-[11px] ${timeAgo.color}`}>{timeAgo.text}</p><p className="text-xs text-slate-400 font-mono">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
+                                        <p className={`text-lg font-bold tabular-nums ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
+                                        <div className="flex items-center justify-end gap-1.5"><p className="text-[11px] text-[#A69B87]">{timeAgo.text}</p><p className="text-xs text-[#A69B87] tabular-nums">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
                                     </td>
 
-                                    <td className="p-3 text-right"><p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
+                                    <td className="p-3 text-right"><p className="font-bold text-[#3D3428] tabular-nums">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs tabular-nums ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
                                     <td className="p-3 text-center"><div className="flex items-center justify-center gap-1">
-                                        <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={14}/></button>
-                                        <button onClick={() => handleOpenModal(pos)} className="p-2 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={14}/></button>
-                                        <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500 ml-2" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={14}/></button>
+                                        <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-[#A69B87] hover:bg-[#FBF7F0] hover:text-[#3D3428]" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={14}/></button>
+                                        <button onClick={() => handleOpenModal(pos)} className="p-2 rounded-lg text-[#A69B87] hover:bg-[#F6E4DE] hover:text-[#C4523A]" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={14}/></button>
+                                        <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-[#A69B87] hover:bg-[#F6E4DE] hover:text-[#B45B45] ml-2" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={14}/></button>
                                     </div></td>
                                 </tr>);
-                            }) : (<tr><td colSpan={7} className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</td></tr>)}</tbody>
+                            }) : (<tr><td colSpan={5} className="text-center py-10 text-[#A69B87] text-sm">尚無庫存資料</td></tr>)}</tbody>
                             </table>
 
-                            {/* 手機版：卡片 */}
-                            <div className="md:hidden divide-y divide-slate-800">
+                            {/* 手機版：緊湊列表 */}
+                            <div className="md:hidden divide-y divide-[#F3ECDF]">
                                 {inventory.length > 0 ? inventory.map(pos => {
                                     const perf = calculateStockPerformance(pos, transactions);
-                                    const priceDiff = (pos.currentPrice || 0) - (pos.avgCost || 0);
-                                    const priceColor = priceDiff > 0 ? 'text-red-400' : priceDiff < 0 ? 'text-emerald-400' : 'text-white';
-                                    const plColor = perf.netProfit > 0 ? 'text-red-400' : perf.netProfit < 0 ? 'text-emerald-400' : 'text-white';
-                                    const timeAgo = formatTimeAgo(pos.lastUpdated);
+                                    const plColor = perf.netProfit > 0 ? 'text-[#C4523A]' : perf.netProfit < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
                                     return (
-                                        <div key={pos.id} className="p-3">
-                                            <div className="flex justify-between items-start gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="font-bold text-white truncate">{pos.name}</p>
-                                                    <p className="text-xs text-slate-400 font-mono">{pos.symbol} · {pos.shares?.toLocaleString()}股</p>
+                                        <div key={pos.id} className="flex items-center gap-2 py-[6px] px-3 min-h-[32px]">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1 leading-[14px]">
+                                                    <span className="text-[11.5px] font-bold text-[#3D3428] truncate">{pos.name}</span>
                                                 </div>
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    <button onClick={() => onUpdatePrices([pos.id])} className="p-3 rounded-lg text-slate-400 hover:bg-sky-500/20 hover:text-sky-400" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={16}/></button>
-                                                    <button onClick={() => handleOpenModal(pos)} className="p-3 rounded-lg text-slate-400 hover:bg-primary/20 hover:text-primary" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={16}/></button>
-                                                    <button onClick={() => onDelete(pos.id)} className="p-3 rounded-lg text-slate-400 hover:bg-red-500/20 hover:text-red-500 ml-2" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={16}/></button>
-                                                </div>
+                                                <span className="text-[9px] text-[#A69B87] leading-[11px] block tabular-nums">{pos.symbol} · {pos.shares?.toLocaleString()}股</span>
                                             </div>
-                                            <div className="flex justify-between items-end mt-2">
-                                                <div>
-                                                    <p className={`text-lg font-bold font-mono ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
-                                                    <p className="text-[11px] text-slate-400">均價 {pos.avgCost?.toFixed(2) ?? '-'} · <span className={timeAgo.color}>{timeAgo.text}</span></p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="font-mono font-bold text-white">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                                                    <p className={`text-xs font-mono ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p>
-                                                </div>
+                                            <div className="text-right shrink-0">
+                                                <div className="tabular-nums font-bold text-[13px] leading-none text-[#3D3428]">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                                <div className={`text-[9px] tabular-nums mt-0.5 ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</div>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 shrink-0">
+                                                <button onClick={() => onUpdatePrices([pos.id])} className="p-1.5 rounded-lg text-[#A69B87] active:bg-[#FBF7F0] active:text-[#3D3428]" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={14}/></button>
+                                                <button onClick={() => handleOpenModal(pos)} className="p-1.5 rounded-lg text-[#A69B87] active:bg-[#F6E4DE] active:text-[#C4523A]" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={14}/></button>
+                                                <button onClick={() => onDelete(pos.id)} className="p-1.5 rounded-lg text-[#A69B87] active:bg-[#F6E4DE] active:text-[#B45B45]" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={14}/></button>
                                             </div>
                                         </div>
                                     );
-                                }) : (<div className="text-center py-10 text-slate-500 text-sm">尚無庫存資料</div>)}
+                                }) : (<div className="text-center py-10 text-[#A69B87] text-sm">尚無庫存資料</div>)}
                             </div>
                         </div>
                     </div>
