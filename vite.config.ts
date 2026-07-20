@@ -10,13 +10,20 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-512.png'],
       manifest: {
-        name: 'FinTrack AI',
+        name: 'FinTrack AI 財務管家',
         short_name: 'FinTrack',
         description: 'FinTrack AI 財務管家',
-        theme_color: '#0f172a',
+        start_url: '.',
+        scope: '.',
+        display: 'standalone',
+        orientation: 'portrait-primary',
+        background_color: '#F5F0E3',
+        theme_color: '#F5F0E3',
+        // 注意：icon 路徑不能寫死開頭的 "/"（絕對路徑會指向網域根目錄，
+        // GitHub Pages 專案頁面部署在子路徑下會 404，導致安裝後的 manifest 失效、開起來一片空白）
         icons: [
           {
-            src: '/icon-512.png',
+            src: 'icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

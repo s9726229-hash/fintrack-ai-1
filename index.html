@@ -19,8 +19,9 @@
     </script>
 
     <!-- PWA Settings -->
-    <link rel="manifest" href="./manifest.json" />
-    <meta name="theme-color" content="#0f172a" />
+    <!-- manifest 由 vite-plugin-pwa 在 build 時自動注入（vite.config.ts），這裡不要重複加 <link rel="manifest">，
+         否則會有兩個 manifest 互相打架，導致子路徑部署（GitHub Pages 專案頁）安裝後讀不到正確的 icon/scope -->
+    <meta name="theme-color" content="#F5F0E3" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="FinTrack" />
