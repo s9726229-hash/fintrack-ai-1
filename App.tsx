@@ -16,6 +16,7 @@ import { CheckCircle2, X } from 'lucide-react';
 import { useAutoTasks } from './hooks/useAutoTasks';
 import { useStockEnrichment } from './hooks/useStockEnrichment';
 import { useDailySnapshot } from './hooks/useDailySnapshot';
+import { useTheme } from './hooks/useTheme';
 
 // Helper function to normalize stock symbols for comparison
 const toNumericString = (s: string | undefined): string => {
@@ -28,7 +29,8 @@ const toNumericString = (s: string | undefined): string => {
 
 export default function App() {
   const [view, setView] = useState<ViewState>('DASHBOARD');
-  
+  const { theme, toggleTheme } = useTheme();
+
   // App State
   const [assets, setAssets] = useState<Asset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -330,10 +332,12 @@ export default function App() {
   };
 
   return (
-    <Layout 
-      currentView={view} 
-      onChangeView={setView} 
+    <Layout
+      currentView={view}
+      onChangeView={setView}
       isEnrichingInBackground={isEnrichingInBackground}
+      theme={theme}
+      onToggleTheme={toggleTheme}
     >
       {view === 'DASHBOARD' && <Dashboard 
           assets={assets} 

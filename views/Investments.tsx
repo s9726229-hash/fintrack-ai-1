@@ -367,37 +367,38 @@ export const Investments: React.FC<InvestmentsProps> = ({
             {activeTab === 'DIVIDEND' && (
                 <div className="space-y-6 animate-fade-in">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <Card><div className="text-emerald-400 text-xs font-bold uppercase mb-1">本年已領股息</div><div className="text-3xl font-bold text-emerald-400 font-mono">+${dividendStats.realizedDividends.toLocaleString()}</div></Card>
-                       <Card><div className="text-amber-400 text-xs font-bold uppercase mb-1">預估年收股息</div><div className="text-3xl font-bold text-amber-400 font-mono">+${Math.round(dividendStats.estimatedAnnualDividend).toLocaleString()}</div></Card>
+                       <Card theme="warm"><div className="text-[#A69B87] text-xs font-bold uppercase mb-1">本年已領股息</div><div className="text-3xl font-bold text-[#C4523A] font-mono">+${dividendStats.realizedDividends.toLocaleString()}</div></Card>
+                       <Card theme="warm"><div className="text-[#A69B87] text-xs font-bold uppercase mb-1">預估年收股息</div><div className="text-3xl font-bold text-amber-600 font-mono">+${Math.round(dividendStats.estimatedAnnualDividend).toLocaleString()}</div></Card>
                    </div>
 
                    {pendingDividendEvents.length > 0 && (
-                        <div className="bg-slate-800/50 border border-amber-500/30 rounded-2xl overflow-hidden">
-                            <div className="p-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
-                                <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><CheckSquare size={16} className="text-amber-400"/> 本年度未入帳股息（依 FinMind 實際配息資料偵測）</h3>
+                        <div className="bg-[#FFFDF7] border border-amber-300 rounded-xl shadow-[0_1px_2px_rgba(60,50,30,0.05)] overflow-hidden">
+                            <div className="p-4 border-b border-[#EDE4D6] flex items-center justify-between flex-wrap gap-2">
+                                <h3 className="text-sm font-bold text-[#3D3428] flex items-center gap-2"><CheckSquare size={16} className="text-amber-600"/> 本年度未入帳股息（依 FinMind 實際配息資料偵測）</h3>
                                 <Button
+                                    theme="warm"
                                     onClick={handleGenerateDividendTransactions}
                                     disabled={enrichStatus.dividend.isUpdating || pendingDividendEvents.every(e => uncheckedEventKeys.has(e.key))}
                                     title={enrichStatus.dividend.isUpdating ? '股息資料掃描中，請稍候再產生交易' : undefined}
-                                    className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20"
+                                    className="h-8 text-xs bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
                                 >
                                     {enrichStatus.dividend.isUpdating ? '掃描中，請稍候...' : `產生 ${pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).length} 筆股息交易（共 $${pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key)).reduce((s, e) => s + e.amount, 0).toLocaleString()}）`}
                                 </Button>
                             </div>
-                            <div className="divide-y divide-slate-800 max-h-72 overflow-y-auto">
+                            <div className="divide-y divide-[#EDE4D6] max-h-72 overflow-y-auto">
                                 {pendingDividendEvents.map(e => (
-                                    <label key={e.key} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-800/60">
+                                    <label key={e.key} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-[#FBF7F0]">
                                         <input
                                             type="checkbox"
                                             checked={!uncheckedEventKeys.has(e.key)}
                                             onChange={() => toggleEventKey(e.key)}
-                                            className="w-4 h-4 accent-amber-500 shrink-0"
+                                            className="w-4 h-4 accent-amber-600 shrink-0"
                                         />
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-bold text-white truncate">{e.name} <span className="text-xs text-slate-500 font-mono">{e.symbol}</span></p>
-                                            <p className="text-xs text-slate-500 font-mono">除息 {e.exDate}{e.paymentDate ? ` · 發放 ${e.paymentDate}` : ''} · {e.shares.toLocaleString()}股 × ${e.dividendPerShare}</p>
+                                            <p className="font-bold text-[#3D3428] truncate">{e.name} <span className="text-xs text-[#A69B87] font-mono">{e.symbol}</span></p>
+                                            <p className="text-xs text-[#A69B87] font-mono">除息 {e.exDate}{e.paymentDate ? ` · 發放 ${e.paymentDate}` : ''} · {e.shares.toLocaleString()}股 × ${e.dividendPerShare}</p>
                                         </div>
-                                        <p className="font-mono font-bold text-emerald-400 shrink-0">+${e.amount.toLocaleString()}</p>
+                                        <p className="font-mono font-bold text-[#C4523A] shrink-0">+${e.amount.toLocaleString()}</p>
                                     </label>
                                 ))}
                             </div>
@@ -405,37 +406,37 @@ export const Investments: React.FC<InvestmentsProps> = ({
                    )}
 
                    {allDividendEvents.length === 0 && (
-                        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-8 text-center space-y-3">
-                            <Coins size={32} className="mx-auto text-slate-400"/>
-                            <p className="text-sm font-bold text-slate-200">尚未掃描股息資料</p>
+                        <div className="bg-[#FFFDF7] border border-[#EDE4D6] rounded-xl shadow-[0_1px_2px_rgba(60,50,30,0.05)] p-8 text-center space-y-3">
+                            <Coins size={32} className="mx-auto text-[#C4A98A]"/>
+                            <p className="text-sm font-bold text-[#3D3428]">尚未掃描股息資料</p>
                             {hasApiKey ? (
-                                <p className="text-xs text-slate-400 leading-relaxed">按右上方「AI 分析股息」，系統會依 FinMind 實際配息資料，<br className="hidden md:block"/>找出你持股的本年度除息事件並協助入帳。</p>
+                                <p className="text-xs text-[#A69B87] leading-relaxed">按右上方「AI 分析股息」，系統會依 FinMind 實際配息資料，<br className="hidden md:block"/>找出你持股的本年度除息事件並協助入帳。</p>
                             ) : (
-                                <p className="text-xs text-slate-400 leading-relaxed">「AI 分析股息」需要 API 金鑰才能使用，<br className="hidden md:block"/>請先前往「系統設定」輸入金鑰後再回來掃描。</p>
+                                <p className="text-xs text-[#A69B87] leading-relaxed">「AI 分析股息」需要 API 金鑰才能使用，<br className="hidden md:block"/>請先前往「系統設定」輸入金鑰後再回來掃描。</p>
                             )}
                         </div>
                    )}
 
                    {dividendEventsByMonth.length > 0 && (
-                        <div className="bg-slate-800/50 border border-slate-700 rounded-2xl overflow-hidden">
-                            <div className="p-4 border-b border-slate-700"><h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><Coins size={16} className="text-emerald-400"/> 股息紀錄（依除息月份）</h3></div>
-                            <div className="max-h-[32rem] overflow-y-auto divide-y divide-slate-800">
+                        <div className="bg-[#FFFDF7] border border-[#EDE4D6] rounded-xl shadow-[0_1px_2px_rgba(60,50,30,0.05)] overflow-hidden">
+                            <div className="p-4 border-b border-[#EDE4D6]"><h3 className="text-sm font-bold text-[#3D3428] flex items-center gap-2"><Coins size={16} className="text-[#C4523A]"/> 股息紀錄（依除息月份）</h3></div>
+                            <div className="max-h-[32rem] overflow-y-auto divide-y divide-[#EDE4D6]">
                                 {dividendEventsByMonth.map(group => (
                                     <div key={group.month}>
-                                        <div className="px-4 py-2 bg-slate-900/60 flex items-center justify-between sticky top-0">
-                                            <span className="text-xs font-bold text-slate-300">{group.month.replace('-', '年')}月</span>
-                                            <span className="text-xs font-mono font-bold text-emerald-400">+${group.total.toLocaleString()}</span>
+                                        <div className="px-4 py-2 bg-[#FBF7F0] flex items-center justify-between sticky top-0">
+                                            <span className="text-xs font-bold text-[#3D3428]">{group.month.replace('-', '年')}月</span>
+                                            <span className="text-xs font-mono font-bold text-[#C4523A]">+${group.total.toLocaleString()}</span>
                                         </div>
                                         {group.events.map(e => (
-                                            <div key={e.key} className="flex items-center gap-3 px-4 py-2.5 border-t border-slate-800/60">
+                                            <div key={e.key} className="flex items-center gap-3 px-4 py-2.5 border-t border-[#EDE4D6]">
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-bold text-white truncate">{e.name} <span className="text-xs text-slate-500 font-mono">{e.symbol}</span></p>
-                                                    <p className="text-xs text-slate-500 font-mono">除息 {e.exDate}{e.paymentDate ? ` · 發放 ${e.paymentDate}` : ''} · {e.shares.toLocaleString()}股 × ${e.dividendPerShare}</p>
+                                                    <p className="text-sm font-bold text-[#3D3428] truncate">{e.name} <span className="text-xs text-[#A69B87] font-mono">{e.symbol}</span></p>
+                                                    <p className="text-xs text-[#A69B87] font-mono">除息 {e.exDate}{e.paymentDate ? ` · 發放 ${e.paymentDate}` : ''} · {e.shares.toLocaleString()}股 × ${e.dividendPerShare}</p>
                                                 </div>
-                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${e.recorded ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-300'}`}>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${e.recorded ? 'bg-[#EAF1EC] text-[#6B9080]' : 'bg-amber-50 text-amber-700'}`}>
                                                     {e.recorded ? '已入帳' : '待入帳'}
                                                 </span>
-                                                <p className="font-mono font-bold text-emerald-400 shrink-0 w-20 text-right">+${e.amount.toLocaleString()}</p>
+                                                <p className="font-mono font-bold text-[#C4523A] shrink-0 w-20 text-right">+${e.amount.toLocaleString()}</p>
                                             </div>
                                         ))}
                                     </div>

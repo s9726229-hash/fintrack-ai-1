@@ -2,15 +2,18 @@
 
 import React from 'react';
 import { ViewState, ApiKeyStatus } from '../../types';
+import { Theme } from '../../hooks/useTheme';
 import {
   LayoutGrid, PieChart, ScrollText, Target, CalendarClock,
-  Bot, Settings, TrendingUp, Loader2, ListTree
+  Bot, Settings, TrendingUp, Loader2, ListTree, Moon, Sun
 } from 'lucide-react';
 
 interface SidebarProps {
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
   isEnrichingInBackground?: boolean;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 const ApiKeyStatusIndicator = ({ status }: { status: ApiKeyStatus }) => {
@@ -56,7 +59,7 @@ const NavItem = ({
   );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isEnrichingInBackground = false }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isEnrichingInBackground = false, theme, onToggleTheme }) => {
   const [apiStatus, setApiStatus] = React.useState({ finmind: 'online' });
 
   React.useEffect(() => {
@@ -69,21 +72,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
 
   return (
     <aside className="hidden md:flex flex-col w-64 p-6 border-r border-[#EDE4D6] h-screen sticky top-0 bg-white shrink-0">
-      <div className="flex items-center gap-3 mb-10 px-2">
-        <div className="w-10 h-10 rounded-xl bg-[#C4523A] flex items-center justify-center">
-          <span className="font-bold text-white text-lg">FT</span>
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-[#3D3428]">
+      <div className="mb-10 px-2">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#C4523A] flex items-center justify-center shrink-0">
+            <span className="font-bold text-white text-lg">FT</span>
+          </div>
+          <h1 className="text-lg font-bold text-[#3D3428] whitespace-nowrap">
             FinTrack AI
           </h1>
-          <div className="flex items-center gap-2 flex-wrap mt-1.5">
-            <span className="text-[11px] text-[#A69B87] bg-[#FBF7F0] px-1.5 py-0.5 rounded">V7.11.1</span>
-            <div className="flex items-center gap-1" title={apiStatus.finmind === 'online' ? "FinMind API 連線正常" : "FinMind API 連線失敗"}>
-                <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.finmind === 'online' ? 'bg-[#6B9080]' : 'bg-red-500'}`}></div>
-                <span className={`text-[10px] font-bold ${apiStatus.finmind === 'online' ? 'text-[#6B9080]' : 'text-red-500/80'}`}>FinMind</span>
-            </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mt-2">
+          <span className="text-[11px] text-[#A69B87] bg-[#FBF7F0] px-1.5 py-0.5 rounded">V7.11.1</span>
+          <div className="flex items-center gap-1" title={apiStatus.finmind === 'online' ? "FinMind API 連線正常" : "FinMind API 連線失敗"}>
+              <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.finmind === 'online' ? 'bg-[#6B9080]' : 'bg-red-500'}`}></div>
+              <span className={`text-[10px] font-bold ${apiStatus.finmind === 'online' ? 'text-[#6B9080]' : 'text-red-500/80'}`}>FinMind</span>
           </div>
+          <button
+            onClick={onToggleTheme}
+            aria-label={theme === 'dark' ? '切換為亮色主題' : '切換為深色主題'}
+            title={theme === 'dark' ? '切換為亮色主題' : '切換為深色主題'}
+            className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[#A69B87] hover:text-[#3D3428] hover:bg-[#FBF7F0] transition-colors"
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
         </div>
       </div>
 

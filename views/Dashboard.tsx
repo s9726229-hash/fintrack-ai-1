@@ -13,7 +13,6 @@ import { ASSET_TYPE_COLORS, ASSET_TYPE_LABELS } from '../constants';
 import { getHistory } from '../services/storage';
 import { formatMoney } from '../services/format';
 import { calculateStockPerformance } from '../services/stock';
-import { InvestmentStats } from '../components/investments/InvestmentStats';
 
 // 可收合的次要區塊：預設狀態由呼叫端決定，首屏必見的內容(淨值趨勢/本月現金流)不使用此元件
 const CollapsibleSection: React.FC<{
@@ -414,9 +413,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       const thisTxs = transactions.filter(t => inMonth(t.date, y, m));
       const lastTxs = transactions.filter(t => inMonth(t.date, prevY, prevM));
-      const income = thisTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+      const income = thisTxs.filter(t => t.type === 'INCOME' || t.type === 'DIVIDEND').reduce((s, t) => s + t.amount, 0);
       const expense = thisTxs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
-      const lastIncome = lastTxs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+      const lastIncome = lastTxs.filter(t => t.type === 'INCOME' || t.type === 'DIVIDEND').reduce((s, t) => s + t.amount, 0);
       const lastExpense = lastTxs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
       const netFlow = income - expense;
       const flowDiff = netFlow - (lastIncome - lastExpense);
@@ -935,11 +934,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           </span>
                       )}
                       <div className="flex bg-[#FBF7F0] rounded-lg p-1 border border-[#EDE4D6] gap-1 overflow-x-auto no-scrollbar max-w-full">
-                          <button onClick={() => setActiveMainChart('TREND')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'TREND' ? 'bg-[#C4523A] text-white shadow' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>資產趨勢</button>
-                          <button onClick={() => setActiveMainChart('WATERFALL')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'WATERFALL' ? 'bg-indigo-600 text-white shadow' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>資產演進</button>
-                          <button onClick={() => setActiveMainChart('CASH_FLOW')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'CASH_FLOW' ? 'bg-cyan-600 text-white shadow' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>本月金流</button>
-                          <button onClick={() => setActiveMainChart('MONTHLY_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'MONTHLY_INCOME' ? 'bg-[#6B9080] text-white shadow' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>月度收支</button>
-                          <button onClick={() => setActiveMainChart('ANNUAL_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'ANNUAL_INCOME' ? 'bg-amber-600 text-white shadow' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>年度收支</button>
+                          <button onClick={() => setActiveMainChart('TREND')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'TREND' ? 'bg-[#FBEAEA] text-[#C4523A]' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>資產趨勢</button>
+                          <button onClick={() => setActiveMainChart('WATERFALL')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'WATERFALL' ? 'bg-indigo-100 text-indigo-700' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>資產演進</button>
+                          <button onClick={() => setActiveMainChart('CASH_FLOW')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'CASH_FLOW' ? 'bg-cyan-100 text-cyan-700' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>本月金流</button>
+                          <button onClick={() => setActiveMainChart('MONTHLY_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'MONTHLY_INCOME' ? 'bg-[#EAF1EC] text-[#6B9080]' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>月度收支</button>
+                          <button onClick={() => setActiveMainChart('ANNUAL_INCOME')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeMainChart === 'ANNUAL_INCOME' ? 'bg-amber-100 text-amber-700' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>年度收支</button>
                       </div>
                   </div>
 
@@ -1189,7 +1188,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           })()}
                           <div className="flex bg-[#FBF7F0] rounded-lg p-1 border border-[#EDE4D6] gap-1 overflow-x-auto no-scrollbar max-w-full mb-4 self-start">
                               {([['OVERVIEW', '還款總覽'], ['GRACE', '寬限與跑道'], ['INTEREST', '利息成本'], ['ACCOUNT', '扣款帳戶'], ['SIM', '提前還款模擬']] as const).map(([k, label]) => (
-                                  <button key={k} onClick={() => setActiveDebtTab(k)} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeDebtTab === k ? 'bg-[#C4523A] text-white shadow' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>{label}</button>
+                                  <button key={k} onClick={() => setActiveDebtTab(k)} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap shrink-0 ${activeDebtTab === k ? 'bg-[#FBEAEA] text-[#C4523A]' : 'text-[#A69B87] hover:text-[#3D3428]'}`}>{label}</button>
                               ))}
                           </div>
 

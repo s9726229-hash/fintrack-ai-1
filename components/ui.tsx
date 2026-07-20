@@ -2,10 +2,10 @@ import React, { PropsWithChildren } from 'react';
 
 export const Card = ({ children, className = '', onClick, theme = 'dark', ...rest }: PropsWithChildren<{ className?: string, onClick?: () => void, theme?: 'dark' | 'warm', [key: string]: any }>) => {
   const themeStyle = theme === 'warm'
-    ? 'bg-white border border-[#EDE4D6]'
-    : 'bg-slate-800 border border-slate-700';
+    ? 'bg-[#FFFDF7] border border-[#EDE4D6] rounded-xl shadow-[0_1px_2px_rgba(60,50,30,0.05)]'
+    : 'bg-slate-800 border border-slate-700 rounded-2xl';
   return (
-    <div className={`${themeStyle} rounded-2xl p-6 ${className}`} onClick={onClick} {...rest}>
+    <div className={`${themeStyle} p-6 ${className}`} onClick={onClick} {...rest}>
       {children}
     </div>
   );

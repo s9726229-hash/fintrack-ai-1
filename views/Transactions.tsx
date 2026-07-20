@@ -130,8 +130,8 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     let income = 0;
     let expense = 0;
     filteredTransactions.forEach(t => {
-      if (t.type === 'INCOME') income += t.amount;
-      else expense += t.amount;
+      if (t.type === 'EXPENSE') expense += t.amount;
+      else income += t.amount; // INCOME 與 DIVIDEND 都算收入
     });
     return { income, expense, balance: income - expense };
   }, [filteredTransactions]);
@@ -142,13 +142,14 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     const dailyMap: Record<string, { income: number, expense: number }> = {};
 
     filteredTransactions.forEach(t => {
-        if (t.type === 'EXPENSE') {
+        const isExpense = t.type === 'EXPENSE';
+        if (isExpense) {
           catMap[t.category] = (catMap[t.category] || 0) + t.amount;
         }
 
         if (!dailyMap[t.date]) dailyMap[t.date] = { income: 0, expense: 0 };
-        if (t.type === 'INCOME') dailyMap[t.date].income += t.amount;
-        else dailyMap[t.date].expense += t.amount;
+        if (isExpense) dailyMap[t.date].expense += t.amount;
+        else dailyMap[t.date].income += t.amount; // INCOME 與 DIVIDEND 都算收入
     });
     
     const trendData = Object.keys(dailyMap).sort().map(date => ({

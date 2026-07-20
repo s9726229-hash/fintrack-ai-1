@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   TECH_PARAMS: 'ft_tech_params', // New V7.1.0
   DIVIDEND_EVENTS: 'ft_dividend_events', // New V7.10.0: 股息事件（獨立於 Asset，全賣出後仍保留）
   DIVIDEND_SCANNED_AT: 'ft_dividend_scanned_at', // New V7.10.0: 各股票代號上次掃描股息的時間，用來降低重複掃描
+  THEME: 'ft_theme', // New: 'warm' | 'dark'，全站配色主題
 };
 
 export const EXCHANGE_RATES_DEFAULT = {

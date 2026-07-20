@@ -90,6 +90,7 @@ export const Assets: React.FC<AssetsProps> = ({ assets, onAdd, onUpdate, onDelet
       interestRate: formData.interestRate ? Number(formData.interestRate) : undefined,
       termYears: formData.termYears ? Number(formData.termYears) : undefined,
       interestOnlyPeriod: formData.interestOnlyPeriod ? Number(formData.interestOnlyPeriod) : 0,
+      paymentAccountId: formData.paymentAccountId,
     };
 
     if (editingId) onUpdate(asset);

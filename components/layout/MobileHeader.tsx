@@ -1,13 +1,16 @@
 
 import React from 'react';
 import { ViewState } from '../../types';
-import { Settings, ListTree } from 'lucide-react';
+import { Theme } from '../../hooks/useTheme';
+import { Settings, ListTree, Moon, Sun } from 'lucide-react';
 
 interface MobileHeaderProps {
   onChangeView: (view: ViewState) => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
-export const MobileHeader: React.FC<MobileHeaderProps> = ({ onChangeView }) => {
+export const MobileHeader: React.FC<MobileHeaderProps> = ({ onChangeView, theme, onToggleTheme }) => {
   return (
     <header className="md:hidden h-16 bg-white/90 backdrop-blur-md border-b border-[#EDE4D6] flex items-center justify-between px-6 z-20 shrink-0 sticky top-0">
       <div className="font-bold text-lg flex items-center gap-2 text-[#3D3428]">
@@ -18,6 +21,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({ onChangeView }) => {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
+         <button onClick={onToggleTheme} className="p-2.5 text-[#A69B87] hover:text-[#3D3428] transition-colors" title={theme === 'dark' ? '切換為亮色主題' : '切換為深色主題'} aria-label={theme === 'dark' ? '切換為亮色主題' : '切換為深色主題'}>
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+         </button>
          <button onClick={() => onChangeView('GUIDE')} className="p-2.5 text-[#A69B87] hover:text-[#3D3428] transition-colors" title="版本紀錄" aria-label="版本紀錄">
             <ListTree size={22} />
          </button>
