@@ -5,6 +5,7 @@ import { Button, Card } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, lookupStockName, getSharesHeldAtDate } from '../services/stock';
 import { getApiKey } from '../services/storage';
+import { formatMoneyCompact } from '../services/format';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
 
@@ -294,9 +295,27 @@ export const Investments: React.FC<InvestmentsProps> = ({
             {activeTab === 'INVENTORY' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-3 gap-2 md:gap-4">
-                        <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">庫存總市值</div><div className="text-sm md:text-2xl font-bold text-[#3D3428] tabular-nums truncate">${stats.totalMarketValue.toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
-                        <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">未實現總損益</div><div className={`text-sm md:text-2xl font-bold tabular-nums truncate ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPL < 0 ? '-' : ''}${Math.abs(stats.totalPL).toLocaleString(undefined, {maximumFractionDigits:0})}</div></Card>
-                        <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">總報酬率</div><div className={`text-sm md:text-2xl font-bold tabular-nums truncate ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(2)}%</div></Card>
+                        <Card theme="warm" className="p-3 md:p-6">
+                            <div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">庫存總市值</div>
+                            <div className="text-base md:text-2xl font-bold text-[#3D3428] tabular-nums">
+                                <span className="md:hidden">{formatMoneyCompact(stats.totalMarketValue)}</span>
+                                <span className="hidden md:inline">${stats.totalMarketValue.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                            </div>
+                        </Card>
+                        <Card theme="warm" className="p-3 md:p-6">
+                            <div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">未實現總損益</div>
+                            <div className={`text-base md:text-2xl font-bold tabular-nums ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>
+                                <span className="md:hidden">{formatMoneyCompact(stats.totalPL, { showPlus: true })}</span>
+                                <span className="hidden md:inline">{stats.totalPL > 0 ? '+' : ''}{stats.totalPL < 0 ? '-' : ''}${Math.abs(stats.totalPL).toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                            </div>
+                        </Card>
+                        <Card theme="warm" className="p-3 md:p-6">
+                            <div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">總報酬率</div>
+                            <div className={`text-base md:text-2xl font-bold tabular-nums ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>
+                                <span className="md:hidden">{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(1)}%</span>
+                                <span className="hidden md:inline">{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(2)}%</span>
+                            </div>
+                        </Card>
                     </div>
                     <div className="bg-white border border-[#EDE4D6] rounded-2xl max-h-[70vh] flex flex-col">
                         <div className="p-4 border-b border-[#EDE4D6]"><h3 className="text-sm font-bold text-[#3D3428] flex items-center gap-2"><List size={16} className="text-[#C4523A]" /> 庫存明細</h3></div>
