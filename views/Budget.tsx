@@ -167,7 +167,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
           <h3 className="text-sm font-bold text-[#A69B87] mb-3 flex items-center gap-2">
               <Zap size={16} className="text-amber-600"/> 各類別預算監控 (排除投資/還款)
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
               {DISPLAY_CATEGORIES.map(cat => {
                   const budget = budgets.find(b => b.category === cat);
                   const limit = budget?.limit || 0;
@@ -179,21 +179,21 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
 
                   const isHighlightedOther = cat === '其他' && isOtherRatioHigh;
                   return (
-                      <div key={cat} className={`bg-white p-4 rounded-xl relative overflow-hidden group transition-colors ${isHighlightedOther ? 'border-2 border-amber-500/50' : 'border border-[#EDE4D6] hover:border-[#C4A98A]'}`}>
-                          <div className="flex justify-between items-start mb-2 relative z-10">
-                              <div>
-                                  <h4 className="font-bold text-[#3D3428]">{cat}</h4>
-                                  <p className="text-xs text-[#A69B87] mt-0.5">已支出: ${spent.toLocaleString()}</p>
+                      <div key={cat} className={`bg-white p-2.5 md:p-4 rounded-xl relative overflow-hidden group transition-colors ${isHighlightedOther ? 'border-2 border-amber-500/50' : 'border border-[#EDE4D6] hover:border-[#C4A98A]'}`}>
+                          <div className="flex justify-between items-start gap-1 mb-2 relative z-10">
+                              <div className="min-w-0">
+                                  <h4 className="font-bold text-[#3D3428] text-sm md:text-base truncate">{cat}</h4>
+                                  <p className="text-[10px] md:text-xs text-[#A69B87] mt-0.5 truncate">已支出: ${spent.toLocaleString()}</p>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right shrink-0">
                                   {limit > 0 ? (
                                       <div onClick={() => openBudgetEdit(cat, limit)} className="cursor-pointer hover:opacity-80">
-                                        <p className="text-[10px] text-[#A69B87] uppercase font-bold">預算上限</p>
-                                        <p className="font-bold text-[#3D3428] text-sm tabular-nums">${limit.toLocaleString()}</p>
+                                        <p className="text-[9px] md:text-[10px] text-[#A69B87] uppercase font-bold">預算上限</p>
+                                        <p className="font-bold text-[#3D3428] text-xs md:text-sm tabular-nums">${limit.toLocaleString()}</p>
                                       </div>
                                   ) : (
-                                      <button onClick={() => openBudgetEdit(cat, 0)} className="text-xs bg-[#FBF7F0] hover:bg-[#F3ECDF] px-2.5 py-1.5 rounded-full text-[#8A7A63] flex items-center gap-1 transition-colors border border-[#EDE4D6]">
-                                          <PlusCircle size={14}/> 設定
+                                      <button onClick={() => openBudgetEdit(cat, 0)} className="text-[10px] md:text-xs bg-[#FBF7F0] hover:bg-[#F3ECDF] px-2 md:px-2.5 py-1 md:py-1.5 rounded-full text-[#8A7A63] flex items-center gap-1 transition-colors border border-[#EDE4D6] whitespace-nowrap">
+                                          <PlusCircle size={12} className="shrink-0"/> <span className="hidden sm:inline">設定</span>
                                       </button>
                                   )}
                               </div>

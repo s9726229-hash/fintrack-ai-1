@@ -18,12 +18,13 @@ const StatCard = ({ title, value, icon: Icon, colorClass, isCurrency = true, uni
         : (!isCurrency || value >= 0 ? 'text-[#3D3428]' : 'text-[#C4523A]');
 
     return (
-    <Card theme="warm" className={`p-4 ${isHighlight ? 'shadow-sm relative overflow-hidden' : ''}`}>
-        <div className="flex justify-between items-start mb-2 relative z-10">
-            <span className="text-xs font-bold uppercase text-[#A69B87]">{title}</span>
-            <Icon size={16} className={colorClass} />
+    <Card theme="warm" className={`p-3 md:p-4 ${isHighlight ? 'shadow-sm relative overflow-hidden' : ''}`}>
+        <div className="flex justify-between items-start mb-1 md:mb-2 relative z-10">
+            <span className="text-[10px] md:text-xs font-bold uppercase text-[#A69B87] truncate">{title}</span>
+            <Icon size={14} className={`shrink-0 md:hidden ${colorClass}`} />
+            <Icon size={16} className={`shrink-0 hidden md:block ${colorClass}`} />
         </div>
-        <div className={`text-2xl font-bold font-mono relative z-10 ${valueColor}`}>
+        <div className={`text-base md:text-2xl font-bold font-mono relative z-10 truncate ${valueColor}`}>
             {isCurrency ? (
                 <>
                     {value > 0 ? '+' : value < 0 ? '-' : ''}
@@ -32,7 +33,7 @@ const StatCard = ({ title, value, icon: Icon, colorClass, isCurrency = true, uni
             ) : (
                 <>
                     {value > 0 && isHighlight ? '+' : ''}{value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    {unit && <span className="text-sm ml-1">{unit}</span>}
+                    {unit && <span className="text-xs md:text-sm ml-1">{unit}</span>}
                 </>
             )}
         </div>
@@ -79,7 +80,7 @@ export const TransactionAnalysisView: React.FC<TransactionAnalysisViewProps> = (
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
                 <StatCard title="區間實現總盈虧" value={stats.realizedProfit} icon={BadgePercent} colorClass={stats.realizedProfit >= 0 ? 'text-[#C4523A]' : 'text-[#6B9080]'} isHighlight />
                 <StatCard title="區間實現報酬率" value={stats.intervalROI} icon={TrendingUp} colorClass={stats.intervalROI >= 0 ? 'text-[#C4523A]' : 'text-[#6B9080]'} isCurrency={false} unit="%" isHighlight />
                 <StatCard title="區間淨現金流" value={stats.netCashFlow} icon={ArrowRightLeft} colorClass={stats.netCashFlow >= 0 ? 'text-sky-600' : 'text-orange-500'} />

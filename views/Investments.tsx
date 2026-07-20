@@ -252,19 +252,19 @@ export const Investments: React.FC<InvestmentsProps> = ({
     
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-                <div>
+            <div className="flex justify-between items-center gap-2">
+                <div className="min-w-0">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-[19px] font-semibold text-[#3D3428] flex items-center gap-2"><TrendingUp className="text-[#C4523A]"/> 股票投資</h2>
+                        <h2 className="text-[19px] font-semibold text-[#3D3428] flex items-center gap-2 truncate"><TrendingUp className="text-[#C4523A] shrink-0"/> 股票投資</h2>
                     </div>
-                    <p className="text-xs text-[#A69B87] mt-1">追蹤庫存市值、未實現損益與歷史趨勢</p>
+                    <p className="text-xs text-[#A69B87] mt-1 truncate">追蹤庫存市值、未實現損益與歷史趨勢</p>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
                     <input type="file" ref={inventoryFileInputRef} onChange={handleInventoryFileChange} accept=".csv" className="hidden" />
-                    <Button theme="warm" variant="secondary" onClick={() => inventoryFileInputRef.current?.click()}><ClipboardList size={16}/> 匯入庫存</Button>
+                    <Button theme="warm" variant="secondary" className="px-2.5 md:px-4" onClick={() => inventoryFileInputRef.current?.click()}><ClipboardList size={16}/> <span className="hidden md:inline">匯入庫存</span></Button>
                     <input type="file" ref={fileInputRef} onChange={handleTransactionFileChange} accept=".csv" className="hidden" />
-                    <Button theme="warm" variant="secondary" onClick={() => fileInputRef.current?.click()}><UploadCloud size={16}/> 匯入交易</Button>
-                    <Button theme="warm" onClick={() => handleOpenModal()}><PlusCircle size={16}/> 新增持股</Button>
+                    <Button theme="warm" variant="secondary" className="px-2.5 md:px-4" onClick={() => fileInputRef.current?.click()}><UploadCloud size={16}/> <span className="hidden md:inline">匯入交易</span></Button>
+                    <Button theme="warm" className="px-2.5 md:px-4" onClick={() => handleOpenModal()}><PlusCircle size={16}/> <span className="hidden md:inline">新增持股</span></Button>
                 </div>
             </div>
 
@@ -366,9 +366,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
             )}
             {activeTab === 'DIVIDEND' && (
                 <div className="space-y-6 animate-fade-in">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <Card theme="warm"><div className="text-[#A69B87] text-xs font-bold uppercase mb-1">本年已領股息</div><div className="text-3xl font-bold text-[#C4523A] font-mono">+${dividendStats.realizedDividends.toLocaleString()}</div></Card>
-                       <Card theme="warm"><div className="text-[#A69B87] text-xs font-bold uppercase mb-1">預估年收股息</div><div className="text-3xl font-bold text-amber-600 font-mono">+${Math.round(dividendStats.estimatedAnnualDividend).toLocaleString()}</div></Card>
+                   <div className="grid grid-cols-2 gap-3 md:gap-4">
+                       <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">本年已領股息</div><div className="text-lg md:text-3xl font-bold text-[#C4523A] font-mono truncate">+${dividendStats.realizedDividends.toLocaleString()}</div></Card>
+                       <Card theme="warm" className="p-3 md:p-6"><div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">預估年收股息</div><div className="text-lg md:text-3xl font-bold text-amber-600 font-mono truncate">+${Math.round(dividendStats.estimatedAnnualDividend).toLocaleString()}</div></Card>
                    </div>
 
                    {pendingDividendEvents.length > 0 && (

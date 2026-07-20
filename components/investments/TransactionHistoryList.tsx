@@ -121,7 +121,8 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
             )}
 
             <div className="flex-1 overflow-y-auto">
-                <table className="w-full text-left">
+                {/* 桌面版：表格 */}
+                <table className="w-full text-left hidden md:table">
                     <thead className="sticky top-0 z-10 bg-[#FBF7F0] border-b border-[#EDE4D6]">
                         <tr className="text-xs text-[#A69B87] uppercase">
                             <th className="p-3 font-medium">股票</th>
@@ -202,6 +203,56 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                         )}
                     </tbody>
                 </table>
+
+                {/* 手機版：緊湊列表，避免橫向捲動 */}
+                <div className="md:hidden divide-y divide-[#EDE4D6]">
+                    {pagedTransactions.length > 0 ? pagedTransactions.map(tx => {
+                        const profitColor = tx.realizedProfit && tx.realizedProfit >= 0 ? 'text-[#C4523A]' : 'text-[#6B9080]';
+                        const costBasis = tx.amount - (tx.realizedProfit || 0);
+                        const roi = costBasis > 0 ? ((tx.realizedProfit || 0) / costBasis) * 100 : 0;
+                        return (
+                            <div key={tx.id} className={`flex items-center gap-2 py-2 px-3 ${tx.isRecurring ? 'bg-sky-50/60' : ''}`}>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1">
+                                        <span className={`shrink-0 px-1.5 py-0 rounded text-[9px] font-bold ${
+                                            tx.side === 'BUY' ? 'bg-[#FBEAEA] text-[#C4523A]' : 'bg-[#EAF1EC] text-[#6B9080]'
+                                        }`}>{tx.side === 'BUY' ? '買' : '賣'}</span>
+                                        <span className="text-[12px] font-bold text-[#3D3428] truncate">{stockNameMap[tx.symbol] || tx.symbol}</span>
+                                        {tx.isRecurring && <span className="shrink-0 px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700">定期</span>}
+                                    </div>
+                                    <div className="text-[9px] text-[#A69B87] tabular-nums truncate mt-0.5">
+                                        {tx.symbol} · {tx.shares.toLocaleString()}股 × ${tx.price.toFixed(2)} · {tx.date}
+                                    </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <div className="text-[13px] font-bold tabular-nums text-[#3D3428]">${Math.abs(tx.amount).toLocaleString()}</div>
+                                    {tx.side === 'SELL' ? (
+                                        <div className={`text-[9px] tabular-nums ${profitColor}`}>
+                                            {tx.realizedProfit?.toLocaleString(undefined, { signDisplay: 'always' })} ({roi > 0 ? '+' : ''}{roi.toFixed(1)}%)
+                                        </div>
+                                    ) : (
+                                        <div className="text-[9px] text-[#C4A98A]">-</div>
+                                    )}
+                                </div>
+                                {onToggleRecurring && (
+                                    <button
+                                        onClick={() => onToggleRecurring(tx.id)}
+                                        title={tx.isRecurring ? '取消定期定額標記' : '標記為定期定額'}
+                                        className={`p-1.5 rounded-lg shrink-0 ${
+                                            tx.isRecurring
+                                            ? 'bg-sky-100 text-sky-700'
+                                            : 'text-[#A69B87] active:bg-[#FBF7F0] active:text-sky-700'
+                                        }`}
+                                    >
+                                        <Repeat size={13}/>
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    }) : (
+                        <div className="text-center py-10 text-[#A69B87] text-sm">尚無交易紀錄</div>
+                    )}
+                </div>
             </div>
             {transactions.length > PAGE_SIZE && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-[#EDE4D6] text-xs text-[#A69B87]">
