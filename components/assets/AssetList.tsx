@@ -8,14 +8,13 @@ import { formatMoney } from '../../services/format';
 interface AssetListProps {
   filteredAssets: Asset[];
   filterType: string;
-  setFilterType: (type: any) => void;
   onEdit: (asset: Asset) => void;
   onDelete: (id: string) => void;
   calculateDaysSinceUpdate: (timestamp: number) => number;
 }
 
-export const AssetList: React.FC<AssetListProps> = ({ 
-  filteredAssets, filterType, setFilterType, onEdit, onDelete, calculateDaysSinceUpdate 
+export const AssetList: React.FC<AssetListProps> = ({
+  filteredAssets, filterType, onEdit, onDelete, calculateDaysSinceUpdate
 }) => {
   const formatDate = (timestamp: number | undefined) => {
     if (!timestamp) return '-';
@@ -32,49 +31,28 @@ export const AssetList: React.FC<AssetListProps> = ({
 
   return (
     <div className="bg-white border border-[#EDE4D6] rounded-2xl overflow-hidden max-h-[600px] flex flex-col">
-         <div className="flex items-center gap-5 px-4 border-b border-[#EDE4D6] overflow-x-auto no-scrollbar shrink-0">
-             {[
-                 { id: 'ALL', label: '全部' },
-                 { id: 'INVEST', label: '股票/基金' },
-                 { id: 'CASH', label: '現金/存款' },
-                 { id: 'DEBT', label: '負債/貸款' },
-             ].map(tab => (
-                 <button
-                    key={tab.id}
-                    onClick={() => setFilterType(tab.id)}
-                    className={`py-3 text-sm whitespace-nowrap border-b-2 transition-all ${
-                        filterType === tab.id
-                        ? 'text-[#C4523A] border-[#C4523A] font-bold'
-                        : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'
-                    }`}
-                 >
-                    {tab.label}
-                 </button>
-             ))}
-         </div>
-
          {filteredAssets.length > 0 && (
-             <div className="flex items-center gap-x-6 gap-y-1 px-4 py-2.5 border-b border-[#EDE4D6] bg-[#FBF7F0] text-xs flex-wrap shrink-0">
-                 {subtotalAssets > 0 && (
-                     <div className="flex items-center gap-1.5">
-                         <span className="text-[#A69B87]">資產小計</span>
-                         <span className="tabular-nums font-bold text-[#3D3428]">{formatMoney(subtotalAssets)}</span>
+             <div className="grid grid-cols-3 gap-2 p-3 border-b border-[#EDE4D6] bg-[#FBF7F0] shrink-0">
+                 {subtotalAssets > 0 ? (
+                     <div className="bg-white rounded-lg p-2.5 min-w-0">
+                         <div className="text-[#A69B87] text-[10px] font-bold uppercase truncate">資產小計</div>
+                         <div className="text-[15px] font-bold text-[#3D3428] tabular-nums whitespace-nowrap">{formatMoney(subtotalAssets)}</div>
                      </div>
-                 )}
-                 {subtotalDebt > 0 && (
-                     <div className="flex items-center gap-1.5">
-                         <span className="text-[#A69B87]">負債小計</span>
-                         <span className="tabular-nums font-bold text-[#B45B45]">{formatMoney(-subtotalDebt)}</span>
+                 ) : <div />}
+                 {subtotalDebt > 0 ? (
+                     <div className="bg-white rounded-lg p-2.5 min-w-0">
+                         <div className="text-[#A69B87] text-[10px] font-bold uppercase truncate">負債小計</div>
+                         <div className="text-[15px] font-bold text-[#B45B45] tabular-nums whitespace-nowrap">{formatMoney(-subtotalDebt)}</div>
                      </div>
-                 )}
-                 {filterType === 'ALL' && subtotalDebt > 0 && subtotalAssets > 0 && (
-                     <div className="flex items-center gap-1.5">
-                         <span className="text-[#A69B87]">淨值小計</span>
-                         <span className={`tabular-nums font-bold ${subtotalNet < 0 ? 'text-[#B45B45]' : 'text-[#3D3428]'}`}>
+                 ) : <div />}
+                 {filterType === 'ALL' && subtotalDebt > 0 && subtotalAssets > 0 ? (
+                     <div className="bg-white rounded-lg p-2.5 min-w-0">
+                         <div className="text-[#A69B87] text-[10px] font-bold uppercase truncate">淨值小計</div>
+                         <div className={`text-[15px] font-bold tabular-nums whitespace-nowrap ${subtotalNet < 0 ? 'text-[#B45B45]' : 'text-[#3D3428]'}`}>
                              {formatMoney(subtotalNet)}
-                         </span>
+                         </div>
                      </div>
-                 )}
+                 ) : <div />}
              </div>
          )}
 
@@ -144,6 +122,11 @@ export const AssetList: React.FC<AssetListProps> = ({
             </table>
 
             {/* 手機版：緊湊單行列表 */}
+            <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 bg-[#FBF7F0]/95 backdrop-blur-sm px-3 py-1.5 border-b border-[#EDE4D6] text-[10px] text-[#A69B87] uppercase tracking-wider font-medium">
+                <div className="flex-1 pl-3">資產名稱</div>
+                <div className="shrink-0 text-right">金額</div>
+                <div className="w-[52px] shrink-0"></div>
+            </div>
             <div className="md:hidden divide-y divide-[#F3ECDF]">
                 {filteredAssets.map(asset => {
                     const daysOld = calculateDaysSinceUpdate(asset.lastUpdated);

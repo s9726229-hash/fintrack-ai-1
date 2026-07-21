@@ -5,6 +5,7 @@ import { ASSET_TYPE_LABELS } from '../constants';
 import { getHistory } from '../services/storage';
 import { calculateLoanBalance } from '../services/finance'; // Centralized function
 import { Wallet, Plus, PieChart as PieIcon, BarChart3 } from 'lucide-react';
+import { Button, Tabs } from '../components/ui';
 
 // New Components
 import { AssetList } from '../components/assets/AssetList';
@@ -104,7 +105,7 @@ export const Assets: React.FC<AssetsProps> = ({ assets, onAdd, onUpdate, onDelet
   };
 
   return (
-    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+    <div className="space-y-6 animate-fade-in md:p-6">
       
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -114,22 +115,27 @@ export const Assets: React.FC<AssetsProps> = ({ assets, onAdd, onUpdate, onDelet
             </h2>
             <p className="text-xs text-[#A69B87] mt-1">追蹤現金、房產與各類資產淨值總覽</p>
          </div>
-         <button
-             onClick={handleAdd}
-             className="px-4 py-2 bg-[#C4523A] hover:bg-[#AD452F] text-white rounded-full text-sm font-medium flex items-center gap-2 transition-all active:scale-95"
-         >
+         <Button theme="warm" onClick={handleAdd} className="px-4">
              <Plus size={16}/>
              <span className="hidden md:inline">新增資產</span>
-         </button>
+         </Button>
       </div>
 
+      <Tabs
+        options={[
+            { value: 'ALL', label: '全部' },
+            { value: 'INVEST', label: '股票/基金' },
+            { value: 'CASH', label: '現金/存款' },
+            { value: 'DEBT', label: '負債/貸款' },
+        ]}
+        active={filterType}
+        onChange={setFilterType}
+      />
 
-
-      <AssetList 
-        filteredAssets={filteredAssets} 
-        filterType={filterType} 
-        setFilterType={setFilterType} 
-        onEdit={handleEdit} 
+      <AssetList
+        filteredAssets={filteredAssets}
+        filterType={filterType}
+        onEdit={handleEdit}
         onDelete={onDelete}
         calculateDaysSinceUpdate={calculateDaysSinceUpdate}
       />

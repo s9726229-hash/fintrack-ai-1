@@ -127,7 +127,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
 
 
   return (
-    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+    <div className="space-y-6 animate-fade-in md:p-6">
        
        <div className="flex justify-between items-center mb-6">
          <div>
@@ -136,40 +136,36 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
             </h2>
             <p className="text-xs text-[#A69B87] mt-1">管理訂閱服務、房租與定期扣款項目</p>
          </div>
-         <button
-             onClick={handleOpenModal}
-             className="px-4 py-2 bg-[#C4523A] hover:bg-[#AD452F] text-white rounded-full text-sm font-medium flex items-center gap-2 transition-all active:scale-95"
-             title="新增固定項目"
-         >
+         <Button theme="warm" onClick={handleOpenModal} title="新增固定項目" className="px-4">
             <Plus size={16}/>
             <span className="hidden md:inline">新增固定項目</span>
-         </button>
+         </Button>
        </div>
 
        <div className="grid grid-cols-2 gap-3 md:gap-6">
-          <div className="bg-white border border-[#EDE4D6] rounded-2xl p-3 md:p-5 flex items-center justify-between relative overflow-hidden group">
-             <div className="absolute right-0 top-0 w-24 h-24 bg-[#FBEAEA] rounded-full blur-2xl group-hover:bg-[#F6DADA] transition-colors"></div>
+          <div className="bg-white border border-[#EDE4D6] rounded-2xl p-2.5 md:p-4 flex items-center justify-between relative overflow-hidden group">
+             <div className="absolute right-0 top-0 w-16 h-16 bg-[#FBEAEA] rounded-full blur-2xl group-hover:bg-[#F6DADA] transition-colors"></div>
              <div className="min-w-0">
-                <p className="text-[#A69B87] text-[11px] md:text-sm font-medium mb-1 truncate">每月固定總收入</p>
-                <h3 className="text-lg md:text-3xl font-bold text-[#C4523A] tabular-nums tracking-tight truncate">
+                <p className="text-[#A69B87] text-[10px] md:text-sm font-medium mb-1 truncate">每月固定總收入</p>
+                <h3 className="text-[15px] md:text-3xl font-bold text-[#C4523A] tabular-nums tracking-tight whitespace-nowrap">
                    ${stats.income.toLocaleString()}
                 </h3>
              </div>
-             <div className="hidden sm:flex w-12 h-12 rounded-xl bg-[#FBEAEA] items-center justify-center text-[#C4523A] border border-[#C4523A]/20 shrink-0">
-                <Wallet size={24} />
+             <div className="hidden sm:flex w-10 h-10 rounded-xl bg-[#FBEAEA] items-center justify-center text-[#C4523A] border border-[#C4523A]/20 shrink-0">
+                <Wallet size={20} />
              </div>
           </div>
 
-          <div className="bg-white border border-[#EDE4D6] rounded-2xl p-3 md:p-5 flex items-center justify-between relative overflow-hidden group">
-             <div className="absolute right-0 top-0 w-24 h-24 bg-[#EAF1EC] rounded-full blur-2xl group-hover:bg-[#DCEAE3] transition-colors"></div>
+          <div className="bg-white border border-[#EDE4D6] rounded-2xl p-2.5 md:p-4 flex items-center justify-between relative overflow-hidden group">
+             <div className="absolute right-0 top-0 w-16 h-16 bg-[#EAF1EC] rounded-full blur-2xl group-hover:bg-[#DCEAE3] transition-colors"></div>
              <div className="min-w-0">
-                <p className="text-[#A69B87] text-[11px] md:text-sm font-medium mb-1 truncate">每月固定總支出</p>
-                <h3 className="text-lg md:text-3xl font-bold text-[#6B9080] tabular-nums tracking-tight truncate">
+                <p className="text-[#A69B87] text-[10px] md:text-sm font-medium mb-1 truncate">每月固定總支出</p>
+                <h3 className="text-[15px] md:text-3xl font-bold text-[#6B9080] tabular-nums tracking-tight whitespace-nowrap">
                    ${stats.expense.toLocaleString()}
                 </h3>
              </div>
-             <div className="hidden sm:flex w-12 h-12 rounded-xl bg-[#EAF1EC] items-center justify-center text-[#6B9080] border border-[#6B9080]/20 shrink-0">
-                <Flame size={24} />
+             <div className="hidden sm:flex w-10 h-10 rounded-xl bg-[#EAF1EC] items-center justify-center text-[#6B9080] border border-[#6B9080]/20 shrink-0">
+                <Flame size={20} />
              </div>
           </div>
        </div>

@@ -205,6 +205,10 @@ export const TransactionHistoryList: React.FC<TransactionHistoryListProps> = ({ 
                 </table>
 
                 {/* 手機版：緊湊列表，避免橫向捲動 */}
+                <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 bg-[#FBF7F0]/95 backdrop-blur-sm px-3 py-1.5 border-b border-[#EDE4D6] text-[10px] text-[#A69B87] uppercase tracking-wider font-medium">
+                    <div className="flex-1 pl-1">股票</div>
+                    <div className="shrink-0 text-right">金額</div>
+                </div>
                 <div className="md:hidden divide-y divide-[#EDE4D6]">
                     {pagedTransactions.length > 0 ? pagedTransactions.map(tx => {
                         const profitColor = tx.realizedProfit && tx.realizedProfit >= 0 ? 'text-[#C4523A]' : 'text-[#6B9080]';

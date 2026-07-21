@@ -8,7 +8,7 @@ import { EXPENSE_CATEGORIES } from '../constants';
 
 // Import New Refactored Components
 import { TransactionStats } from '../components/transactions/TransactionStats';
-import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
+import { TransactionFilters, TimeRangeTabs, TimeRange } from '../components/transactions/TransactionFilters';
 import { TransactionCharts } from '../components/transactions/TransactionCharts';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { AddTransactionModal } from '../components/transactions/TransactionModals';
@@ -282,7 +282,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
   };
 
   return (
-    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+    <div className="space-y-6 animate-fade-in md:p-6">
       
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -309,30 +309,30 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               {isParsing ? <Loader2 size={16} className="animate-spin"/> : <UploadCloud size={16}/>}
               <span className="hidden md:inline">{isParsing ? '解析中...' : '匯入電子發票'}</span>
             </Button>
-            <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#C4523A] hover:bg-[#AD452F] text-white rounded-full transition-all active:scale-95"
-            >
+            <Button theme="warm" onClick={() => setIsAddModalOpen(true)} className="px-4">
                 <Plus size={20}/>
                 <span className="hidden md:inline font-bold text-sm">新增紀錄</span>
-            </button>
+            </Button>
          </div>
       </div>
 
+      <TimeRangeTabs
+        timeRange={timeRange} setTimeRange={setTimeRange}
+        customStart={customStart} setCustomStart={setCustomStart}
+        customEnd={customEnd} setCustomEnd={setCustomEnd}
+      />
+
       {/* Stats & Filters */}
       <div>
-          <TransactionStats 
-            income={rangeStats.income} 
-            expense={rangeStats.expense} 
-            balance={rangeStats.balance} 
+          <TransactionStats
+            income={rangeStats.income}
+            expense={rangeStats.expense}
+            balance={rangeStats.balance}
           />
 
           <TransactionFilters
             filter={filter} setFilter={setFilter}
-            timeRange={timeRange} setTimeRange={setTimeRange}
             dateRangeLabel={dateRangeLabel}
-            customStart={customStart} setCustomStart={setCustomStart}
-            customEnd={customEnd} setCustomEnd={setCustomEnd}
           />
       </div>
 

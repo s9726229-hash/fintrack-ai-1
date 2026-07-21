@@ -1,13 +1,13 @@
 ﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, DividendEvent } from '../types';
 import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, CheckSquare } from 'lucide-react';
-import { Button, Card } from '../components/ui';
+import { Button, Card, Tabs } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, lookupStockName, getSharesHeldAtDate } from '../services/stock';
 import { getApiKey } from '../services/storage';
 import { formatMoneyCompact } from '../services/format';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
-import { TransactionFilters, TimeRange } from '../components/transactions/TransactionFilters';
+import { TransactionFilters, TimeRangeTabs, TimeRange } from '../components/transactions/TransactionFilters';
 
 interface InvestmentsProps {
     assets: Asset[];
@@ -252,7 +252,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
     const handleInventoryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = async (e) => { const t = e.target?.result as string; const { assets: p, error } = parseStockInventoryCSV(t); if (error) { alert(`庫存 CSV 解析失敗：\n${error}`); return; } if (p.length > 0) onImportInventory(p); else alert('CSV 中找不到有效庫存。'); }; r.readAsText(f, 'big5'); e.target.value = ''; };
     
     return (
-        <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+        <div className="space-y-6 animate-fade-in md:p-6">
             <div className="flex justify-between items-center gap-2">
                 <div className="min-w-0">
                     <div className="flex items-center gap-3">
@@ -269,13 +269,15 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 </div>
             </div>
 
-            <div className="flex items-center justify-between border-b border-[#EDE4D6] flex-wrap gap-y-2">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => setActiveTab('INVENTORY')} className={`px-1 py-3 text-sm border-b-2 transition-all ${activeTab === 'INVENTORY' ? 'text-[#C4523A] border-[#C4523A] font-bold' : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'}`}>庫存總覽</button>
-                    <button onClick={() => setActiveTab('HISTORY')} className={`px-1 py-3 text-sm border-b-2 transition-all ${activeTab === 'HISTORY' ? 'text-[#C4523A] border-[#C4523A] font-bold' : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'}`}>交易紀錄</button>
-                    <button onClick={() => setActiveTab('DIVIDEND')} className={`px-1 py-3 text-sm border-b-2 transition-all ${activeTab === 'DIVIDEND' ? 'text-[#C4523A] border-[#C4523A] font-bold' : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'}`}>股息分析</button>
-                </div>
-                <div className="relative flex items-center gap-2">
+            <Tabs
+                options={[
+                    { value: 'INVENTORY', label: '庫存總覽' },
+                    { value: 'HISTORY', label: '交易紀錄' },
+                    { value: 'DIVIDEND', label: '股息分析' },
+                ]}
+                active={activeTab}
+                onChange={setActiveTab}
+                rightSlot={<>
                     {activeTab === 'INVENTORY' && (
                         <Button onClick={() => onUpdatePrices(null)} theme="warm" variant="secondary" disabled={isEnriching || inventory.length === 0} loading={enrichStatus.price.isUpdating} className="h-8 text-xs">
                             {!enrichStatus.price.isUpdating && <RefreshCw size={14}/>}
@@ -289,29 +291,29 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         </Button>
                     )}
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
-                </div>
-            </div>
+                </>}
+            />
 
             {activeTab === 'INVENTORY' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-3 gap-2 md:gap-4">
-                        <Card theme="warm" className="p-3 md:p-6">
+                        <Card theme="warm" className="p-2.5 md:p-6">
                             <div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">庫存總市值</div>
-                            <div className="text-base md:text-2xl font-bold text-[#3D3428] tabular-nums">
+                            <div className="text-[15px] md:text-2xl font-bold text-[#3D3428] tabular-nums whitespace-nowrap">
                                 <span className="md:hidden">{formatMoneyCompact(stats.totalMarketValue)}</span>
                                 <span className="hidden md:inline">${stats.totalMarketValue.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
                             </div>
                         </Card>
-                        <Card theme="warm" className="p-3 md:p-6">
+                        <Card theme="warm" className="p-2.5 md:p-6">
                             <div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">未實現總損益</div>
-                            <div className={`text-base md:text-2xl font-bold tabular-nums ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>
+                            <div className={`text-[15px] md:text-2xl font-bold tabular-nums whitespace-nowrap ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>
                                 <span className="md:hidden">{formatMoneyCompact(stats.totalPL, { showPlus: true })}</span>
                                 <span className="hidden md:inline">{stats.totalPL > 0 ? '+' : ''}{stats.totalPL < 0 ? '-' : ''}${Math.abs(stats.totalPL).toLocaleString(undefined, {maximumFractionDigits:0})}</span>
                             </div>
                         </Card>
-                        <Card theme="warm" className="p-3 md:p-6">
+                        <Card theme="warm" className="p-2.5 md:p-6">
                             <div className="text-[#A69B87] text-[10px] md:text-xs font-bold uppercase mb-1 truncate">總報酬率</div>
-                            <div className={`text-base md:text-2xl font-bold tabular-nums ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>
+                            <div className={`text-[15px] md:text-2xl font-bold tabular-nums whitespace-nowrap ${stats.totalPL > 0 ? 'text-[#C4523A]' : stats.totalPL < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]'}`}>
                                 <span className="md:hidden">{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(1)}%</span>
                                 <span className="hidden md:inline">{stats.totalPL > 0 ? '+' : ''}{stats.totalPLPercent.toFixed(2)}%</span>
                             </div>
@@ -354,12 +356,18 @@ export const Investments: React.FC<InvestmentsProps> = ({
                             </table>
 
                             {/* 手機版：緊湊列表 */}
+                            <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 bg-[#FBF7F0]/95 backdrop-blur-sm px-3 py-1.5 border-b border-[#EDE4D6] text-[10px] text-[#A69B87] uppercase tracking-wider font-medium">
+                                <div className="flex-1 pl-3">股票</div>
+                                <div className="shrink-0 text-right">市值</div>
+                                <div className="w-[72px] shrink-0"></div>
+                            </div>
                             <div className="md:hidden divide-y divide-[#F3ECDF]">
                                 {inventory.length > 0 ? inventory.map(pos => {
                                     const perf = calculateStockPerformance(pos, transactions);
                                     const plColor = perf.netProfit > 0 ? 'text-[#C4523A]' : perf.netProfit < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
                                     return (
                                         <div key={pos.id} className="flex items-center gap-2 py-[6px] px-3 min-h-[32px]">
+                                            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: perf.netProfit > 0 ? '#C4523A' : perf.netProfit < 0 ? '#6B9080' : '#A69B87' }}></div>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-1 leading-[14px]">
                                                     <span className="text-[11.5px] font-bold text-[#3D3428] truncate">{pos.name}</span>
@@ -467,9 +475,15 @@ export const Investments: React.FC<InvestmentsProps> = ({
             )}
 
             {activeTab === 'HISTORY' && (
-                <div className="space-y-4 animate-fade-in">
-                    <TransactionFilters filter={filter} setFilter={setFilter} timeRange={timeRange} setTimeRange={setTimeRange} dateRangeLabel={dateRangeLabel} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />
-                    <TransactionAnalysisView transactions={filteredStockTransactions} stockNameMap={stockNameMap} onToggleRecurring={onToggleRecurringTransaction} onBulkMarkRecurring={onBulkMarkRecurringTransactions} />
+                <div className="animate-fade-in">
+                    <TransactionAnalysisView
+                        transactions={filteredStockTransactions}
+                        stockNameMap={stockNameMap}
+                        onToggleRecurring={onToggleRecurringTransaction}
+                        onBulkMarkRecurring={onBulkMarkRecurringTransactions}
+                        timeRangeSlot={<TimeRangeTabs timeRange={timeRange} setTimeRange={setTimeRange} customStart={customStart} setCustomStart={setCustomStart} customEnd={customEnd} setCustomEnd={setCustomEnd} />}
+                        filterSlot={<TransactionFilters filter={filter} setFilter={setFilter} dateRangeLabel={dateRangeLabel} />}
+                    />
                 </div>
             )}
             <InvestmentInputModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingAsset(null); }} onSave={handleSaveAsset} editingAsset={editingAsset} />

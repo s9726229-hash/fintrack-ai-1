@@ -4,7 +4,7 @@ import { Asset, Transaction, AssetType, RecurringItem, BudgetConfig, ViewState, 
 import {
     Sparkles, TrendingUp, AlertTriangle, Wallet, CreditCard,
     BarChart3, Target, Flag, Bell, ArrowRight, PieChart as PieIcon, LineChart as LineIcon,
-    ShieldAlert, ChevronDown
+    ShieldAlert, ChevronDown, LayoutGrid
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, AreaChart, Area, PieChart, Pie
@@ -30,18 +30,18 @@ const CollapsibleSection: React.FC<{
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 px-6 py-4 text-left hover:bg-[#FBF7F0] transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 md:px-6 md:py-4 text-left hover:bg-[#FBF7F0] transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className={`shrink-0 ${accentClass}`}>{icon}</div>
           <div className="min-w-0 flex items-baseline gap-2 flex-wrap">
-            <h3 className="font-bold text-[#3D3428] text-lg">{title}</h3>
+            <h3 className="font-bold text-[#3D3428] text-base md:text-lg">{title}</h3>
             {subtitle && <span className="text-xs text-[#A69B87]">{subtitle}</span>}
           </div>
         </div>
         <ChevronDown size={18} className={`text-[#A69B87] shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && <div className="px-6 pb-6 border-t border-[#EDE4D6] pt-4 animate-fade-in">{children}</div>}
+      {open && <div className="px-4 pb-4 md:px-6 md:pb-6 border-t border-[#EDE4D6] pt-4 animate-fade-in">{children}</div>}
     </Card>
   );
 };
@@ -641,7 +641,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
   }, [historicalMonthlyIncomeData]);
 
   return (
-    <div className="space-y-6 animate-fade-in p-2 md:p-6 pb-24">
+    <div className="space-y-6 animate-fade-in md:p-6">
+      {/* 0. 頁面標題列（與其他頁面一致；總覽頁沒有全域功能鍵，右側留空） */}
+      <div className="flex justify-between items-center">
+         <div>
+            <h2 className="text-[19px] font-semibold text-[#3D3428] flex items-center gap-2">
+                <LayoutGrid className="text-[#C4523A]"/> 總覽儀表板
+            </h2>
+            <p className="text-xs text-[#A69B87] mt-1">財務狀況一覽：淨資產、現金流與投資組合概況</p>
+         </div>
+      </div>
+
       {/* 1. Daily Reminder / Inline Quick Add — 手機版壓縮為單行 */}
       {!hasRecordedToday && (
          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl p-3 md:p-4 flex items-center gap-2 md:gap-4">
@@ -653,14 +663,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <h3 className="text-amber-700 font-bold text-xs md:text-sm whitespace-nowrap">今日尚未記帳</h3>
               <p className="hidden md:block text-[#A69B87] text-xs mt-0.5">順手記下一筆，讓財務更清晰。</p>
             </div>
-            <div className="flex items-center gap-1.5 md:gap-2 ml-auto min-w-0">
+            <div className="flex items-center gap-1.5 md:gap-2 ml-auto min-w-0 flex-1 md:flex-none">
                 <input
                     type="text"
                     placeholder="項目"
                     aria-label="快速記帳項目"
                     value={quickItem}
                     onChange={e => setQuickItem(e.target.value)}
-                    className="bg-white border border-[#EDE4D6] rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm text-[#3D3428] focus:outline-none focus:border-amber-500 w-16 md:w-32 min-w-0 placeholder:text-[#C4A98A]"
+                    className="bg-white border border-[#EDE4D6] rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm text-[#3D3428] focus:outline-none focus:border-amber-500 flex-1 md:w-32 min-w-0 placeholder:text-[#C4A98A]"
                     onKeyDown={e => e.key === 'Enter' && handleQuickAdd()}
                 />
                 <input
@@ -668,7 +678,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     placeholder="金額"
                     value={quickAmount}
                     onChange={e => setQuickAmount(e.target.value)}
-                    className="bg-white border border-[#EDE4D6] rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm text-[#3D3428] focus:outline-none focus:border-amber-500 w-14 md:w-24 min-w-0 placeholder:text-[#C4A98A]"
+                    className="bg-white border border-[#EDE4D6] rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm text-[#3D3428] focus:outline-none focus:border-amber-500 w-20 md:w-24 min-w-0 placeholder:text-[#C4A98A]"
                     onKeyDown={e => e.key === 'Enter' && handleQuickAdd()}
                 />
                 <Button
@@ -771,9 +781,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onClick={() => onChangeView('ASSETS')}
             className="text-left bg-white hover:bg-[#FBF7F0] border border-[#EDE4D6] rounded-xl px-3 md:px-4 py-2.5 md:py-3 transition-colors"
         >
-            <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <div className="text-xs text-[#A69B87] flex items-center gap-1.5 min-w-0"><Wallet size={13} className="text-[#6B9080] shrink-0"/> <span className="truncate">總資產</span></div>
-                <div className="text-sm md:text-lg font-bold text-[#3D3428] tabular-nums shrink-0">{formatMoney(totalAssets)}</div>
+            <div className="mb-1.5">
+                <div className="text-xs text-[#A69B87] flex items-center gap-1.5"><Wallet size={13} className="text-[#6B9080] shrink-0"/> <span>總資產</span></div>
+                <div className="text-sm md:text-lg font-bold text-[#3D3428] tabular-nums mt-0.5">{formatMoney(totalAssets)}</div>
             </div>
             {totalAssets > 0 && (
                 <div className="hidden md:flex gap-x-3 gap-y-1 text-xs text-[#A69B87] flex-wrap">
@@ -792,9 +802,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onClick={() => { window.location.hash = 'debt'; onChangeView('ASSETS'); }}
             className="text-left bg-white hover:bg-[#FBF7F0] border border-[#EDE4D6] rounded-xl px-3 md:px-4 py-2.5 md:py-3 transition-colors"
         >
-            <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                <div className="text-xs text-[#A69B87] flex items-center gap-1.5 min-w-0"><CreditCard size={13} className="text-[#B45B45] shrink-0"/> <span className="truncate">總負債</span></div>
-                <div className="text-sm md:text-lg font-bold text-[#B45B45] tabular-nums shrink-0">{formatMoney(totalDebt)}</div>
+            <div className="mb-1.5">
+                <div className="text-xs text-[#A69B87] flex items-center gap-1.5"><CreditCard size={13} className="text-[#B45B45] shrink-0"/> <span>總負債</span></div>
+                <div className="text-sm md:text-lg font-bold text-[#B45B45] tabular-nums mt-0.5">{formatMoney(totalDebt)}</div>
             </div>
             {totalDebt > 0 && (
                 <div className="hidden md:flex gap-x-3 gap-y-1 text-xs text-[#A69B87] flex-wrap">

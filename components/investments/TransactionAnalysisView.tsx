@@ -9,6 +9,8 @@ interface TransactionAnalysisViewProps {
     stockNameMap: Record<string, string>;
     onToggleRecurring?: (id: string) => void;
     onBulkMarkRecurring?: (ids: string[]) => void;
+    timeRangeSlot?: React.ReactNode;
+    filterSlot?: React.ReactNode;
 }
 
 const StatCard = ({ title, value, icon: Icon, colorClass, isCurrency = true, unit = '', isHighlight = false }: { title: string, value: number, icon: any, colorClass:string, isCurrency?: boolean, unit?: string, isHighlight?: boolean }) => {
@@ -50,6 +52,8 @@ export const TransactionAnalysisView: React.FC<TransactionAnalysisViewProps> = (
     stockNameMap,
     onToggleRecurring,
     onBulkMarkRecurring,
+    timeRangeSlot,
+    filterSlot,
 }) => {
 
     const stats = useMemo(() => {
@@ -80,6 +84,8 @@ export const TransactionAnalysisView: React.FC<TransactionAnalysisViewProps> = (
 
     return (
         <div className="space-y-6">
+            {timeRangeSlot}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
                 <StatCard title="區間實現總盈虧" value={stats.realizedProfit} icon={BadgePercent} colorClass={stats.realizedProfit >= 0 ? 'text-[#C4523A]' : 'text-[#6B9080]'} isHighlight />
                 <StatCard title="區間實現報酬率" value={stats.intervalROI} icon={TrendingUp} colorClass={stats.intervalROI >= 0 ? 'text-[#C4523A]' : 'text-[#6B9080]'} isCurrency={false} unit="%" isHighlight />
@@ -87,6 +93,8 @@ export const TransactionAnalysisView: React.FC<TransactionAnalysisViewProps> = (
                 <StatCard title="成本損耗 (費用+稅)" value={stats.totalFees * -1} icon={Calculator} colorClass="text-[#A69B87]" />
                 <StatCard title="總交易次數" value={stats.tradeCount} icon={Repeat} isCurrency={false} colorClass="text-[#A69B87]" unit="筆"/>
             </div>
+
+            {filterSlot}
 
             <TransactionHistoryList transactions={transactions} stockNameMap={stockNameMap} onToggleRecurring={onToggleRecurring} onBulkMarkRecurring={onBulkMarkRecurring} />
         </div>

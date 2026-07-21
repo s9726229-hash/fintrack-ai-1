@@ -12,7 +12,7 @@ interface MobileHeaderProps {
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({ onChangeView, theme, onToggleTheme }) => {
   return (
-    <header className="md:hidden h-16 bg-white/90 backdrop-blur-md border-b border-[#EDE4D6] flex items-center justify-between px-6 z-20 shrink-0 sticky top-0">
+    <header className="md:hidden h-14 bg-white/90 backdrop-blur-md border-b border-[#EDE4D6] flex items-center justify-between px-4 z-20 shrink-0 sticky top-0">
       <div className="font-bold text-lg flex items-center gap-2 text-[#3D3428]">
         <div className="w-8 h-8 rounded-lg bg-[#C4523A] flex items-center justify-center">
            <span className="font-bold text-white text-xs">FT</span>

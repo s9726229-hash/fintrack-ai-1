@@ -29,7 +29,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
         <MobileHeader onChangeView={onChangeView} theme={theme} onToggleTheme={onToggleTheme} />
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+        <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24 md:p-8 md:pb-8">
            {children}
         </div>
         

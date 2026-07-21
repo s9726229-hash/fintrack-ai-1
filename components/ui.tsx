@@ -11,6 +11,44 @@ export const Card = ({ children, className = '', onClick, theme = 'dark', ...res
   );
 };
 
+// 全站統一的「分頁列」樣式：任何「切換後會改變下方資料內容」的 tab 都算分頁，
+// 不分它實際上是切換整組資料集（如股票投資的庫存/交易/股息）、篩選子集（資產管理的類別）、
+// 或選時間範圍（收支記帳的月/季/半年...），一律用這顆元件、放在頁面標題列正下方，維持全站視覺與位置一致。
+export interface TabOption<T extends string = string> { value: T; label: string; }
+
+export const Tabs = <T extends string = string>({
+  options,
+  active,
+  onChange,
+  rightSlot,
+}: {
+  options: TabOption<T>[];
+  active: T;
+  onChange: (value: T) => void;
+  rightSlot?: React.ReactNode;
+}) => {
+  return (
+    <div className="flex items-center justify-between border-b border-[#EDE4D6] flex-wrap gap-y-2">
+      <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`px-1 py-3 text-sm border-b-2 transition-all whitespace-nowrap shrink-0 ${
+              active === opt.value
+                ? 'text-[#C4523A] border-[#C4523A] font-bold'
+                : 'text-[#A69B87] border-transparent hover:text-[#3D3428] font-medium'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {rightSlot && <div className="relative flex items-center gap-2 shrink-0">{rightSlot}</div>}
+    </div>
+  );
+};
+
 export const Button = ({
   children,
   onClick,
