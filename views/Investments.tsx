@@ -1,6 +1,6 @@
 ﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, DividendEvent } from '../types';
-import { TrendingUp, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, CheckSquare } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, CheckSquare } from 'lucide-react';
 import { Button, Card, Tabs } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, lookupStockName, getSharesHeldAtDate } from '../services/stock';
@@ -322,66 +322,40 @@ export const Investments: React.FC<InvestmentsProps> = ({
                     <div className="bg-white border border-[#EDE4D6] rounded-2xl max-h-[70vh] flex flex-col">
                         <div className="p-4 border-b border-[#EDE4D6]"><h3 className="text-sm font-bold text-[#3D3428] flex items-center gap-2"><List size={16} className="text-[#C4523A]" /> 庫存明細</h3></div>
                         <div className="flex-1 overflow-y-auto">
-                            {/* 桌面版：表格 */}
-                            <table className="w-full text-left hidden md:table">
-                            <thead className="sticky top-0 bg-[#FBF7F0] z-10"><tr className="text-xs text-[#8A7A63] uppercase">
-                                <th className="p-3 font-medium">股票</th>
-                                <th className="p-3 font-medium text-right">持股</th>
-                                <th className="p-3 font-medium text-right">價格</th>
-                                <th className="p-3 font-medium text-right">損益</th>
-                                <th className="p-3 font-medium text-center">操作</th>
-                            </tr></thead>
-                            <tbody>{inventory.length > 0 ? inventory.map(pos => {
-                                const perf = calculateStockPerformance(pos, transactions);
-                                const priceDiff = (pos.currentPrice || 0) - (pos.avgCost || 0);
-                                const priceColor = priceDiff > 0 ? 'text-[#C4523A]' : priceDiff < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
-                                const plColor = perf.netProfit > 0 ? 'text-[#C4523A]' : perf.netProfit < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
-                                const timeAgo = formatTimeAgo(pos.lastUpdated);
-                                return (<tr key={pos.id} className="border-b border-[#F3ECDF] last:border-b-0 hover:bg-[#FBF7F0] transition-colors">
-                                    <td className="p-3"><p className="font-bold text-[#3D3428] truncate">{pos.name}</p><p className="text-xs text-[#A69B87] tabular-nums">{pos.symbol}</p></td>
-                                    <td className="p-3 text-right tabular-nums text-[#3D3428] font-medium">{pos.shares?.toLocaleString()}股</td>
-                                    <td className="p-3 text-right">
-                                        <p className={`text-lg font-bold tabular-nums ${priceColor}`}>{pos.currentPrice?.toFixed(2) ?? '-'}</p>
-                                        <div className="flex items-center justify-end gap-1.5"><p className="text-[11px] text-[#A69B87]">{timeAgo.text}</p><p className="text-xs text-[#A69B87] tabular-nums">均價: {pos.avgCost?.toFixed(2) ?? '-'}</p></div>
-                                    </td>
-
-                                    <td className="p-3 text-right"><p className="font-bold text-[#3D3428] tabular-nums">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p><p className={`text-xs tabular-nums ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</p></td>
-                                    <td className="p-3 text-center"><div className="flex items-center justify-center gap-1">
-                                        <button onClick={() => onUpdatePrices([pos.id])} className="p-2 rounded-lg text-[#A69B87] hover:bg-[#FBF7F0] hover:text-[#3D3428]" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={14}/></button>
-                                        <button onClick={() => handleOpenModal(pos)} className="p-2 rounded-lg text-[#A69B87] hover:bg-[#F6E4DE] hover:text-[#C4523A]" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={14}/></button>
-                                        <button onClick={() => onDelete(pos.id)} className="p-2 rounded-lg text-[#A69B87] hover:bg-[#F6E4DE] hover:text-[#B45B45] ml-2" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={14}/></button>
-                                    </div></td>
-                                </tr>);
-                            }) : (<tr><td colSpan={5} className="text-center py-10 text-[#A69B87] text-sm">尚無庫存資料</td></tr>)}</tbody>
-                            </table>
-
-                            {/* 手機版：緊湊列表 */}
-                            <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 bg-[#FBF7F0]/95 backdrop-blur-sm px-3 py-1.5 border-b border-[#EDE4D6] text-[10px] text-[#A69B87] uppercase tracking-wider font-medium">
-                                <div className="flex-1 pl-3">股票</div>
-                                <div className="shrink-0 text-right">市值</div>
-                                <div className="w-[72px] shrink-0"></div>
+                            {/* 統一標記：不分桌面/手機 */}
+                            <div className="sticky top-0 z-10 flex items-center gap-2 bg-[#FBF7F0]/95 backdrop-blur-sm px-3 py-2 border-b border-[#EDE4D6] text-xs text-[#A69B87] uppercase tracking-wider font-medium">
+                                <div className="flex-1 pl-10">股票</div>
+                                <div className="w-20 flex-shrink-0 text-right pr-2">市值</div>
+                                <div className="w-24 flex-shrink-0 text-center">操作</div>
                             </div>
-                            <div className="md:hidden divide-y divide-[#F3ECDF]">
+                            <div className="divide-y divide-[#F3ECDF]">
                                 {inventory.length > 0 ? inventory.map(pos => {
                                     const perf = calculateStockPerformance(pos, transactions);
                                     const plColor = perf.netProfit > 0 ? 'text-[#C4523A]' : perf.netProfit < 0 ? 'text-[#6B9080]' : 'text-[#3D3428]';
+                                    const plBadge = perf.netProfit > 0
+                                        ? { bg: '#FBEAEA', text: '#C4523A', Icon: TrendingUp }
+                                        : perf.netProfit < 0
+                                        ? { bg: '#EAF1EC', text: '#6B9080', Icon: TrendingDown }
+                                        : { bg: '#F3ECDF', text: '#A69B87', Icon: Minus };
                                     return (
-                                        <div key={pos.id} className="flex items-center gap-2 py-[6px] px-3 min-h-[32px]">
-                                            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: perf.netProfit > 0 ? '#C4523A' : perf.netProfit < 0 ? '#6B9080' : '#A69B87' }}></div>
+                                        <div key={pos.id} className="flex items-center gap-2 p-3 hover:bg-[#FBF7F0] transition-colors group">
+                                            <div className="p-2 rounded-full shrink-0" style={{ backgroundColor: plBadge.bg, color: plBadge.text }}>
+                                                <plBadge.Icon size={16}/>
+                                            </div>
                                             <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1 leading-[14px]">
-                                                    <span className="text-[11.5px] font-bold text-[#3D3428] truncate">{pos.name}</span>
+                                                <div className="font-bold text-[#3D3428] text-sm truncate">{pos.name}</div>
+                                                <div className="text-[11px] text-[#A69B87] truncate tabular-nums">{pos.symbol} · {pos.shares?.toLocaleString()}股</div>
+                                            </div>
+                                            <div className="w-20 flex-shrink-0 text-right">
+                                                <div className="tabular-nums font-bold text-sm whitespace-nowrap text-[#3D3428]">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                                <div className={`text-[11px] tabular-nums mt-0.5 ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</div>
+                                            </div>
+                                            <div className="w-24 flex-shrink-0">
+                                                <div className="flex items-center justify-center gap-0.5">
+                                                    <button onClick={() => onUpdatePrices([pos.id])} className="p-1.5 rounded-lg text-[#A69B87] hover:bg-[#FBF7F0] hover:text-[#3D3428]" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={15}/></button>
+                                                    <button onClick={() => handleOpenModal(pos)} className="p-1.5 rounded-lg text-[#A69B87] hover:bg-[#F6E4DE] hover:text-[#C4523A]" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={15}/></button>
+                                                    <button onClick={() => onDelete(pos.id)} className="p-1.5 rounded-lg text-[#A69B87] hover:bg-[#F6E4DE] hover:text-[#B45B45]" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={15}/></button>
                                                 </div>
-                                                <span className="text-[9px] text-[#A69B87] leading-[11px] block tabular-nums">{pos.symbol} · {pos.shares?.toLocaleString()}股</span>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                                <div className="tabular-nums font-bold text-[13px] leading-none text-[#3D3428]">${perf.marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                                <div className={`text-[9px] tabular-nums mt-0.5 ${plColor}`}>{perf.netProfit.toLocaleString(undefined, { signDisplay: 'always', maximumFractionDigits: 0 })} ({perf.roi.toFixed(1)}%)</div>
-                                            </div>
-                                            <div className="flex items-center gap-0.5 shrink-0">
-                                                <button onClick={() => onUpdatePrices([pos.id])} className="p-1.5 rounded-lg text-[#A69B87] active:bg-[#FBF7F0] active:text-[#3D3428]" title="更新現價" aria-label={`更新 ${pos.name} 現價`}><RefreshCw size={14}/></button>
-                                                <button onClick={() => handleOpenModal(pos)} className="p-1.5 rounded-lg text-[#A69B87] active:bg-[#F6E4DE] active:text-[#C4523A]" title="編輯" aria-label={`編輯 ${pos.name}`}><Edit2 size={14}/></button>
-                                                <button onClick={() => onDelete(pos.id)} className="p-1.5 rounded-lg text-[#A69B87] active:bg-[#F6E4DE] active:text-[#B45B45]" title="刪除" aria-label={`刪除 ${pos.name}`}><Trash2 size={14}/></button>
                                             </div>
                                         </div>
                                     );

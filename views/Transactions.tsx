@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Transaction } from '../types';
-import { 
-  ScrollText, Plus, ChevronDown, ChevronUp, PieChart, UploadCloud, FileCheck2, Loader2, AlertTriangle, Pencil, X
+import {
+  ScrollText, Plus, UploadCloud, FileCheck2, Loader2, AlertTriangle, Pencil, X
 } from 'lucide-react';
 import { Button, Modal, Input, Select } from '../components/ui';
 import { EXPENSE_CATEGORIES } from '../constants';
@@ -9,7 +9,6 @@ import { EXPENSE_CATEGORIES } from '../constants';
 // Import New Refactored Components
 import { TransactionStats } from '../components/transactions/TransactionStats';
 import { TransactionFilters, TimeRangeTabs, TimeRange } from '../components/transactions/TransactionFilters';
-import { TransactionCharts } from '../components/transactions/TransactionCharts';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { AddTransactionModal } from '../components/transactions/TransactionModals';
 
@@ -44,8 +43,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     }
   }, [initialFilter]);
   const [timeRange, setTimeRange] = useState<TimeRange>('MONTH');
-  const [showCharts, setShowCharts] = useState(false);
-  
+
   // Custom Date Range State
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -136,37 +134,6 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     return { income, expense, balance: income - expense };
   }, [filteredTransactions]);
   
-  // Layer 3: Format data for charts, also based on filtered data.
-  const { dailyTrendData, expenseStructure } = useMemo(() => {
-    const catMap: Record<string, number> = {};
-    const dailyMap: Record<string, { income: number, expense: number }> = {};
-
-    filteredTransactions.forEach(t => {
-        const isExpense = t.type === 'EXPENSE';
-        if (isExpense) {
-          catMap[t.category] = (catMap[t.category] || 0) + t.amount;
-        }
-
-        if (!dailyMap[t.date]) dailyMap[t.date] = { income: 0, expense: 0 };
-        if (isExpense) dailyMap[t.date].expense += t.amount;
-        else dailyMap[t.date].income += t.amount; // INCOME 與 DIVIDEND 都算收入
-    });
-    
-    const trendData = Object.keys(dailyMap).sort().map(date => ({
-        day: date.substring(5), // MM-DD
-        income: dailyMap[date].income,
-        expense: dailyMap[date].expense
-    }));
-    
-    const totalExpense = rangeStats.expense;
-    const structureData = Object.keys(catMap).map(cat => ({
-        name: cat,
-        value: catMap[cat],
-        percent: totalExpense > 0 ? (catMap[cat] / totalExpense) * 100 : 0
-    })).sort((a, b) => b.value - a.value);
-
-    return { dailyTrendData: trendData, expenseStructure: structureData };
-  }, [filteredTransactions, rangeStats.expense]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -336,28 +303,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           />
       </div>
 
-      <div className="hidden md:block mt-4 mb-4">
-          <button
-             onClick={() => setShowCharts(!showCharts)}
-             className="w-full py-2 bg-white hover:bg-[#FBF7F0] border border-[#EDE4D6] rounded-lg flex items-center justify-center gap-2 text-xs text-[#A69B87] hover:text-[#3D3428] transition-all"
-          >
-             {showCharts ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-             {showCharts ? '隱藏分析圖表' : '展開圖表分析 (趨勢與支出結構)'}
-             {!showCharts && <PieChart size={14} className="ml-1 opacity-50"/>}
-          </button>
-      </div>
-
-      {showCharts && (
-          <div className="hidden md:block">
-              <TransactionCharts
-                dailyTrendData={dailyTrendData}
-                expenseStructure={expenseStructure}
-                hasExpense={rangeStats.expense > 0}
-              />
-          </div>
-      )}
-
-      <TransactionList 
+      <TransactionList
         transactions={filteredTransactions} 
         onDelete={onDelete} 
         onEdit={handleStartEdit}
