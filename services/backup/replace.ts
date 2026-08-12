@@ -83,18 +83,16 @@ export async function replacePortableData(
 
     await resolved.journal.setStatus('verified');
     journal.status = 'verified';
-    await resolved.journal.remove();
-    return { ok: true };
   } catch {
-    try {
-      await resolved.journal.setStatus('writing');
-      journal.status = 'writing';
-    } catch {
-      // Rollback is still attempted; the existing journal is never removed on rollback failure.
-    }
-
     const rollback = await restorePreviousSnapshot(journal, resolved);
     if (rollback.ok) return { ok: false, code: 'replacement_failed', rolledBack: true };
     return { ok: false, code: 'rollback_failed', rolledBack: false };
   }
+
+  try {
+    await resolved.journal.remove();
+  } catch {
+    // The verified target is the committed state. Task 6 safely removes this cleanup-only journal.
+  }
+  return { ok: true };
 }

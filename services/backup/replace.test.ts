@@ -68,6 +68,7 @@ function makeSnapshot(feeDiscount: number, marker: string): PortableFinancialDat
 class FaultInjectingStorage implements Storage {
   private readonly values = new Map<string, string>();
   private setCalls = 0;
+  private getCalls = 0;
   private faultInjectionEnabled = false;
 
   constructor(private readonly shouldThrow: (setCall: number) => boolean = () => false) {}
@@ -81,7 +82,12 @@ class FaultInjectingStorage implements Storage {
   }
 
   getItem(key: string): string | null {
+    this.getCalls += 1;
     return this.values.get(key) ?? null;
+  }
+
+  getItemCallCount(): number {
+    return this.getCalls;
   }
 
   key(index: number): string | null {
@@ -103,6 +109,38 @@ class FaultInjectingStorage implements Storage {
   resetSetCalls(): void {
     this.setCalls = 0;
     this.faultInjectionEnabled = true;
+  }
+}
+
+class InspectableJournal implements RecoveryJournalAdapter {
+  active: ImportRecoveryJournal | null = null;
+
+  constructor(
+    readonly calls: string[],
+    private readonly beforeStatus?: (status: ImportRecoveryJournal['status']) => void,
+    private readonly failRemove = false,
+  ) {}
+
+  async getActive(): Promise<ImportRecoveryJournal | null> {
+    return this.active;
+  }
+
+  async create(journal: ImportRecoveryJournal): Promise<void> {
+    this.calls.push(`create:${journal.status}`);
+    this.active = structuredClone(journal);
+  }
+
+  async setStatus(status: ImportRecoveryJournal['status']): Promise<void> {
+    this.calls.push(`status:${status}`);
+    this.beforeStatus?.(status);
+    if (!this.active) throw new Error('No active journal');
+    this.active = { ...this.active, status };
+  }
+
+  async remove(): Promise<void> {
+    this.calls.push('remove');
+    if (this.failRemove) throw new Error('Journal cleanup failed');
+    this.active = null;
   }
 }
 
@@ -133,6 +171,36 @@ describe('sha256Snapshot', () => {
 });
 
 describe('replacePortableData', () => {
+  it('orders prepared, writing, read-back verification, verified, and journal removal', async () => {
+    const calls: string[] = [];
+    const storage = new FaultInjectingStorage();
+    const target = makeSnapshot(0.19, 'target');
+    const journal = new InspectableJournal(calls, (status) => {
+      if (status === 'verified') {
+        expect(storage.getItemCallCount()).toBe(PORTABLE_STORAGE_KEYS.length * 2);
+        expect(readPortableSnapshot(storage)).toEqual(target);
+        calls.push('read-back-verified');
+      }
+    });
+
+    const result = await replacePortableData(target, {
+      storage,
+      journal,
+      now: () => '2026-08-13T00:00:00.000Z',
+      createId: () => 'journal-ordered',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      'create:prepared',
+      'status:writing',
+      'status:verified',
+      'read-back-verified',
+      'remove',
+    ]);
+    expect(journal.active).toBeNull();
+  });
+
   it('writes every portable key, verifies it, removes the journal and only registered caches', async () => {
     const storage = new FaultInjectingStorage();
     const target = makeSnapshot(0.19, 'target');
@@ -216,6 +284,34 @@ describe('replacePortableData', () => {
 
     expect(result).toEqual({ ok: false, code: 'recovery_unavailable' });
     expect(storage.length).toBe(0);
+  });
+
+  it('does not roll back verified target data when post-verification journal cleanup fails', async () => {
+    const calls: string[] = [];
+    const storage = new FaultInjectingStorage((setCall) => setCall > PORTABLE_STORAGE_KEYS.length);
+    const target = makeSnapshot(0.17, 'target');
+    const journal = new InspectableJournal(calls, undefined, true);
+    const originalSetStatus = journal.setStatus.bind(journal);
+    journal.setStatus = async (status) => {
+      if (calls.includes('status:verified')) {
+        calls.push(`unsafe-status-attempt:${status}`);
+        throw new Error('Status transition after verified is unavailable');
+      }
+      await originalSetStatus(status);
+    };
+    storage.resetSetCalls();
+
+    const result = await replacePortableData(target, {
+      storage,
+      journal,
+      now: () => '2026-08-13T00:00:00.000Z',
+      createId: () => 'journal-cleanup-interrupted',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(readPortableSnapshot(storage)).toEqual(target);
+    expect(journal.active).toMatchObject({ status: 'verified', targetDigest: await sha256Snapshot(target) });
+    expect(calls).toEqual(['create:prepared', 'status:writing', 'status:verified', 'remove']);
   });
 });
 
