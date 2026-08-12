@@ -15,6 +15,16 @@ export const STORAGE_KEYS = {
   THEME: 'ft_theme', // New: 'warm' | 'dark'，全站配色主題
 };
 
+export const PORTABLE_STORAGE_KEYS = [
+  'ft_assets', 'ft_transactions', 'ft_recurring', 'ft_recurring_executed',
+  'ft_portfolio_history', 'ft_budgets', 'ft_stock_history', 'ft_stock_transactions',
+  'ft_stock_fee_discount', 'ft_tech_params', 'ft_dividend_events', 'ft_dividend_scanned_at',
+] as const;
+
+export const DEVICE_STORAGE_KEYS = ['ft_theme', 'ft_google_client_id'] as const;
+export const SECRET_STORAGE_KEYS = ['ft_api_key', 'ft_finmind_token'] as const;
+export const REBUILDABLE_CACHE_KEYS = ['ft_dsslab_raw_cache'] as const;
+
 export const EXCHANGE_RATES_DEFAULT = {
   TWD: 1,
   USD: 32.5,
