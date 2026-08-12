@@ -13,6 +13,20 @@ import { sha256Snapshot } from './stableDigest';
 import { createEmptyPortableData, readPortableSnapshot, writePortableSnapshot } from './snapshot';
 
 const RECOVERY_DATABASE = 'fintrack-ai-recovery';
+const PORTABLE_READ_ORDER = [
+  'ft_stock_fee_discount',
+  'ft_tech_params',
+  'ft_assets',
+  'ft_transactions',
+  'ft_recurring',
+  'ft_recurring_executed',
+  'ft_portfolio_history',
+  'ft_budgets',
+  'ft_stock_history',
+  'ft_stock_transactions',
+  'ft_dividend_events',
+  'ft_dividend_scanned_at',
+] as const;
 
 function deleteRecoveryDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -71,7 +85,10 @@ class FaultInjectingStorage implements Storage {
   private getCalls = 0;
   private faultInjectionEnabled = false;
 
-  constructor(private readonly shouldThrow: (setCall: number) => boolean = () => false) {}
+  constructor(
+    private readonly shouldThrow: (setCall: number) => boolean = () => false,
+    private readonly recordEvent?: (event: string) => void,
+  ) {}
 
   get length(): number {
     return this.values.size;
@@ -83,6 +100,7 @@ class FaultInjectingStorage implements Storage {
 
   getItem(key: string): string | null {
     this.getCalls += 1;
+    this.recordEvent?.(`storage:get:${key}`);
     return this.values.get(key) ?? null;
   }
 
@@ -90,16 +108,22 @@ class FaultInjectingStorage implements Storage {
     return this.getCalls;
   }
 
+  getSetItemCallCount(): number {
+    return this.setCalls;
+  }
+
   key(index: number): string | null {
     return [...this.values.keys()][index] ?? null;
   }
 
   removeItem(key: string): void {
+    this.recordEvent?.(`storage:remove:${key}`);
     this.values.delete(key);
   }
 
   setItem(key: string, value: string): void {
     this.setCalls += 1;
+    this.recordEvent?.(`storage:set:${key}`);
     if (this.faultInjectionEnabled && this.shouldThrow(this.setCalls)) {
       throw new Error(`setItem failed at call ${this.setCalls}`);
     }
@@ -126,19 +150,19 @@ class InspectableJournal implements RecoveryJournalAdapter {
   }
 
   async create(journal: ImportRecoveryJournal): Promise<void> {
-    this.calls.push(`create:${journal.status}`);
+    this.calls.push(`journal:create:${journal.status}`);
     this.active = structuredClone(journal);
   }
 
   async setStatus(status: ImportRecoveryJournal['status']): Promise<void> {
-    this.calls.push(`status:${status}`);
+    this.calls.push(`journal:status:${status}`);
     this.beforeStatus?.(status);
     if (!this.active) throw new Error('No active journal');
     this.active = { ...this.active, status };
   }
 
   async remove(): Promise<void> {
-    this.calls.push('remove');
+    this.calls.push('journal:remove');
     if (this.failRemove) throw new Error('Journal cleanup failed');
     this.active = null;
   }
@@ -172,16 +196,10 @@ describe('sha256Snapshot', () => {
 
 describe('replacePortableData', () => {
   it('orders prepared, writing, read-back verification, verified, and journal removal', async () => {
-    const calls: string[] = [];
-    const storage = new FaultInjectingStorage();
+    const events: string[] = [];
+    const storage = new FaultInjectingStorage(undefined, (event) => events.push(event));
     const target = makeSnapshot(0.19, 'target');
-    const journal = new InspectableJournal(calls, (status) => {
-      if (status === 'verified') {
-        expect(storage.getItemCallCount()).toBe(PORTABLE_STORAGE_KEYS.length * 2);
-        expect(readPortableSnapshot(storage)).toEqual(target);
-        calls.push('read-back-verified');
-      }
-    });
+    const journal = new InspectableJournal(events);
 
     const result = await replacePortableData(target, {
       storage,
@@ -191,12 +209,15 @@ describe('replacePortableData', () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(calls).toEqual([
-      'create:prepared',
-      'status:writing',
-      'status:verified',
-      'read-back-verified',
-      'remove',
+    expect(events).toEqual([
+      ...PORTABLE_READ_ORDER.map((key) => `storage:get:${key}`),
+      'journal:create:prepared',
+      'journal:status:writing',
+      ...PORTABLE_STORAGE_KEYS.map((key) => `storage:set:${key}`),
+      ...REBUILDABLE_CACHE_KEYS.map((key) => `storage:remove:${key}`),
+      ...PORTABLE_READ_ORDER.map((key) => `storage:get:${key}`),
+      'journal:status:verified',
+      'journal:remove',
     ]);
     expect(journal.active).toBeNull();
   });
@@ -293,7 +314,7 @@ describe('replacePortableData', () => {
     const journal = new InspectableJournal(calls, undefined, true);
     const originalSetStatus = journal.setStatus.bind(journal);
     journal.setStatus = async (status) => {
-      if (calls.includes('status:verified')) {
+      if (calls.includes('journal:status:verified')) {
         calls.push(`unsafe-status-attempt:${status}`);
         throw new Error('Status transition after verified is unavailable');
       }
@@ -309,9 +330,15 @@ describe('replacePortableData', () => {
     });
 
     expect(result).toEqual({ ok: true });
+    expect(storage.getSetItemCallCount()).toBe(PORTABLE_STORAGE_KEYS.length);
     expect(readPortableSnapshot(storage)).toEqual(target);
     expect(journal.active).toMatchObject({ status: 'verified', targetDigest: await sha256Snapshot(target) });
-    expect(calls).toEqual(['create:prepared', 'status:writing', 'status:verified', 'remove']);
+    expect(calls).toEqual([
+      'journal:create:prepared',
+      'journal:status:writing',
+      'journal:status:verified',
+      'journal:remove',
+    ]);
   });
 });
 
