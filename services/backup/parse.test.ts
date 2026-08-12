@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyPortableData } from './snapshot';
 import { parseBackupJson } from './parse';
+import { migrateLegacyBackup } from './migrations';
 
 function currentBackup(data: Record<string, unknown> = {}) {
   return JSON.stringify({
@@ -60,6 +61,75 @@ describe('parseBackupJson', () => {
     expect(result.parsed.snapshot.stockTransactions).toEqual([stockTransaction]);
     expect(result.parsed.deduplicationCounts.stockTransactions).toBe(2);
     expect(input.ft_assets[0]).toHaveProperty('transactions');
+  });
+
+  it('does not mutate objects passed directly to migrateLegacyBackup', () => {
+    const input = {
+      ft_assets: [{
+        id: 'asset-1', name: 'Taiwan stock', type: 'STOCK', amount: 100, currency: 'TWD', exchangeRate: 1, lastUpdated: 1,
+        transactions: [{ ...stockTransaction }],
+      }],
+    };
+    const original = structuredClone(input);
+
+    const result = migrateLegacyBackup(input);
+
+    expect(input).toEqual(original);
+    expect(result.snapshot.assets[0]).not.toHaveProperty('transactions');
+  });
+
+  it('accepts null only for unavailable nullable Asset technical values', () => {
+    const nullableTechnicalFields = {
+      marginChangeRatio: null,
+      marginChange: null,
+      institutionalForeign: null,
+      institutionalTrust: null,
+      institutionalDealer: null,
+      dailyChangeRatio: null,
+      dailyChange: null,
+    };
+    const result = parseBackupJson(currentBackup({ assets: [{
+      id: 'asset-1', name: 'Taiwan stock', type: 'STOCK', amount: 100, currency: 'TWD', exchangeRate: 1, lastUpdated: 1,
+      ...nullableTechnicalFields,
+    }] }));
+
+    expect(result).toMatchObject({ ok: true });
+  });
+
+  it('rejects non-numeric non-null values in nullable Asset technical fields', () => {
+    const result = parseBackupJson(currentBackup({ assets: [{
+      id: 'asset-1', name: 'Taiwan stock', type: 'STOCK', amount: 100, currency: 'TWD', exchangeRate: 1, lastUpdated: 1,
+      marginChangeRatio: 'unavailable',
+    }] }));
+
+    expect(result).toEqual(expect.objectContaining({ ok: false }));
+    if (!result.ok) expect(result.errors).toContainEqual(expect.objectContaining({
+      path: 'data.assets[0].marginChangeRatio', code: 'invalid_number',
+    }));
+  });
+
+  it.each([
+    ['a non-array biasSlopes container', 'invalid'],
+    ['a non-finite biasSlopes element', [0.1, null]],
+  ])('rejects %s', (_name, biasSlopes) => {
+    const result = parseBackupJson(currentBackup({ assets: [{
+      id: 'asset-1', name: 'Taiwan stock', type: 'STOCK', amount: 100, currency: 'TWD', exchangeRate: 1, lastUpdated: 1,
+      biasSlopes,
+    }] }));
+
+    expect(result).toEqual(expect.objectContaining({ ok: false }));
+    if (!result.ok) expect(result.errors).toContainEqual(expect.objectContaining({
+      path: Array.isArray(biasSlopes) ? 'data.assets[0].biasSlopes[1]' : 'data.assets[0].biasSlopes',
+      code: Array.isArray(biasSlopes) ? 'invalid_number' : 'invalid_type',
+    }));
+  });
+
+  it('preserves legacy ft_metadata.backupDate as createdAt', () => {
+    const result = parseBackupJson(JSON.stringify({
+      ft_metadata: { backupDate: '2026-08-12T03:04:05.000Z' },
+    }));
+
+    expect(result).toMatchObject({ ok: true, parsed: { metadata: { createdAt: '2026-08-12T03:04:05.000Z' } } });
   });
 
   it('reports legacy secret keys by name but never includes their values in the snapshot or diagnostics', () => {

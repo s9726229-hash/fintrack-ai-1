@@ -33,6 +33,7 @@ function validate(snapshot: PortableFinancialData, metadata: BackupMetadata): Ba
   const number = (value: unknown, path: string) => { if (typeof value !== 'number' || !Number.isFinite(value)) add(path, 'invalid_number', 'Expected a finite number.'); };
   const date = (value: unknown, path: string) => { if (!isIsoDate(value)) add(path, 'invalid_date', 'Expected a valid ISO date.'); };
   const optionalNumber = (value: unknown, path: string) => { if (value !== undefined) number(value, path); };
+  const nullableNumber = (value: unknown, path: string) => { if (value !== undefined && value !== null) number(value, path); };
 
   if (metadata.format !== 'fintrack-ai-backup') add('metadata.format', 'invalid_format', 'Unsupported backup format.');
   if (metadata.schemaVersion !== 1) add('metadata.schemaVersion', 'unsupported_schema', 'Unsupported backup schema version.');
@@ -52,7 +53,12 @@ function validate(snapshot: PortableFinancialData, metadata: BackupMetadata): Ba
     if (!assetTypes.has(asset.type as AssetType)) add(`${path}.type`, 'invalid_enum', 'Unsupported asset type.');
     if (!currencies.has(asset.currency as Currency)) add(`${path}.currency`, 'invalid_enum', 'Unsupported currency.');
     ['amount', 'exchangeRate', 'lastUpdated'].forEach((key) => number(asset[key], `${path}.${key}`));
-    ['originalAmount', 'interestRate', 'termYears', 'paidYears', 'interestOnlyPeriod', 'shares', 'avgCost', 'currentPrice', 'ma20', 'yield', 'dividendPerShare', 'rsi', 'ma20Slope', 'ma60', 'marginChangeRatio', 'marginChange', 'institutionalForeign', 'institutionalTrust', 'institutionalDealer', 'foreignConsecBuy', 'foreignConsecSell', 'trustConsecBuy', 'trustConsecSell', 'dailyChangeRatio', 'dailyChange'].forEach((key) => optionalNumber(asset[key], `${path}.${key}`));
+    ['originalAmount', 'interestRate', 'termYears', 'paidYears', 'interestOnlyPeriod', 'shares', 'avgCost', 'currentPrice', 'ma20', 'yield', 'dividendPerShare', 'rsi', 'ma20Slope', 'ma60', 'foreignConsecBuy', 'foreignConsecSell', 'trustConsecBuy', 'trustConsecSell'].forEach((key) => optionalNumber(asset[key], `${path}.${key}`));
+    ['marginChangeRatio', 'marginChange', 'institutionalForeign', 'institutionalTrust', 'institutionalDealer', 'dailyChangeRatio', 'dailyChange'].forEach((key) => nullableNumber(asset[key], `${path}.${key}`));
+    if (asset.biasSlopes !== undefined) {
+      if (!Array.isArray(asset.biasSlopes)) add(`${path}.biasSlopes`, 'invalid_type', 'Expected an array.');
+      else asset.biasSlopes.forEach((value, slopeIndex) => number(value, `${path}.biasSlopes[${slopeIndex}]`));
+    }
     if (asset.startDate !== undefined) date(asset.startDate, `${path}.startDate`);
     if (asset.exDate !== undefined) date(asset.exDate, `${path}.exDate`);
     if (asset.paymentDate !== undefined) date(asset.paymentDate, `${path}.paymentDate`);

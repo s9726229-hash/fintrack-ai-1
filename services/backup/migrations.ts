@@ -72,7 +72,11 @@ export function migrateLegacyBackup(input: Record<string, unknown>): MigrationRe
   const metadata: BackupMetadata = {
     format: 'fintrack-ai-backup', schemaVersion: 1,
     appVersion: typeof legacyMetadata.appVersion === 'string' ? legacyMetadata.appVersion : 'legacy',
-    createdAt: typeof legacyMetadata.createdAt === 'string' ? legacyMetadata.createdAt : '1970-01-01T00:00:00.000Z',
+    createdAt: typeof legacyMetadata.createdAt === 'string'
+      ? legacyMetadata.createdAt
+      : typeof legacyMetadata.backupDate === 'string'
+        ? legacyMetadata.backupDate
+        : '1970-01-01T00:00:00.000Z',
   };
   const knownKeys = new Set<string>([...PORTABLE_STORAGE_KEYS, 'ft_metadata', ...SECRET_STORAGE_KEYS]);
   return {
