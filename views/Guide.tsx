@@ -39,7 +39,13 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-[#EDE4D6] space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.11.0 財務規劃工具：寬限期衝擊、現金跑道、提前還款模擬" date="Latest" color="text-cyan-600">
+        <FeatureSection title="V7.12.0 備份安全與可復原完整取代" date="Latest" color="text-rose-600">
+            <FeatureItem icon={ShieldCheck} title="備份排除 API 憑證" description="本機與 Google Drive 共用具版本的備份格式，且不包含 Gemini API Key 與 FinMind Token。Google Drive 備份仍為明文 JSON，換裝置後需重新設定 API 憑證。" />
+            <FeatureItem icon={GitMerge} title="預覽後完整取代財務資料" description="本機檔案與 Google Drive 還原會先解析、遷移並驗證，再預覽各類財務資料的增加、減少與歸零項目；只有使用者確認後才以備份快照完整取代目前財務資料。" />
+            <FeatureItem icon={RefreshCw} title="中斷匯入復原保護" description="匯入前先下載不含 API 憑證的目前資料備份，並以 IndexedDB 復原日誌保護取代流程；若寫入途中中斷，下次啟動會先阻擋背景寫入並提供回復匯入前資料。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.11.0 財務規劃工具：寬限期衝擊、現金跑道、提前還款模擬" color="text-cyan-600">
             <FeatureItem icon={Target} title="寬限期衝擊預警與現金跑道" description="Dashboard 新增規劃區：明列每筆貸款寬限期結束日與月付跳升金額、寬限後固定結餘預估，並以「流動現金 ÷ 每月淨流出」計算現金跑道（現在 vs 寬限後）。" />
             <FeatureItem icon={Activity} title="利息成本儀表與提前還款模擬" description="顯示每月/每年利息總額與佔固定收入比例，各貸款利息明細；提前還款模擬器可試算月付變化與至清償為止可省下的總利息。" />
             <FeatureItem icon={ShieldCheck} title="扣款帳戶餘額監控" description="負債可指定每月扣款帳戶（資產管理→編輯負債），Dashboard 監控帳戶餘額還能扣幾個月，低於 6 個月時警示。" />
