@@ -1,7 +1,4 @@
 
-// services/googleDrive.ts
-import { getFullDataJson, importData } from './storage';
-
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const BACKUP_FILENAME = 'fintrack_backup.json';
 
@@ -128,10 +125,9 @@ export const getBackupMetadata = async (): Promise<{id: string, modifiedTime: st
     return null;
 };
 
-export const uploadToDrive = async (): Promise<void> => {
+export const uploadToDrive = async (fileContent: string): Promise<void> => {
     if (!accessToken) throw new Error("Not authenticated");
 
-    const fileContent = getFullDataJson();
     const file = await findBackupFile();
     const fileId = file?.id;
     
@@ -175,7 +171,7 @@ export const uploadToDrive = async (): Promise<void> => {
     }
 };
 
-export const downloadFromDrive = async (): Promise<boolean> => {
+export const downloadFromDrive = async (): Promise<string> => {
     if (!accessToken) throw new Error("Not authenticated");
 
     const file = await findBackupFile();
@@ -191,8 +187,7 @@ export const downloadFromDrive = async (): Promise<boolean> => {
             alt: 'media'
         });
         
-        const jsonString = typeof response.body === 'string' ? response.body : JSON.stringify(response.result);
-        return importData(jsonString);
+        return typeof response.body === 'string' ? response.body : JSON.stringify(response.result);
     } catch (e) {
         console.error("Download failed", e);
         throw e;

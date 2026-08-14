@@ -193,92 +193,16 @@ export const saveGoogleClientId = (id: string) => {
     localStorage.setItem('ft_google_client_id', id);
 };
 
-export const getFullDataJson = () => {
-    const data = {
-        ft_metadata: {
-            backupDate: new Date().toISOString(),
-            appVersion: '7.7.3',
-        },
-        [STORAGE_KEYS.ASSETS]: getAssets(),
-        [STORAGE_KEYS.TRANSACTIONS]: getTransactions(),
-        [STORAGE_KEYS.RECURRING]: getRecurring(),
-        [STORAGE_KEYS.RECURRING_EXECUTED]: getRecurringExecuted(),
-        [STORAGE_KEYS.HISTORY]: getHistory(),
-        [STORAGE_KEYS.BUDGETS]: getBudgets(),
-        [STORAGE_KEYS.STOCK_HISTORY]: getStockHistory(),
-        [STORAGE_KEYS.STOCK_TRANSACTIONS]: getStockTransactions(),
-        [STORAGE_KEYS.TECH_PARAMS]: getTechParameters(),
-        [STORAGE_KEYS.DIVIDEND_EVENTS]: getDividendEvents(),
-        [STORAGE_KEYS.DIVIDEND_SCANNED_AT]: getDividendScannedAt(),
-        'ft_api_key': getApiKey(),
-        'ft_finmind_token': getFinMindToken(),
-        'ft_google_client_id': getGoogleClientId(),
-        [STORAGE_KEYS.FEE_DISCOUNT]: getFeeDiscount(),
-    };
-    return JSON.stringify(data, null, 2);
-};
-
-export const exportData = () => {
-  const json = getFullDataJson();
-  const blob = new Blob([json], { type: 'application/json' });
+export const downloadBackupFile = (fileContent: string, filename: string): void => {
+  const blob = new Blob([fileContent], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `fintrack_ai_backup_${new Date().toISOString().split('T')[0]}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-};
-
-export const importData = (jsonData: string) => {
-  try {
-    const data = JSON.parse(jsonData);
-    let allStockTxs: StockTransaction[] = [];
-
-    // 1. Handle new format first if it exists
-    if (data[STORAGE_KEYS.STOCK_TRANSACTIONS]) {
-        allStockTxs.push(...data[STORAGE_KEYS.STOCK_TRANSACTIONS]);
-    }
-
-    // 2. Handle old format (backward compatibility) and migrate
-    if (data[STORAGE_KEYS.ASSETS]) {
-        const migratedAssets = data[STORAGE_KEYS.ASSETS].map((asset: any) => {
-            if (asset.transactions && Array.isArray(asset.transactions)) {
-                allStockTxs.push(...asset.transactions);
-                delete asset.transactions; // Clean the asset object
-            }
-            return asset;
-        });
-        saveAssets(migratedAssets);
-    }
-    
-    // 3. Save the consolidated and de-duplicated transactions
-    if (allStockTxs.length > 0) {
-        const uniqueTxs = Array.from(new Map(allStockTxs.map(tx => [tx.id, tx])).values());
-        saveStockTransactions(uniqueTxs);
-    }
-
-    // 4. Import other data as usual
-    if (data[STORAGE_KEYS.TRANSACTIONS]) saveTransactions(data[STORAGE_KEYS.TRANSACTIONS]);
-    if (data[STORAGE_KEYS.RECURRING]) saveRecurring(data[STORAGE_KEYS.RECURRING]);
-    if (data[STORAGE_KEYS.RECURRING_EXECUTED]) saveRecurringExecuted(data[STORAGE_KEYS.RECURRING_EXECUTED]);
-    if (data[STORAGE_KEYS.HISTORY]) saveHistory(data[STORAGE_KEYS.HISTORY]);
-    if (data[STORAGE_KEYS.BUDGETS]) saveBudgets(data[STORAGE_KEYS.BUDGETS]);
-    if (data[STORAGE_KEYS.STOCK_HISTORY]) saveStockHistory(data[STORAGE_KEYS.STOCK_HISTORY]);
-    if (data[STORAGE_KEYS.TECH_PARAMS]) saveTechParameters(data[STORAGE_KEYS.TECH_PARAMS]);
-    if (data[STORAGE_KEYS.DIVIDEND_EVENTS]) saveDividendEvents(data[STORAGE_KEYS.DIVIDEND_EVENTS]);
-    if (data[STORAGE_KEYS.DIVIDEND_SCANNED_AT]) saveDividendScannedAt(data[STORAGE_KEYS.DIVIDEND_SCANNED_AT]);
-    if (data['ft_api_key']) saveApiKey(data['ft_api_key']);
-    if (data['ft_finmind_token']) saveFinMindToken(data['ft_finmind_token']);
-    if (data['ft_google_client_id']) saveGoogleClientId(data['ft_google_client_id']);
-    if (data[STORAGE_KEYS.FEE_DISCOUNT]) saveFeeDiscount(data[STORAGE_KEYS.FEE_DISCOUNT]);
-
-    return true;
-  } catch (e) {
-    console.error("Import failed", e);
-    return false;
-  }
 };
 
 export const clearAllData = () => {

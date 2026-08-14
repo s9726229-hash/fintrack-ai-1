@@ -1,12 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/ui';
-import { exportData, importData, clearAllData, getGoogleClientId, saveGoogleClientId, getApiKey, saveApiKey, getFeeDiscount, saveFeeDiscount } from '../services/storage';
+import { clearAllData, downloadBackupFile, getGoogleClientId, saveGoogleClientId, getFeeDiscount, saveFeeDiscount } from '../services/storage';
 import { initGapi, initGis, handleAuthClick, uploadToDrive, downloadFromDrive, getBackupMetadata, checkConnection } from '../services/googleDrive';
-import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Eye, EyeOff, Sparkles, ExternalLink, PieChart, ScrollText, CalendarClock, Percent, TrendingUp } from 'lucide-react';
-import { ApiKeyStatus, Asset, AssetType } from '../types';
-import { STORAGE_KEYS } from '../constants';
+import { Download, Upload, CheckCircle2, AlertCircle, X, Cloud, RefreshCw, LogIn, History, Trash2, Key, Sparkles, Percent } from 'lucide-react';
 import { fetchFinMindUsage } from '../services/stock';
+import { createBackupEnvelope, serializeBackup } from '../services/backup/export';
+import type { BackupPreview, ParsedBackup } from '../services/backup/model';
+import { parseBackupJson } from '../services/backup/parse';
+import { buildBackupPreview } from '../services/backup/preview';
+import { replacePortableData } from '../services/backup/replace';
+import { readPortableSnapshot } from '../services/backup/snapshot';
 
 interface SettingsProps {
   onDataChange: () => void;
@@ -26,7 +30,8 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const [isDriveLoading, setIsDriveLoading] = useState(false);
 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [previewContent, setPreviewContent] = useState<{ raw: string; stats: Record<string, number>; metadata: any } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [previewContent, setPreviewContent] = useState<{ parsed: ParsedBackup; preview: BackupPreview } | null>(null);
 
   useEffect(() => {
     setFeeDiscount(getFeeDiscount());
@@ -53,6 +58,32 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
   const showNotify = (type: 'success' | 'error', message: string) => {
       setNotification({ type, message });
       setTimeout(() => setNotification(null), 5000);
+  };
+
+  const serializeCurrentBackup = () => serializeBackup(
+      createBackupEnvelope(readPortableSnapshot(localStorage), new Date().toISOString()),
+  );
+
+  const prepareImport = (raw: string) => {
+      const result = parseBackupJson(raw);
+      if (!result.ok) {
+          setPreviewContent(null);
+          setIsPreviewModalOpen(false);
+          showNotify('error', `備份無法匯入：${result.errors.map((error) => `${error.path} — ${error.message}`).join('；')}`);
+          return;
+      }
+
+      setPreviewContent({
+          parsed: result.parsed,
+          preview: buildBackupPreview(readPortableSnapshot(localStorage), result.parsed),
+      });
+      setIsPreviewModalOpen(true);
+  };
+
+  const closePreview = () => {
+      if (isImporting) return;
+      setIsPreviewModalOpen(false);
+      setPreviewContent(null);
   };
 
 
@@ -104,8 +135,8 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
       if(!isDriveConnected) return;
       setIsDriveLoading(true);
       try {
-          await uploadToDrive();
-          showNotify('success', '備份成功！資料已加密存儲至您的 Google Drive。');
+          await uploadToDrive(serializeCurrentBackup());
+          showNotify('success', '備份成功！安全備份已儲存至您的 Google Drive。');
       } catch (e) {
           showNotify('error', '上傳失敗，請檢查網路或授權。');
       } finally {
@@ -115,13 +146,8 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
   const performRestore = async () => {
       try {
-          const success = await downloadFromDrive();
-          if (success) {
-              onDataChange();
-              showNotify('success', '還原成功！所有資料已同步至此裝置。');
-          } else {
-              showNotify('error', '還原失敗：檔案格式不正確。');
-          }
+          const raw = await downloadFromDrive();
+          prepareImport(raw);
       } catch (e: any) {
            showNotify('error', `下載失敗: ${e.message || '找不到備份檔'}`);
       }
@@ -129,10 +155,19 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
 
   const handleRestoreFromDrive = async () => {
       if(!isDriveConnected) return;
-      if(!confirm("確定要從雲端還原嗎？這將覆蓋現有資料。")) return;
       setIsDriveLoading(true);
-      await performRestore();
-      setIsDriveLoading(false);
+      try {
+          await performRestore();
+      } finally {
+          setIsDriveLoading(false);
+      }
+  };
+
+  const handleExportBackup = () => {
+      downloadBackupFile(
+          serializeCurrentBackup(),
+          `fintrack_ai_backup_${new Date().toISOString().split('T')[0]}.json`,
+      );
   };
 
   const handleImportFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,23 +176,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
         if (ev.target?.result) {
-          const jsonString = ev.target.result as string;
-          try {
-            const data = JSON.parse(jsonString);
-            const assets: Asset[] = data[STORAGE_KEYS.ASSETS] || [];
-            const stockCount = assets.filter(a => a.type === AssetType.STOCK).length;
-
-            const stats = {
-                assets: assets.length || 0,
-                transactions: data[STORAGE_KEYS.TRANSACTIONS]?.length || 0,
-                recurring: data[STORAGE_KEYS.RECURRING]?.length || 0,
-                stocks: stockCount,
-            };
-            setPreviewContent({ raw: jsonString, stats, metadata: data.ft_metadata });
-            setIsPreviewModalOpen(true);
-          } catch (err) {
-            showNotify('error', '檔案格式錯誤或已損壞。');
-          }
+          prepareImport(ev.target.result as string);
         }
       };
       reader.readAsText(file);
@@ -165,16 +184,33 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
     e.target.value = '';
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (!previewContent) return;
-    const success = importData(previewContent.raw);
-    if (success) {
-      showNotify('success', '匯入成功！即將重新整理頁面...');
-      setTimeout(() => window.location.reload(), 1000);
-    } else {
-      showNotify('error', '匯入失敗，請檢查檔案。');
+    setIsImporting(true);
+    try {
+      const date = new Date().toISOString().split('T')[0];
+      downloadBackupFile(serializeCurrentBackup(), `fintrack_ai_pre_import_${date}.json`);
+      const result = await replacePortableData(previewContent.parsed.snapshot);
+
+      if (!result.ok) {
+        const message = result.code === 'recovery_unavailable'
+          ? '無法建立復原紀錄，目前資料尚未變更。'
+          : result.code === 'replacement_failed'
+            ? '匯入失敗，已還原原有資料。預覽仍保留，請取消或重新嘗試。'
+            : '匯入失敗且自動還原未完成，請保留此畫面並依啟動復原提示處理。';
+        showNotify('error', message);
+        return;
+      }
+
       setIsPreviewModalOpen(false);
       setPreviewContent(null);
+      onDataChange();
+      showNotify('success', '匯入成功！即將重新整理頁面...');
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error: any) {
+      showNotify('error', `匯入失敗：${error?.message || '無法建立匯入前備份。'}`);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -236,7 +272,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
       <Card theme="warm">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-[#3D3428]"><History className="text-amber-600"/> 本地資料管理</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button theme="warm" onClick={exportData} variant="secondary" className="w-full text-xs"><Download size={16} className="mr-2"/> 匯出 JSON 備份</Button>
+            <Button theme="warm" onClick={handleExportBackup} variant="secondary" className="w-full text-xs"><Download size={16} className="mr-2"/> 匯出 JSON 備份</Button>
             <div className="relative">
                 <input type="file" onChange={handleImportFileSelect} accept=".json" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                 <Button theme="warm" variant="secondary" className="w-full text-xs" as="div"><Upload size={16} className="mr-2"/> 匯入備份還原</Button>
@@ -308,26 +344,52 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
           <p>FinTrack AI</p>
       </div>
 
-      <Modal theme="warm" isOpen={isPreviewModalOpen} onClose={() => setIsPreviewModalOpen(false)} title="匯入預覽">
+      <Modal theme="warm" isOpen={isPreviewModalOpen} onClose={closePreview} title="匯入預覽">
         {previewContent && (
             <div className="space-y-4">
                 <div className="bg-[#FBF7F0] p-3 rounded-lg border border-[#EDE4D6] text-xs">
-                    <p className="text-[#3D3428]">備份時間：<span className="text-[#3D3428] font-bold">{previewContent.metadata?.backupDate ? new Date(previewContent.metadata.backupDate).toLocaleString() : 'N/A'}</span></p>
-                    <p className="text-[#A69B87]">備份版本：<span className="text-[#3D3428] font-bold">{previewContent.metadata?.appVersion || 'N/A'}</span></p>
+                    <p className="text-[#3D3428]">備份時間：<span className="text-[#3D3428] font-bold">{new Date(previewContent.preview.metadata.createdAt).toLocaleString()}</span></p>
+                    <p className="text-[#A69B87]">備份版本：<span className="text-[#3D3428] font-bold">{previewContent.preview.metadata.appVersion}</span></p>
                 </div>
                 <div className="bg-amber-500/10 p-3 rounded-lg border border-amber-500/30 text-xs text-amber-700 flex items-start gap-2">
-                    <AlertCircle size={20}/><span><span className="font-bold">警告</span>: 匯入將會完全覆蓋您目前在此裝置上的所有資料，此操作無法復原。</span>
+                    <AlertCircle size={20}/><span><span className="font-bold">完整取代</span>：確認前會先下載目前財務資料；API 憑證與此裝置設定不會被匯入檔覆蓋。</span>
                 </div>
-                <h4 className="font-bold text-sm text-[#3D3428] pt-2">偵測到的資料摘要：</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-center gap-3 p-3 bg-[#FBF7F0] rounded-lg border border-[#EDE4D6]"><PieChart size={20} className="text-[#6B9080]"/><span className="text-[#3D3428]">資產</span><span className="ml-auto font-bold text-[#3D3428] tabular-nums">{previewContent.stats.assets}</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-[#FBF7F0] rounded-lg border border-[#EDE4D6]"><TrendingUp size={20} className="text-violet-600"/><span className="text-[#3D3428]">股票庫存</span><span className="ml-auto font-bold text-[#3D3428] tabular-nums">{previewContent.stats.stocks}</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-[#FBF7F0] rounded-lg border border-[#EDE4D6]"><ScrollText size={20} className="text-amber-600"/><span className="text-[#3D3428]">交易紀錄</span><span className="ml-auto font-bold text-[#3D3428] tabular-nums">{previewContent.stats.transactions}</span></div>
-                    <div className="flex items-center gap-3 p-3 bg-[#FBF7F0] rounded-lg border border-[#EDE4D6]"><CalendarClock size={20} className="text-[#C4523A]"/><span className="text-[#3D3428]">固定收支</span><span className="ml-auto font-bold text-[#3D3428] tabular-nums">{previewContent.stats.recurring}</span></div>
+                <div className="overflow-x-auto rounded-lg border border-[#EDE4D6]">
+                    <table className="w-full text-xs text-[#3D3428]">
+                        <thead className="bg-[#FBF7F0] text-[#8A7A63]">
+                            <tr><th className="p-2 text-left">資料</th><th className="p-2 text-right">目前</th><th className="p-2 text-right">匯入後</th><th className="p-2 text-right">差異</th></tr>
+                        </thead>
+                        <tbody>
+                            {previewContent.preview.rows.map((row) => (
+                                <tr key={row.key} className="border-t border-[#EDE4D6]">
+                                    <td className="p-2">{row.label}</td>
+                                    <td className="p-2 text-right tabular-nums">{row.before}</td>
+                                    <td className="p-2 text-right tabular-nums">{row.after}</td>
+                                    <td className={`p-2 text-right tabular-nums ${row.delta < 0 ? 'text-[#C4523A]' : 'text-[#6B9080]'}`}>{row.delta > 0 ? `+${row.delta}` : row.delta}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
+
+                {previewContent.preview.migrationNotes.length > 0 && (
+                    <div className="text-xs text-[#8A7A63]"><p className="font-bold">格式遷移</p>{previewContent.preview.migrationNotes.map((note) => <p key={note}>{note}</p>)}</div>
+                )}
+                {Object.entries(previewContent.preview.deduplicationCounts).some(([, count]) => count > 0) && (
+                    <div className="text-xs text-[#8A7A63]"><p className="font-bold">重複資料處理</p>{Object.entries(previewContent.preview.deduplicationCounts).filter(([, count]) => count > 0).map(([key, count]) => <p key={key}>{key} 已去除 {count} 筆重複資料。</p>)}</div>
+                )}
+                {previewContent.preview.ignoredSecretKeys.length > 0 && (
+                    <div className="text-xs text-[#8A7A63]"><p className="font-bold">已忽略舊版憑證欄位</p><p>{previewContent.preview.ignoredSecretKeys.join('、')}</p></div>
+                )}
+                {previewContent.preview.ignoredUnknownKeys.length > 0 && (
+                    <div className="text-xs text-[#8A7A63]"><p className="font-bold">已忽略未知欄位</p><p>{previewContent.preview.ignoredUnknownKeys.join('、')}</p></div>
+                )}
+                {previewContent.preview.rows.some((row) => row.reset) && (
+                    <div className="text-xs text-[#C4523A]"><p className="font-bold">歸零提醒</p>{previewContent.preview.rows.filter((row) => row.reset).map((row) => <p key={row.key}>{row.label}將歸零。</p>)}</div>
+                )}
                 <div className="flex gap-2 pt-4 border-t border-[#EDE4D6]">
-                    <Button theme="warm" variant="secondary" onClick={() => setIsPreviewModalOpen(false)} className="flex-1">取消</Button>
-                    <Button theme="warm" onClick={handleConfirmImport} className="flex-1">確認覆蓋並匯入</Button>
+                    <Button theme="warm" variant="secondary" onClick={closePreview} disabled={isImporting} className="flex-1">取消</Button>
+                    <Button theme="warm" onClick={handleConfirmImport} disabled={isImporting} loading={isImporting} className="flex-1">完整取代目前財務資料</Button>
                 </div>
             </div>
         )}
