@@ -1,6 +1,6 @@
 import { PORTABLE_STORAGE_KEYS, SECRET_STORAGE_KEYS } from '../../constants';
 import type { BackupMetadata, PortableFinancialData } from './model';
-import { createEmptyPortableData, normalizeTechParameters } from './snapshot';
+import { createEmptyPortableData, normalizeHistoricalStockData, normalizeTechParameters } from './snapshot';
 
 type PortableProperty = keyof PortableFinancialData;
 
@@ -86,10 +86,11 @@ export function migrateLegacyBackup(input: Record<string, unknown>): MigrationRe
         : '1970-01-01T00:00:00.000Z',
   };
   const knownKeys = new Set<string>([...PORTABLE_STORAGE_KEYS, 'ft_metadata', ...SECRET_STORAGE_KEYS]);
+  const normalizedHistoricalData = normalizeHistoricalStockData(snapshot);
   return {
-    snapshot,
+    snapshot: normalizedHistoricalData.value,
     metadata,
-    migrationNotes: ['Migrated legacy flat backup.', ...(extractedStockTransactions.length > 0 ? ['Moved Asset.transactions to stockTransactions.'] : []), ...(migratedKeys.length === 0 ? ['Applied safe defaults for missing portable fields.'] : [])],
+    migrationNotes: ['Migrated legacy flat backup.', ...(extractedStockTransactions.length > 0 ? ['Moved Asset.transactions to stockTransactions.'] : []), ...(migratedKeys.length === 0 ? ['Applied safe defaults for missing portable fields.'] : []), ...normalizedHistoricalData.migrationNotes],
     ignoredSecretKeys: SECRET_STORAGE_KEYS.filter((key) => Object.hasOwn(input, key)),
     ignoredUnknownKeys: [
       ...Object.keys(input).filter((key) => !knownKeys.has(key)),

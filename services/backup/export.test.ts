@@ -3,6 +3,7 @@ import { PORTABLE_STORAGE_KEYS } from '../../constants';
 import { AssetType, Currency } from '../../types';
 import { createBackupEnvelope, serializeBackup } from './export';
 import { PortableFinancialData } from './model';
+import { parseBackupJson } from './parse';
 import { readPortableSnapshot, writePortableSnapshot } from './snapshot';
 
 const snapshot: PortableFinancialData = {
@@ -56,7 +57,7 @@ describe('safe portable backups', () => {
     expect(envelope.metadata).toMatchObject({
       format: 'fintrack-ai-backup',
       schemaVersion: 1,
-      appVersion: '7.12.0',
+      appVersion: '7.12.1',
       createdAt: '2026-08-13T00:00:00.000Z',
     });
     expect(JSON.parse(serialized)).toEqual(envelope);
@@ -84,5 +85,28 @@ describe('safe portable backups', () => {
     expect(localStorage.getItem('ft_finmind_token')).toBe('finmind-secret');
     expect(localStorage.getItem('ft_google_client_id')).toBe('device-client');
     expect(localStorage.getItem('ft_theme')).toBe('warm');
+  });
+
+  it('exports pre-existing historical stock records as a backup that can be imported again', () => {
+    localStorage.setItem('ft_stock_history', JSON.stringify([
+      { date: '2026-08-01', totalMarketValue: 1000 },
+    ]));
+    localStorage.setItem('ft_stock_transactions', JSON.stringify([
+      { ...snapshot.stockTransactions[0], tradeType: '' },
+    ]));
+
+    const serialized = serializeBackup(createBackupEnvelope(
+      readPortableSnapshot(localStorage),
+      '2026-08-15T00:00:00.000Z',
+    ));
+    const result = parseBackupJson(serialized);
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.parsed.snapshot.stockHistory[0]).toMatchObject({
+      totalUnrealizedPL: 0,
+      positions: [],
+    });
+    expect(result.parsed.snapshot.stockTransactions[0].tradeType).toBe('未提供');
   });
 });

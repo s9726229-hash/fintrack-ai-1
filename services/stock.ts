@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Asset, Currency, StockPerformanceResult, StockTransaction, Transaction, TechDataResult, MarketRegime, RiskAlerts, SignalHint, TechParameters, BacktestResult, DividendEvent } from "../types";
 import { getApiKey, getFeeDiscount, getTechParameters, getFinMindToken } from "./storage";
+import { UNSPECIFIED_STOCK_TRADE_TYPE } from "../constants";
 
 const cleanJsonString = (text: string) => {
     if (!text) return "{}";
@@ -471,7 +472,7 @@ export const parseStockTransactionCSV = (csvText: string): { transactions: Stock
     for (const keyword of keywords) { const index = headers.findIndex(header => header.includes(keyword)); if (index !== -1) return index; }
     return -1;
   };
-  const columnMap = { date: findColumnIndex(['成交日期']), symbol: findColumnIndex(['股票代號']), name: findColumnIndex(['股票名稱', '商品名稱']), side: findColumnIndex(['買賣別', '買賣']), shares: findColumnIndex(['成交數量', '股數', '成交股數']), price: findColumnIndex(['成交價', '成交單價', '成交價格']), amount: findColumnIndex(['應收付帳款', '收付金額', '發生金額']), realizedProfit: findColumnIndex(['損益']), fee: findColumnIndex(['手續費']), tax: findColumnIndex(['交易稅']), };
+  const columnMap = { date: findColumnIndex(['成交日期']), symbol: findColumnIndex(['股票代號']), name: findColumnIndex(['股票名稱', '商品名稱']), side: findColumnIndex(['買賣別', '買賣']), tradeType: findColumnIndex(['交易種類', '交易別']), shares: findColumnIndex(['成交數量', '股數', '成交股數']), price: findColumnIndex(['成交價', '成交單價', '成交價格']), amount: findColumnIndex(['應收付帳款', '收付金額', '發生金額']), realizedProfit: findColumnIndex(['損益']), fee: findColumnIndex(['手續費']), tax: findColumnIndex(['交易稅']), };
   const requiredFields: { key: keyof typeof columnMap; name: string }[] = [ { key: 'date', name: '成交日期' }, { key: 'symbol', name: '股票代號' }, { key: 'side', name: '買賣別' }, { key: 'shares', name: '成交數量' }, { key: 'price', name: '成交價' }, { key: 'amount', name: '應收付帳款' }, ];
   const missingColumns = requiredFields.filter(field => columnMap[field.key] === -1);
   if (missingColumns.length > 0) { const missingNames = missingColumns.map(field => field.name); return { transactions: [], error: `CSV 檔案缺少必要的欄位，請檢查是否包含：${missingNames.join('、')}` }; }
@@ -491,7 +492,10 @@ export const parseStockTransactionCSV = (csvText: string): { transactions: Stock
       const totalFees = fees + tax;
       let realizedProfitValue: number | undefined = side === 'SELL' ? (columnMap.realizedProfit !== -1 ? cleanNumber(parts[columnMap.realizedProfit]) : 0) : 0;
       const stockName = columnMap.name !== -1 ? parts[columnMap.name]?.trim().replace(/"/g, '') : undefined;
-      transactions.push({ id: crypto.randomUUID(), date: dateStr.replace(/\//g, '-'), symbol: symbol, name: stockName, side: side, tradeType: '', shares: cleanNumber(parts[columnMap.shares]), price: cleanNumber(parts[columnMap.price]), fees: totalFees, realizedProfit: realizedProfitValue, amount: cleanNumber(parts[columnMap.amount]), });
+      const tradeType = columnMap.tradeType !== -1
+        ? parts[columnMap.tradeType]?.trim().replace(/"/g, '')
+        : '';
+      transactions.push({ id: crypto.randomUUID(), date: dateStr.replace(/\//g, '-'), symbol: symbol, name: stockName, side: side, tradeType: tradeType || UNSPECIFIED_STOCK_TRADE_TYPE, shares: cleanNumber(parts[columnMap.shares]), price: cleanNumber(parts[columnMap.price]), fees: totalFees, realizedProfit: realizedProfitValue, amount: cleanNumber(parts[columnMap.amount]), });
     } catch (error) { console.warn(`Skipping invalid row during CSV parse: ${line}`, error); }
   }
   return { transactions, error: null };

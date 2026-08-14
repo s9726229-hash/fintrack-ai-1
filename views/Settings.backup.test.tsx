@@ -137,7 +137,7 @@ describe('Settings safe backup and restore flows', () => {
   it('shows the release version and accurate backup privacy copy', () => {
     render(<Settings onDataChange={vi.fn()} />);
 
-    expect(screen.getByText('FinTrack AI v7.12.0')).toBeInTheDocument();
+    expect(screen.getByText('FinTrack AI v7.12.1')).toBeInTheDocument();
     expect(screen.getByText(/備份不包含 Gemini API Key 與 FinMind Token/)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain('資料已加密');
   });

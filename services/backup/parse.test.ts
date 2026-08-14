@@ -63,6 +63,48 @@ describe('parseBackupJson', () => {
     expect(input.ft_assets[0]).toHaveProperty('transactions');
   });
 
+  it.each([
+    ['legacy flat backup', JSON.stringify({
+      ft_stock_history: [{ date: '2026-08-01', totalMarketValue: 1000 }],
+      ft_stock_transactions: [{ ...stockTransaction, tradeType: '' }],
+    })],
+    ['schema-1 envelope', currentBackup({
+      stockHistory: [{ date: '2026-08-01', totalMarketValue: 1000 }],
+      stockTransactions: [{ ...stockTransaction, tradeType: '' }],
+    })],
+  ])('normalizes historical stock records in a %s', (_name, raw) => {
+    const result = parseBackupJson(raw);
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.parsed.snapshot.stockHistory).toEqual([{
+      date: '2026-08-01',
+      totalMarketValue: 1000,
+      totalUnrealizedPL: 0,
+      positions: [],
+    }]);
+    expect(result.parsed.snapshot.stockTransactions[0].tradeType).toBe('未提供');
+    expect(result.parsed.migrationNotes).toEqual(expect.arrayContaining([
+      expect.stringMatching(/1.*股票歷史/),
+      expect.stringMatching(/1.*交易種類.*未提供/),
+    ]));
+  });
+
+  it('still rejects malformed non-legacy stock values instead of guessing them', () => {
+    const result = parseBackupJson(currentBackup({
+      stockHistory: [{ date: '2026-08-01', totalMarketValue: 1000, totalUnrealizedPL: 'invalid', positions: {} }],
+      stockTransactions: [{ ...stockTransaction, tradeType: 123 }],
+    }));
+
+    expect(result).toEqual(expect.objectContaining({ ok: false }));
+    if (result.ok) return;
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'data.stockHistory[0].totalUnrealizedPL', code: 'invalid_number' }),
+      expect.objectContaining({ path: 'data.stockHistory[0].positions', code: 'invalid_type' }),
+      expect.objectContaining({ path: 'data.stockTransactions[0].tradeType', code: 'invalid_string' }),
+    ]));
+  });
+
   it('does not mutate objects passed directly to migrateLegacyBackup', () => {
     const input = {
       ft_assets: [{

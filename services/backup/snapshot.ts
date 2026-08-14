@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '../../constants';
+import { STORAGE_KEYS, UNSPECIFIED_STOCK_TRADE_TYPE } from '../../constants';
 import { DEFAULT_TECH_PARAMS } from '../storage';
 import type { TechParameters } from '../../types';
 import type { PortableFinancialData } from './model';
@@ -26,6 +26,62 @@ export function normalizeTechParameters(input: Record<string, unknown>): {
   };
 }
 
+export function normalizeHistoricalStockData(snapshot: PortableFinancialData): {
+  value: PortableFinancialData;
+  migrationNotes: string[];
+} {
+  let normalizedHistoryCount = 0;
+  let normalizedTradeTypeCount = 0;
+
+  const stockHistory = Array.isArray(snapshot.stockHistory)
+    ? snapshot.stockHistory.map((item) => {
+        if (!isRecord(item)) return item;
+        const normalized = { ...item };
+        let changed = false;
+        if (!Object.hasOwn(item, 'totalUnrealizedPL') || item.totalUnrealizedPL === null) {
+          normalized.totalUnrealizedPL = 0;
+          changed = true;
+        }
+        if (!Object.hasOwn(item, 'positions') || item.positions === null) {
+          normalized.positions = [];
+          changed = true;
+        }
+        if (changed) normalizedHistoryCount += 1;
+        return normalized;
+      })
+    : snapshot.stockHistory;
+
+  const stockTransactions = Array.isArray(snapshot.stockTransactions)
+    ? snapshot.stockTransactions.map((transaction) => {
+        if (!isRecord(transaction)) return transaction;
+        if (
+          !Object.hasOwn(transaction, 'tradeType')
+          || (typeof transaction.tradeType === 'string' && transaction.tradeType.trim() === '')
+        ) {
+          normalizedTradeTypeCount += 1;
+          return { ...transaction, tradeType: UNSPECIFIED_STOCK_TRADE_TYPE };
+        }
+        return transaction;
+      })
+    : snapshot.stockTransactions;
+
+  return {
+    value: {
+      ...snapshot,
+      stockHistory: stockHistory as PortableFinancialData['stockHistory'],
+      stockTransactions: stockTransactions as PortableFinancialData['stockTransactions'],
+    },
+    migrationNotes: [
+      ...(normalizedHistoryCount > 0
+        ? [`已補齊 ${normalizedHistoryCount} 筆舊版股票歷史資料。`]
+        : []),
+      ...(normalizedTradeTypeCount > 0
+        ? [`已將 ${normalizedTradeTypeCount} 筆空白交易種類標記為「${UNSPECIFIED_STOCK_TRADE_TYPE}」。`]
+        : []),
+    ],
+  };
+}
+
 function readJson<T>(storage: Storage, key: string, fallback: T): T {
   const raw = storage.getItem(key);
   if (!raw) return fallback;
@@ -40,7 +96,7 @@ export function readPortableSnapshot(storage: Storage): PortableFinancialData {
   const defaults = createEmptyPortableData();
   const discount = Number.parseFloat(storage.getItem(STORAGE_KEYS.FEE_DISCOUNT) ?? '');
   const storedTechParameters = readJson<unknown>(storage, STORAGE_KEYS.TECH_PARAMS, {});
-  return {
+  const snapshot: PortableFinancialData = {
     assets: readJson(storage, STORAGE_KEYS.ASSETS, defaults.assets), transactions: readJson(storage, STORAGE_KEYS.TRANSACTIONS, defaults.transactions),
     recurring: readJson(storage, STORAGE_KEYS.RECURRING, defaults.recurring), recurringExecuted: readJson(storage, STORAGE_KEYS.RECURRING_EXECUTED, defaults.recurringExecuted),
     portfolioHistory: readJson(storage, STORAGE_KEYS.HISTORY, defaults.portfolioHistory), budgets: readJson(storage, STORAGE_KEYS.BUDGETS, defaults.budgets),
@@ -51,6 +107,7 @@ export function readPortableSnapshot(storage: Storage): PortableFinancialData {
       : defaults.techParameters,
     dividendEvents: readJson(storage, STORAGE_KEYS.DIVIDEND_EVENTS, defaults.dividendEvents), dividendScannedAt: readJson(storage, STORAGE_KEYS.DIVIDEND_SCANNED_AT, defaults.dividendScannedAt),
   };
+  return normalizeHistoricalStockData(snapshot).value;
 }
 
 export function writePortableSnapshot(storage: Storage, snapshot: PortableFinancialData): void {

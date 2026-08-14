@@ -39,7 +39,12 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-[#EDE4D6] space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.12.0 備份安全與可復原完整取代" date="Latest" color="text-rose-600">
+        <FeatureSection title="V7.12.1 舊版備份相容性修正" date="Latest" color="text-amber-600">
+            <FeatureItem icon={RefreshCw} title="舊版股票資料可安全匯入" description="舊版備份若缺少股票歷史損益與持倉明細，會以 0 與空清單補齊；空白交易種類則標記為「未提供」，讓資料可通過預覽並執行完整取代。" />
+            <FeatureItem icon={ShieldCheck} title="保留嚴格驗證與憑證隔離" description="只修補已知的舊版缺值；格式錯誤或非數值內容仍會拒絕匯入。舊備份中的 Gemini API Key 與 FinMind Token 仍會忽略，不會寫回裝置。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.12.0 備份安全與可復原完整取代" color="text-rose-600">
             <FeatureItem icon={ShieldCheck} title="備份排除 API 憑證" description="本機與 Google Drive 共用具版本的備份格式，且不包含 Gemini API Key 與 FinMind Token。Google Drive 備份仍為明文 JSON，換裝置後需重新設定 API 憑證。" />
             <FeatureItem icon={GitMerge} title="預覽後完整取代財務資料" description="本機檔案與 Google Drive 還原會先解析、遷移並驗證，再預覽各類財務資料的增加、減少與歸零項目；只有使用者確認後才以備份快照完整取代目前財務資料。" />
             <FeatureItem icon={RefreshCw} title="中斷匯入復原保護" description="匯入前先下載不含 API 憑證的目前資料備份，並以 IndexedDB 復原日誌保護取代流程；若寫入途中中斷，下次啟動會先阻擋背景寫入並提供回復匯入前資料。" />

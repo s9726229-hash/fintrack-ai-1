@@ -1,7 +1,7 @@
 import { SECRET_STORAGE_KEYS } from '../../constants';
 import { AssetType, Currency } from '../../types';
 import type { BackupDiagnostic, BackupMetadata, ParsedBackup, PortableFinancialData } from './model';
-import { createEmptyPortableData, normalizeTechParameters } from './snapshot';
+import { createEmptyPortableData, normalizeHistoricalStockData, normalizeTechParameters } from './snapshot';
 import { migrateLegacyBackup } from './migrations';
 
 export type ParseBackupResult = { ok: true; parsed: ParsedBackup } | { ok: false; errors: BackupDiagnostic[] };
@@ -103,7 +103,7 @@ function validate(snapshot: PortableFinancialData, metadata: BackupMetadata): Ba
   return errors;
 }
 
-function currentEnvelope(input: Record<string, unknown>): { snapshot: PortableFinancialData; metadata: BackupMetadata; ignoredSecretKeys: string[]; ignoredUnknownKeys: string[] } | BackupDiagnostic[] {
+function currentEnvelope(input: Record<string, unknown>): { snapshot: PortableFinancialData; metadata: BackupMetadata; migrationNotes: string[]; ignoredSecretKeys: string[]; ignoredUnknownKeys: string[] } | BackupDiagnostic[] {
   const errors: BackupDiagnostic[] = [];
   if (!isRecord(input.metadata)) errors.push({ path: 'metadata', code: 'invalid_type', message: 'Expected an object.' });
   if (!isRecord(input.data)) errors.push({ path: 'data', code: 'invalid_type', message: 'Expected an object.' });
@@ -122,9 +122,11 @@ function currentEnvelope(input: Record<string, unknown>): { snapshot: PortableFi
   const ignoredTechParameterKeys = isRecord(data.techParameters)
     ? normalizeTechParameters(data.techParameters).ignoredKeys.map((key) => `data.techParameters.${key}`)
     : [];
+  const normalizedHistoricalData = normalizeHistoricalStockData(defaults);
   return {
-    snapshot: defaults,
+    snapshot: normalizedHistoricalData.value,
     metadata: cloneValue(input.metadata) as BackupMetadata,
+    migrationNotes: normalizedHistoricalData.migrationNotes,
     ignoredSecretKeys,
     ignoredUnknownKeys: [
       ...Object.keys(input).filter((key) => key !== 'metadata' && key !== 'data'),
@@ -144,7 +146,7 @@ export function parseBackupJson(raw: string): ParseBackupResult {
     if (Array.isArray(normalized)) return { ok: false, errors: normalized };
     const errors = validate(normalized.snapshot, normalized.metadata);
     if (errors.length > 0) return { ok: false, errors };
-    return { ok: true, parsed: { ...normalized, migrationNotes: [], deduplicationCounts: { stockTransactions: 0 } } };
+    return { ok: true, parsed: { ...normalized, deduplicationCounts: { stockTransactions: 0 } } };
   }
   const normalized = migrateLegacyBackup(input);
   const errors = validate(normalized.snapshot, normalized.metadata);

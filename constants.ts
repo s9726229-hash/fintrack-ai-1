@@ -24,6 +24,7 @@ export const PORTABLE_STORAGE_KEYS = [
 export const DEVICE_STORAGE_KEYS = ['ft_theme', 'ft_google_client_id'] as const;
 export const SECRET_STORAGE_KEYS = ['ft_api_key', 'ft_finmind_token'] as const;
 export const REBUILDABLE_CACHE_KEYS = ['ft_dsslab_raw_cache'] as const;
+export const UNSPECIFIED_STOCK_TRADE_TYPE = '未提供';
 
 export const EXCHANGE_RATES_DEFAULT = {
   TWD: 1,

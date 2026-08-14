@@ -196,6 +196,45 @@ describe('sha256Snapshot', () => {
 });
 
 describe('replacePortableData', () => {
+  it('fully replaces current data with a normalized legacy stock backup', async () => {
+    const parsed = parseBackupJson(JSON.stringify({
+      ft_stock_history: [
+        { date: '2026-08-01', totalMarketValue: 1000 },
+      ],
+      ft_stock_transactions: [{
+        id: 'legacy-stock-1',
+        date: '2026-08-01',
+        symbol: '2330',
+        side: 'BUY',
+        tradeType: '',
+        shares: 1,
+        price: 1000,
+        fees: 1,
+        amount: 1001,
+      }],
+    }));
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) throw new Error('Legacy stock fixture did not parse');
+
+    const storage = new FaultInjectingStorage();
+    writePortableSnapshot(storage, makeSnapshot(0.31, 'previous'));
+    storage.resetSetCalls();
+
+    const result = await replacePortableData(parsed.parsed.snapshot, {
+      storage,
+      now: () => '2026-08-15T00:00:00.000Z',
+      createId: () => 'journal-legacy-stock',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(readPortableSnapshot(storage)).toEqual(parsed.parsed.snapshot);
+    expect(readPortableSnapshot(storage).stockHistory[0]).toMatchObject({
+      totalUnrealizedPL: 0,
+      positions: [],
+    });
+    expect(readPortableSnapshot(storage).stockTransactions[0].tradeType).toBe('未提供');
+  });
+
   it('replaces a legacy snapshot with partial technical parameters without a digest rollback', async () => {
     const parsed = parseBackupJson(JSON.stringify({
       ft_tech_params: {

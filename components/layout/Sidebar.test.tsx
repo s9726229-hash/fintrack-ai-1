@@ -6,7 +6,7 @@ import { Sidebar } from './Sidebar';
 describe('Sidebar release version', () => {
   afterEach(cleanup);
 
-  it('shows the shared 7.12.0 app version', () => {
+  it('shows the shared 7.12.1 app version', () => {
     render(
       <Sidebar
         currentView="DASHBOARD"
@@ -16,6 +16,6 @@ describe('Sidebar release version', () => {
       />,
     );
 
-    expect(screen.getByText('V7.12.0')).toBeInTheDocument();
+    expect(screen.getByText('V7.12.1')).toBeInTheDocument();
   });
 });
