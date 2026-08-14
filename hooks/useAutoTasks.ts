@@ -3,6 +3,7 @@ import { Transaction, RecurringItem } from '../types';
 import * as storage from '../services/storage';
 
 interface UseAutoTasksProps {
+  enabled: boolean;
   transactions: Transaction[];
   recurring: RecurringItem[];
   recurringExecuted: Record<string, string[]>;
@@ -12,6 +13,7 @@ interface UseAutoTasksProps {
 }
 
 export const useAutoTasks = ({
+  enabled,
   transactions,
   recurring,
   recurringExecuted,
@@ -20,6 +22,8 @@ export const useAutoTasks = ({
   setToast,
 }: UseAutoTasksProps) => {
   useEffect(() => {
+    if (!enabled) return;
+
     if (recurring.length === 0) {
       return;
     }
@@ -86,5 +90,5 @@ export const useAutoTasks = ({
         setToast({ message: `系統自動補入 ${executedCount} 筆固定帳務`, count: executedCount });
         setTimeout(() => setToast(null), 5000);
     }
-  }, [recurring, recurringExecuted, transactions, setRecurringExecuted, setTransactions, setToast]);
+  }, [enabled, recurring, recurringExecuted, transactions, setRecurringExecuted, setTransactions, setToast]);
 };

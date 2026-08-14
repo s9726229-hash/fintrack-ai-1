@@ -4,12 +4,13 @@ import * as storage from '../services/storage';
 import { calculateStockPerformance } from '../services/stock';
 
 interface UseDailySnapshotProps {
+  enabled: boolean;
   assets: Asset[];
   transactions: Transaction[];
   setStockHistory: React.Dispatch<React.SetStateAction<StockSnapshot[]>>;
 }
 
-export const useDailySnapshot = ({ assets, transactions, setStockHistory }: UseDailySnapshotProps) => {
+export const useDailySnapshot = ({ enabled, assets, transactions, setStockHistory }: UseDailySnapshotProps) => {
   const takePortfolioSnapshot = useCallback((currentAssets: Asset[]) => {
     let assetsVal = 0;
     let liabilitiesVal = 0;
@@ -67,12 +68,14 @@ export const useDailySnapshot = ({ assets, transactions, setStockHistory }: UseD
   }, [setStockHistory]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     if (assets.length === 0) return;
 
     // 選項A: 每當資產異動時，就覆寫/更新今天的快照
     takePortfolioSnapshot(assets);
     takeStockSnapshot(assets, transactions);
-  }, [assets, transactions, takePortfolioSnapshot, takeStockSnapshot]);
+  }, [enabled, assets, transactions, takePortfolioSnapshot, takeStockSnapshot]);
 
   return { takePortfolioSnapshot, takeStockSnapshot };
 };

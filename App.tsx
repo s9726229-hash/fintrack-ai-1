@@ -17,6 +17,8 @@ import { useAutoTasks } from './hooks/useAutoTasks';
 import { useStockEnrichment } from './hooks/useStockEnrichment';
 import { useDailySnapshot } from './hooks/useDailySnapshot';
 import { useTheme } from './hooks/useTheme';
+import { useImportRecovery } from './hooks/useImportRecovery';
+import { ImportRecoveryGate } from './components/ImportRecoveryGate';
 
 // Helper function to normalize stock symbols for comparison
 const toNumericString = (s: string | undefined): string => {
@@ -30,6 +32,8 @@ const toNumericString = (s: string | undefined): string => {
 export default function App() {
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const { theme, toggleTheme } = useTheme();
+  const recovery = useImportRecovery();
+  const recoveryReady = recovery.status === 'ready';
 
   // App State
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -48,7 +52,12 @@ export default function App() {
   // FIX: Destructure correct return values from the useStockEnrichment hook and derive the isEnrichingInBackground state.
   const { enrichStatus, updatePrices, updateDividends, updateDividendEvents } = useStockEnrichment({ setToast });
   const isEnrichingInBackground = enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating;
-  const { takePortfolioSnapshot, takeStockSnapshot } = useDailySnapshot({ assets, transactions, setStockHistory });
+  const { takePortfolioSnapshot, takeStockSnapshot } = useDailySnapshot({
+    enabled: recoveryReady,
+    assets,
+    transactions,
+    setStockHistory,
+  });
 
   const refreshData = useCallback(async () => {
     setAssets(storage.getAssets());
@@ -61,12 +70,10 @@ export default function App() {
     setDividendEvents(storage.getDividendEvents());
   }, []);
 
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
-
   // --- Auto-Update Debt Balances ---
   useEffect(() => {
+    if (!recoveryReady) return;
+
     if (assets.length === 0) return;
     
     let updatedCount = 0;
@@ -87,10 +94,11 @@ export default function App() {
         setToast({ message: `已自動更新 ${updatedCount} 筆貸款的本月剩餘本金`, count: updatedCount });
         setTimeout(() => setToast(null), 5000);
     }
-  }, [assets]); // Dependency is now correct
+  }, [assets, recoveryReady]);
 
   // --- Auto-Execute Recurring Items Hook ---
   useAutoTasks({
+      enabled: recoveryReady,
       transactions,
       recurring,
       recurringExecuted,
@@ -332,13 +340,14 @@ export default function App() {
   };
 
   return (
-    <Layout
-      currentView={view}
-      onChangeView={setView}
-      isEnrichingInBackground={isEnrichingInBackground}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-    >
+    <ImportRecoveryGate recovery={recovery} refreshData={refreshData}>
+      <Layout
+        currentView={view}
+        onChangeView={setView}
+        isEnrichingInBackground={isEnrichingInBackground}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      >
       {view === 'DASHBOARD' && <Dashboard 
           assets={assets} 
           transactions={transactions} 
@@ -374,6 +383,7 @@ export default function App() {
            </button>
         </div>
       )}
-    </Layout>
+      </Layout>
+    </ImportRecoveryGate>
   );
 }
