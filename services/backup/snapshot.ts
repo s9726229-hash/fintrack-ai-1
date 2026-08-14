@@ -1,6 +1,30 @@
 import { STORAGE_KEYS } from '../../constants';
 import { DEFAULT_TECH_PARAMS } from '../storage';
+import type { TechParameters } from '../../types';
 import type { PortableFinancialData } from './model';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const TECH_PARAMETER_KEYS = Object.keys(DEFAULT_TECH_PARAMS) as (keyof TechParameters)[];
+
+export function normalizeTechParameters(input: Record<string, unknown>): {
+  value: TechParameters;
+  ignoredKeys: string[];
+} {
+  const value = { ...DEFAULT_TECH_PARAMS } as Record<keyof TechParameters, unknown>;
+  for (const key of TECH_PARAMETER_KEYS) {
+    if (Object.hasOwn(input, key)) value[key] = input[key];
+  }
+
+  return {
+    value: value as TechParameters,
+    ignoredKeys: Object.keys(input)
+      .filter((key) => !Object.hasOwn(DEFAULT_TECH_PARAMS, key))
+      .sort(),
+  };
+}
 
 function readJson<T>(storage: Storage, key: string, fallback: T): T {
   const raw = storage.getItem(key);
@@ -15,13 +39,16 @@ export function createEmptyPortableData(): PortableFinancialData {
 export function readPortableSnapshot(storage: Storage): PortableFinancialData {
   const defaults = createEmptyPortableData();
   const discount = Number.parseFloat(storage.getItem(STORAGE_KEYS.FEE_DISCOUNT) ?? '');
-  const storedTechParameters = readJson(storage, STORAGE_KEYS.TECH_PARAMS, {});
+  const storedTechParameters = readJson<unknown>(storage, STORAGE_KEYS.TECH_PARAMS, {});
   return {
     assets: readJson(storage, STORAGE_KEYS.ASSETS, defaults.assets), transactions: readJson(storage, STORAGE_KEYS.TRANSACTIONS, defaults.transactions),
     recurring: readJson(storage, STORAGE_KEYS.RECURRING, defaults.recurring), recurringExecuted: readJson(storage, STORAGE_KEYS.RECURRING_EXECUTED, defaults.recurringExecuted),
     portfolioHistory: readJson(storage, STORAGE_KEYS.HISTORY, defaults.portfolioHistory), budgets: readJson(storage, STORAGE_KEYS.BUDGETS, defaults.budgets),
     stockHistory: readJson(storage, STORAGE_KEYS.STOCK_HISTORY, defaults.stockHistory), stockTransactions: readJson(storage, STORAGE_KEYS.STOCK_TRANSACTIONS, defaults.stockTransactions),
-    feeDiscount: Number.isFinite(discount) ? discount : 0.28, techParameters: { ...defaults.techParameters, ...storedTechParameters },
+    feeDiscount: Number.isFinite(discount) ? discount : 0.28,
+    techParameters: isRecord(storedTechParameters)
+      ? normalizeTechParameters(storedTechParameters).value
+      : defaults.techParameters,
     dividendEvents: readJson(storage, STORAGE_KEYS.DIVIDEND_EVENTS, defaults.dividendEvents), dividendScannedAt: readJson(storage, STORAGE_KEYS.DIVIDEND_SCANNED_AT, defaults.dividendScannedAt),
   };
 }

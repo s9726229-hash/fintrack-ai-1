@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { Asset, AssetType, DividendEvent } from '../types';
 import * as storage from '../services/storage';
 import { enrichStockBasicInfo, enrichStockDividendInfo, fetchDividendEventsForSymbol, fetchMarketRegime } from '../services/stock';
+import type { FinancialWriterGate } from './useFinancialWriterGate';
 
 interface UseStockEnrichmentProps {
   setToast: (toast: { message: string; count: number } | null) => void;
+  enabled: boolean;
+  writerGate: Pick<FinancialWriterGate, 'acquireLease' | 'canWrite'>;
 }
 
 type EnrichStatusType = 'price' | 'dividend';
 type EnrichFunction = (stock: Asset) => Promise<Partial<Asset> | null>;
 
-export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
+export const useStockEnrichment = ({ setToast, enabled, writerGate }: UseStockEnrichmentProps) => {
   const [enrichStatus, setEnrichStatus] = useState({
     price: { isUpdating: false, progress: { current: 0, total: 0 } },
     dividend: { isUpdating: false, progress: { current: 0, total: 0 } },
@@ -22,7 +25,8 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
     type: EnrichStatusType,
     enrichFn: EnrichFunction,
     stocksToUpdate: Asset[],
-    onSuccess: (newAssets: Asset[]) => void
+    onSuccess: (newAssets: Asset[]) => void,
+    writerLease: number,
   ) => {
     setEnrichStatus(prev => ({ ...prev, [type]: { isUpdating: true, progress: { current: 0, total: stocksToUpdate.length } } }));
     setToast({ message: `${type === 'price' ? '快速更新' : '深度分析'}：正在更新 ${stocksToUpdate.length} 筆資料...`, count: stocksToUpdate.length });
@@ -65,8 +69,14 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
       }));
     }
 
+    if (!writerGate.canWrite(writerLease)) {
+      setToast(null);
+      setEnrichStatus(prev => ({ ...prev, [type]: { isUpdating: false, progress: { current: 0, total: 0 } } }));
+      return;
+    }
+
     storage.saveAssets(currentAssets);
-    onSuccess(currentAssets);
+    if (writerGate.canWrite(writerLease)) onSuccess(currentAssets);
 
     setToast({ message: hasError ? `部分資料更新失敗` : `${stocksToUpdate.length} 筆資料更新完成！`, count: stocksToUpdate.length });
     setTimeout(() => setToast(null), 3000);
@@ -89,17 +99,21 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
   };
 
   const updatePrices = (idsToEnrich: string[] | null = null, onSuccess: (newAssets: Asset[]) => void) => {
-    if (enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating) return;
+    if (!enabled || enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating) return;
+    const writerLease = writerGate.acquireLease();
+    if (writerLease === null) return;
     const stocksToUpdate = getStocksToUpdate(idsToEnrich);
     if (stocksToUpdate.length === 0) return;
-    enrichData('price', enrichStockBasicInfo, stocksToUpdate, onSuccess);
+    enrichData('price', enrichStockBasicInfo, stocksToUpdate, onSuccess, writerLease);
   };
 
   const updateDividends = (idsToEnrich: string[] | null = null, onSuccess: (newAssets: Asset[]) => void) => {
-    if (enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating) return Promise.resolve();
+    if (!enabled || enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating) return Promise.resolve();
+    const writerLease = writerGate.acquireLease();
+    if (writerLease === null) return Promise.resolve();
     const stocksToUpdate = getStocksToUpdate(idsToEnrich);
     if (stocksToUpdate.length === 0) return Promise.resolve();
-    return enrichData('dividend', enrichStockDividendInfo, stocksToUpdate, onSuccess);
+    return enrichData('dividend', enrichStockDividendInfo, stocksToUpdate, onSuccess, writerLease);
   };
 
   const HELD_SYMBOL_COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000; // 目前庫存股票 3 天內不重複掃描
@@ -112,6 +126,9 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
    * 目前庫存股票則有 3 天冷卻期。
    */
   const updateDividendEvents = async (heldSymbols: string[], soldOutSymbols: string[], onSuccess: () => void) => {
+    if (!enabled) return;
+    const writerLease = writerGate.acquireLease();
+    if (writerLease === null) return;
     const scannedAtSnapshot = storage.getDividendScannedAt();
     const now = Date.now();
 
@@ -145,6 +162,12 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
         }
       }));
 
+      if (!writerGate.canWrite(writerLease)) {
+        setToast(null);
+        setEnrichStatus(prev => ({ ...prev, dividend: { isUpdating: false, progress: { current: 0, total: 0 } } }));
+        return;
+      }
+
       // 每一批掃描結果都立刻讀取「當下最新」的 storage 再合併寫回——避免掃描期間使用者在畫面上
       // 把某筆股息標記為已入帳，卻被稍後才寫回的舊快照覆蓋掉（結果交易已建立，畫面卻沒更新）。
       eventsMap = storage.getDividendEvents();
@@ -155,11 +178,13 @@ export const useStockEnrichment = ({ setToast }: UseStockEnrichmentProps) => {
         if (events) eventsMap[symbol] = events;
         if (scanned) scannedAt[symbol] = now;
       });
+      if (!writerGate.canWrite(writerLease)) return;
       storage.saveDividendEvents(eventsMap);
+      if (!writerGate.canWrite(writerLease)) return;
       storage.saveDividendScannedAt(scannedAt);
     }
 
-    onSuccess();
+    if (writerGate.canWrite(writerLease)) onSuccess();
     setEnrichStatus(prev => ({ ...prev, dividend: { isUpdating: false, progress: { current: 0, total: 0 } } }));
   };
 

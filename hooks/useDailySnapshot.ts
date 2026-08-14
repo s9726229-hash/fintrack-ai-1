@@ -12,6 +12,7 @@ interface UseDailySnapshotProps {
 
 export const useDailySnapshot = ({ enabled, assets, transactions, setStockHistory }: UseDailySnapshotProps) => {
   const takePortfolioSnapshot = useCallback((currentAssets: Asset[]) => {
+    if (!enabled) return;
     let assetsVal = 0;
     let liabilitiesVal = 0;
     const distribution: any = {};
@@ -34,9 +35,10 @@ export const useDailySnapshot = ({ enabled, assets, transactions, setStockHistor
     filteredHistory.push(snapshot);
     if (filteredHistory.length > 365) filteredHistory.shift();
     storage.saveHistory(filteredHistory);
-  }, []);
+  }, [enabled]);
 
   const takeStockSnapshot = useCallback((currentAssets: Asset[], currentTransactions: Transaction[]) => {
+    if (!enabled) return;
     const stocks = currentAssets.filter(a => a.type === AssetType.STOCK);
     const today = new Date().toISOString().split('T')[0];
     const history = storage.getStockHistory();
@@ -65,7 +67,7 @@ export const useDailySnapshot = ({ enabled, assets, transactions, setStockHistor
     if (filteredHistory.length > 365) filteredHistory.shift();
     storage.saveStockHistory(filteredHistory);
     setStockHistory(filteredHistory);
-  }, [setStockHistory]);
+  }, [enabled, setStockHistory]);
 
   useEffect(() => {
     if (!enabled) return;

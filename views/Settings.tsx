@@ -16,12 +16,19 @@ import { readPortableSnapshot } from '../services/backup/snapshot';
 interface SettingsProps {
   onDataChange: () => void;
   reloadPage?: () => void;
+  onImportStart?: () => Promise<void>;
+  onImportFinish?: () => void;
 }
 
 
 
 
-export const Settings: React.FC<SettingsProps> = ({ onDataChange, reloadPage = () => window.location.reload() }) => {
+export const Settings: React.FC<SettingsProps> = ({
+  onDataChange,
+  reloadPage = () => window.location.reload(),
+  onImportStart = () => Promise.resolve(),
+  onImportFinish = () => undefined,
+}) => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [feeDiscount, setFeeDiscount] = useState(0.28);
 
@@ -190,13 +197,20 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange, reloadPage = (
   const handleConfirmImport = async () => {
     if (!previewContent) return;
     setIsImporting(true);
+    let importLockRequested = false;
+    let keepImportLocked = false;
+    let replacementStarted = false;
     try {
+      importLockRequested = true;
+      await onImportStart();
       const date = new Date().toISOString().split('T')[0];
       downloadBackupFile(serializeCurrentBackup(), `fintrack_ai_pre_import_${date}.json`);
+      replacementStarted = true;
       const result = await replacePortableData(previewContent.parsed.snapshot);
 
       if (!result.ok) {
         if (result.code === 'rollback_failed') {
+          keepImportLocked = true;
           reloadPage();
           return;
         }
@@ -209,13 +223,20 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange, reloadPage = (
 
       setIsPreviewModalOpen(false);
       setPreviewContent(null);
+      keepImportLocked = true;
       onDataChange();
       showNotify('success', '匯入成功！即將重新整理頁面...');
-      setTimeout(() => window.location.reload(), 1000);
+      setTimeout(reloadPage, 1000);
     } catch (error: any) {
-      showNotify('error', `匯入失敗：${error?.message || '無法建立匯入前備份。'}`);
+      if (replacementStarted) {
+        keepImportLocked = true;
+        reloadPage();
+      } else {
+        showNotify('error', `匯入失敗：${error?.message || '無法建立匯入前備份。'}`);
+      }
     } finally {
-      setIsImporting(false);
+      if (importLockRequested && !keepImportLocked) onImportFinish();
+      if (!keepImportLocked) setIsImporting(false);
     }
   };
 

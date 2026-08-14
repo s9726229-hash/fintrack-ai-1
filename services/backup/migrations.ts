@@ -1,6 +1,6 @@
 import { PORTABLE_STORAGE_KEYS, SECRET_STORAGE_KEYS } from '../../constants';
 import type { BackupMetadata, PortableFinancialData } from './model';
-import { createEmptyPortableData } from './snapshot';
+import { createEmptyPortableData, normalizeTechParameters } from './snapshot';
 
 type PortableProperty = keyof PortableFinancialData;
 
@@ -45,9 +45,16 @@ function deduplicateStockTransactions(items: unknown[]): { items: unknown[]; rem
 export function migrateLegacyBackup(input: Record<string, unknown>): MigrationResult {
   const snapshot = createEmptyPortableData();
   const migratedKeys: string[] = [];
+  const ignoredTechParameterKeys: string[] = [];
   for (const key of PORTABLE_STORAGE_KEYS) {
     if (Object.hasOwn(input, key)) {
-      snapshot[LEGACY_KEY_MAP[key]] = cloneValue(input[key]) as never;
+      if (key === 'ft_tech_params' && isRecord(input[key])) {
+        const normalized = normalizeTechParameters(cloneValue(input[key]));
+        snapshot.techParameters = normalized.value;
+        ignoredTechParameterKeys.push(...normalized.ignoredKeys.map((name) => `ft_tech_params.${name}`));
+      } else {
+        snapshot[LEGACY_KEY_MAP[key]] = cloneValue(input[key]) as never;
+      }
       migratedKeys.push(key);
     }
   }
@@ -84,7 +91,10 @@ export function migrateLegacyBackup(input: Record<string, unknown>): MigrationRe
     metadata,
     migrationNotes: ['Migrated legacy flat backup.', ...(extractedStockTransactions.length > 0 ? ['Moved Asset.transactions to stockTransactions.'] : []), ...(migratedKeys.length === 0 ? ['Applied safe defaults for missing portable fields.'] : [])],
     ignoredSecretKeys: SECRET_STORAGE_KEYS.filter((key) => Object.hasOwn(input, key)),
-    ignoredUnknownKeys: Object.keys(input).filter((key) => !knownKeys.has(key)),
+    ignoredUnknownKeys: [
+      ...Object.keys(input).filter((key) => !knownKeys.has(key)),
+      ...ignoredTechParameterKeys,
+    ],
     deduplicationCounts: { stockTransactions: deduplicated.removed },
   };
 }

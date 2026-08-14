@@ -1,7 +1,7 @@
 import { SECRET_STORAGE_KEYS } from '../../constants';
 import { AssetType, Currency } from '../../types';
 import type { BackupDiagnostic, BackupMetadata, ParsedBackup, PortableFinancialData } from './model';
-import { createEmptyPortableData } from './snapshot';
+import { createEmptyPortableData, normalizeTechParameters } from './snapshot';
 import { migrateLegacyBackup } from './migrations';
 
 export type ParseBackupResult = { ok: true; parsed: ParsedBackup } | { ok: false; errors: BackupDiagnostic[] };
@@ -110,13 +110,27 @@ function currentEnvelope(input: Record<string, unknown>): { snapshot: PortableFi
   if (errors.length > 0) return errors;
   const data = input.data as Record<string, unknown>;
   const defaults = createEmptyPortableData();
-  for (const key of portableKeys) if (Object.hasOwn(data, key)) defaults[key] = cloneValue(data[key]) as never;
+  for (const key of portableKeys) {
+    if (!Object.hasOwn(data, key)) continue;
+    if (key === 'techParameters' && isRecord(data[key])) {
+      defaults.techParameters = normalizeTechParameters(cloneValue(data[key])).value;
+    } else {
+      defaults[key] = cloneValue(data[key]) as never;
+    }
+  }
   const ignoredSecretKeys = Object.keys(data).filter((key) => (SECRET_STORAGE_KEYS as readonly string[]).includes(key));
+  const ignoredTechParameterKeys = isRecord(data.techParameters)
+    ? normalizeTechParameters(data.techParameters).ignoredKeys.map((key) => `data.techParameters.${key}`)
+    : [];
   return {
     snapshot: defaults,
     metadata: cloneValue(input.metadata) as BackupMetadata,
     ignoredSecretKeys,
-    ignoredUnknownKeys: [...Object.keys(input).filter((key) => key !== 'metadata' && key !== 'data'), ...Object.keys(data).filter((key) => !portableKeys.has(key as keyof PortableFinancialData) && !ignoredSecretKeys.includes(key))],
+    ignoredUnknownKeys: [
+      ...Object.keys(input).filter((key) => key !== 'metadata' && key !== 'data'),
+      ...Object.keys(data).filter((key) => !portableKeys.has(key as keyof PortableFinancialData) && !ignoredSecretKeys.includes(key)),
+      ...ignoredTechParameterKeys,
+    ],
   };
 }
 

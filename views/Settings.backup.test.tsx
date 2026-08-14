@@ -319,11 +319,50 @@ describe('Settings safe backup and restore flows', () => {
     expect(reloadPage).not.toHaveBeenCalled();
   });
 
+  it('waits for the App writer lock before replacement and releases it after verified rollback', async () => {
+    let finishLock: (() => void) | undefined;
+    const lockCommitted = new Promise<void>((resolve) => {
+      finishLock = resolve;
+    });
+    const onImportStart = vi.fn(() => lockCommitted);
+    const onImportFinish = vi.fn();
+    mocks.replacePortableData.mockResolvedValue({ ok: false, code: 'replacement_failed', rolledBack: true });
+    const { container } = render(
+      <Settings
+        onDataChange={vi.fn()}
+        onImportStart={onImportStart}
+        onImportFinish={onImportFinish}
+      />,
+    );
+    await selectLocalBackup(container, currentBackup({ assets: targetAssets }));
+
+    fireEvent.click(screen.getByRole('button', { name: '完整取代目前財務資料' }));
+
+    await waitFor(() => expect(onImportStart).toHaveBeenCalledOnce());
+    expect(mocks.downloadBackupFile).not.toHaveBeenCalled();
+    expect(mocks.replacePortableData).not.toHaveBeenCalled();
+
+    await act(async () => finishLock?.());
+
+    await waitFor(() => expect(mocks.replacePortableData).toHaveBeenCalledOnce());
+    expect(screen.getByRole('heading', { name: '匯入預覽' })).toBeInTheDocument();
+    expect(onImportFinish).toHaveBeenCalledOnce();
+  });
+
   it('reloads immediately after rollback failure so startup recovery can take over', async () => {
     mocks.replacePortableData.mockResolvedValue({ ok: false, code: 'rollback_failed', rolledBack: false });
     const onDataChange = vi.fn();
     const reloadPage = vi.fn();
-    const { container } = render(<Settings onDataChange={onDataChange} reloadPage={reloadPage} />);
+    const onImportStart = vi.fn(() => Promise.resolve());
+    const onImportFinish = vi.fn();
+    const { container } = render(
+      <Settings
+        onDataChange={onDataChange}
+        reloadPage={reloadPage}
+        onImportStart={onImportStart}
+        onImportFinish={onImportFinish}
+      />,
+    );
     await selectLocalBackup(container, currentBackup({ assets: targetAssets }));
     vi.useFakeTimers();
 
@@ -335,6 +374,8 @@ describe('Settings safe backup and restore flows', () => {
       expect(mocks.downloadBackupFile).toHaveBeenCalledOnce();
       expect(onDataChange).not.toHaveBeenCalled();
       expect(reloadPage).toHaveBeenCalledOnce();
+      expect(onImportStart).toHaveBeenCalledOnce();
+      expect(onImportFinish).not.toHaveBeenCalled();
     } finally {
       vi.clearAllTimers();
       vi.useRealTimers();
@@ -378,5 +419,15 @@ describe('Settings safe backup and restore flows', () => {
     expect(uploadedJson).not.toContain('finmind-secret-value');
     const success = await screen.findByText(/備份成功/);
     expect(success).not.toHaveTextContent('加密');
+  });
+
+  it('does not report Drive backup success when the upload transport rejects', async () => {
+    mocks.uploadToDrive.mockRejectedValue(new Error('Google Drive upload failed (HTTP 503)'));
+    await renderConnectedSettings();
+
+    fireEvent.click(screen.getByRole('button', { name: '雲端備份' }));
+
+    expect(await screen.findByText(/上傳失敗/)).toBeInTheDocument();
+    expect(screen.queryByText(/備份成功/)).not.toBeInTheDocument();
   });
 });

@@ -19,6 +19,7 @@ import { useDailySnapshot } from './hooks/useDailySnapshot';
 import { useTheme } from './hooks/useTheme';
 import { useImportRecovery } from './hooks/useImportRecovery';
 import { ImportRecoveryGate } from './components/ImportRecoveryGate';
+import { useFinancialWriterGate } from './hooks/useFinancialWriterGate';
 
 // Helper function to normalize stock symbols for comparison
 const toNumericString = (s: string | undefined): string => {
@@ -34,6 +35,8 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const recovery = useImportRecovery();
   const recoveryReady = recovery.status === 'ready';
+  const writerGate = useFinancialWriterGate(recoveryReady);
+  const writersEnabled = writerGate.enabled;
 
   // App State
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -50,10 +53,14 @@ export default function App() {
 
   // --- Refactored Hooks for Background Tasks ---
   // FIX: Destructure correct return values from the useStockEnrichment hook and derive the isEnrichingInBackground state.
-  const { enrichStatus, updatePrices, updateDividends, updateDividendEvents } = useStockEnrichment({ setToast });
+  const { enrichStatus, updatePrices, updateDividends, updateDividendEvents } = useStockEnrichment({
+    enabled: writersEnabled,
+    setToast,
+    writerGate,
+  });
   const isEnrichingInBackground = enrichStatus.price.isUpdating || enrichStatus.dividend.isUpdating;
   const { takePortfolioSnapshot, takeStockSnapshot } = useDailySnapshot({
-    enabled: recoveryReady,
+    enabled: writersEnabled,
     assets,
     transactions,
     setStockHistory,
@@ -72,7 +79,8 @@ export default function App() {
 
   // --- Auto-Update Debt Balances ---
   useEffect(() => {
-    if (!recoveryReady) return;
+    const writerLease = writerGate.acquireLease();
+    if (!writersEnabled || writerLease === null) return;
 
     if (assets.length === 0) return;
     
@@ -88,17 +96,17 @@ export default function App() {
         return asset;
     });
 
-    if (updatedCount > 0) {
+    if (updatedCount > 0 && writerGate.canWrite(writerLease)) {
         setAssets(newAssets);
         storage.saveAssets(newAssets);
         setToast({ message: `已自動更新 ${updatedCount} 筆貸款的本月剩餘本金`, count: updatedCount });
         setTimeout(() => setToast(null), 5000);
     }
-  }, [assets, recoveryReady]);
+  }, [assets, writerGate, writersEnabled]);
 
   // --- Auto-Execute Recurring Items Hook ---
   useAutoTasks({
-      enabled: recoveryReady,
+      enabled: writersEnabled,
       transactions,
       recurring,
       recurringExecuted,
@@ -371,7 +379,13 @@ export default function App() {
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}
       {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}
       {view === 'GUIDE' && <GuideView />}
-      {view === 'SETTINGS' && <Settings onDataChange={refreshData} />}
+      {view === 'SETTINGS' && (
+        <Settings
+          onDataChange={refreshData}
+          onImportStart={writerGate.beginImport}
+          onImportFinish={writerGate.finishImport}
+        />
+      )}
       {toast && (
         <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[60] animate-fade-in">
            <div className="bg-white/20 p-1 rounded-full">

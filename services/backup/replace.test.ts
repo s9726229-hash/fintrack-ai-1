@@ -9,6 +9,7 @@ import { AssetType, Currency } from '../../types';
 import type { ImportRecoveryJournal, PortableFinancialData } from './model';
 import { recoveryJournal, type RecoveryJournalAdapter } from './recoveryJournal';
 import { replacePortableData } from './replace';
+import { parseBackupJson } from './parse';
 import { sha256Snapshot } from './stableDigest';
 import { createEmptyPortableData, readPortableSnapshot, writePortableSnapshot } from './snapshot';
 
@@ -195,6 +196,34 @@ describe('sha256Snapshot', () => {
 });
 
 describe('replacePortableData', () => {
+  it('replaces a legacy snapshot with partial technical parameters without a digest rollback', async () => {
+    const parsed = parseBackupJson(JSON.stringify({
+      ft_tech_params: {
+        etfBuyBias: -8,
+        retiredEtfBias: 99,
+      },
+    }));
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) throw new Error('Legacy fixture did not parse');
+
+    const storage = new FaultInjectingStorage();
+    writePortableSnapshot(storage, makeSnapshot(0.31, 'previous'));
+    storage.resetSetCalls();
+
+    const result = await replacePortableData(parsed.parsed.snapshot, {
+      storage,
+      now: () => '2026-08-14T00:00:00.000Z',
+      createId: () => 'journal-partial-tech-parameters',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(readPortableSnapshot(storage)).toEqual(parsed.parsed.snapshot);
+    expect(readPortableSnapshot(storage).techParameters).toEqual({
+      ...createEmptyPortableData().techParameters,
+      etfBuyBias: -8,
+    });
+  });
+
   it('orders prepared, writing, read-back verification, verified, and journal removal', async () => {
     const events: string[] = [];
     const storage = new FaultInjectingStorage(undefined, (event) => events.push(event));

@@ -146,8 +146,9 @@ export const uploadToDrive = async (fileContent: string): Promise<void> => {
         `--foo_bar_baz--`;
 
     try {
+        let response: Response;
         if (fileId) {
-            await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
+            response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -156,7 +157,7 @@ export const uploadToDrive = async (fileContent: string): Promise<void> => {
                 body: multipartRequestBody
             });
         } else {
-            await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -164,6 +165,9 @@ export const uploadToDrive = async (fileContent: string): Promise<void> => {
                 },
                 body: multipartRequestBody
             });
+        }
+        if (!response.ok) {
+            throw new Error(`Google Drive upload failed (HTTP ${response.status})`);
         }
     } catch (e) {
         console.error("Upload failed", e);

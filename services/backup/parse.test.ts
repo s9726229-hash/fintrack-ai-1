@@ -166,4 +166,42 @@ describe('parseBackupJson', () => {
     expect(result).toMatchObject({ ok: true });
     if (result.ok) expect(result.parsed.ignoredUnknownKeys).toEqual(['ft_unrelated_cache']);
   });
+
+  it('merges recognized schema-1 technical parameters over current defaults and reports retired keys', () => {
+    const defaults = createEmptyPortableData().techParameters;
+    const result = parseBackupJson(currentBackup({
+      techParameters: {
+        etfBuyBias: -8,
+        retiredEtfBias: 99,
+      },
+    }));
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.parsed.snapshot.techParameters).toEqual({
+        ...defaults,
+        etfBuyBias: -8,
+      });
+      expect(result.parsed.ignoredUnknownKeys).toContain('data.techParameters.retiredEtfBias');
+    }
+  });
+
+  it('merges recognized legacy technical parameters over current defaults and reports retired keys', () => {
+    const defaults = createEmptyPortableData().techParameters;
+    const result = parseBackupJson(JSON.stringify({
+      ft_tech_params: {
+        largeCapBuyBias: -9,
+        retiredLargeCapBias: 88,
+      },
+    }));
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.parsed.snapshot.techParameters).toEqual({
+        ...defaults,
+        largeCapBuyBias: -9,
+      });
+      expect(result.parsed.ignoredUnknownKeys).toContain('ft_tech_params.retiredLargeCapBias');
+    }
+  });
 });
