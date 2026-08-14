@@ -134,6 +134,14 @@ describe('Settings safe backup and restore flows', () => {
     vi.unstubAllGlobals();
   });
 
+  it('shows the release version and accurate backup privacy copy', () => {
+    render(<Settings onDataChange={vi.fn()} />);
+
+    expect(screen.getByText('FinTrack AI v7.12.0')).toBeInTheDocument();
+    expect(screen.getByText(/備份不包含 Gemini API Key 與 FinMind Token/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('資料已加密');
+  });
+
   it('previews current, imported, and delta counts from a local file before any write', async () => {
     setCurrentSnapshot();
     const { container } = render(<Settings onDataChange={vi.fn()} />);

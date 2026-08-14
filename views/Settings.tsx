@@ -10,6 +10,7 @@ import type { BackupPreview, ParsedBackup } from '../services/backup/model';
 import { parseBackupJson } from '../services/backup/parse';
 import { buildBackupPreview } from '../services/backup/preview';
 import { replacePortableData } from '../services/backup/replace';
+import { APP_VERSION } from '../services/appVersion';
 import { readPortableSnapshot } from '../services/backup/snapshot';
 
 interface SettingsProps {
@@ -282,6 +283,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange, reloadPage = (
                 <Button theme="warm" variant="secondary" className="w-full text-xs" as="div"><Upload size={16} className="mr-2"/> 匯入備份還原</Button>
             </div>
         </div>
+        <p className="mt-3 text-xs text-[#A69B87]">備份不包含 Gemini API Key 與 FinMind Token，換裝置後需重新設定。</p>
         <div className="mt-6 pt-6 border-t border-[#EDE4D6]"><Button theme="warm" onClick={handleReset} variant="danger" className="w-full text-[10px] uppercase font-bold"><Trash2 size={16} className="mr-2"/> 重置並清除所有本地資料</Button></div>
       </Card>
 
@@ -345,7 +347,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange, reloadPage = (
 
 
       <div className="text-center text-[10px] text-[#C4A98A] pb-4">
-          <p>FinTrack AI</p>
+          <p>FinTrack AI v{APP_VERSION}</p>
       </div>
 
       <Modal theme="warm" isOpen={isPreviewModalOpen} onClose={closePreview} title="匯入預覽">

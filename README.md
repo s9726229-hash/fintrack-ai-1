@@ -4,12 +4,12 @@
 
 **個人財務管理 × 股票庫存記錄**
 
-![Version](https://img.shields.io/badge/版本-V7.8.0-6366f1?style=for-the-badge)
+![Version](https://img.shields.io/badge/版本-V7.12.0-6366f1?style=for-the-badge)
 ![React](https://img.shields.io/badge/React-18-61dafb?style=for-the-badge&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=for-the-badge&logo=typescript)
 ![Vite](https://img.shields.io/badge/Vite-PWA-646cff?style=for-the-badge&logo=vite)
 
-> 所有資料儲存於本地瀏覽器，無伺服器、無資料外洩風險。
+> 主要財務資料預設儲存在本地瀏覽器；啟用市場資料或選用的 Google 服務時，應用程式會向對應外部服務發出網路請求。
 
 </div>
 
@@ -39,7 +39,7 @@ FinTrack AI 是**單純的個人財務管理工具**：資產總覽、收支記�
 
 ### ☁️ 資料管理
 - 一鍵匯出 / 匯入 JSON 備份
-- Google Drive 雲端加密同步（可選）
+- Google Drive 備份（可選，明文 JSON、不含 API 憑證）
 - PWA：可安裝至手機桌面，離線可用
 
 ---
