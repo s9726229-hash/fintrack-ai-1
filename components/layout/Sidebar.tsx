@@ -3,6 +3,7 @@
 import React from 'react';
 import { ViewState, ApiKeyStatus } from '../../types';
 import { Theme } from '../../hooks/useTheme';
+import { APP_VERSION } from '../../services/appVersion';
 import {
   LayoutGrid, PieChart, ScrollText, Target, CalendarClock,
   Bot, Settings, TrendingUp, Loader2, ListTree, Moon, Sun
@@ -82,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isE
           </h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
-          <span className="text-[11px] text-[#A69B87] bg-[#FBF7F0] px-1.5 py-0.5 rounded">V7.11.1</span>
+          <span className="text-[11px] text-[#A69B87] bg-[#FBF7F0] px-1.5 py-0.5 rounded">V{APP_VERSION}</span>
           <div className="flex items-center gap-1" title={apiStatus.finmind === 'online' ? "FinMind API 連線正常" : "FinMind API 連線失敗"}>
               <div className={`w-1.5 h-1.5 rounded-full ${apiStatus.finmind === 'online' ? 'bg-[#6B9080]' : 'bg-red-500'}`}></div>
               <span className={`text-[10px] font-bold ${apiStatus.finmind === 'online' ? 'text-[#6B9080]' : 'text-red-500/80'}`}>FinMind</span>
