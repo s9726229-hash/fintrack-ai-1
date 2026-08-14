@@ -14,12 +14,13 @@ import { readPortableSnapshot } from '../services/backup/snapshot';
 
 interface SettingsProps {
   onDataChange: () => void;
+  reloadPage?: () => void;
 }
 
 
 
 
-export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
+export const Settings: React.FC<SettingsProps> = ({ onDataChange, reloadPage = () => window.location.reload() }) => {
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [feeDiscount, setFeeDiscount] = useState(0.28);
 
@@ -175,10 +176,11 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
     if (file) {
       const reader = new FileReader();
       reader.onload = (ev) => {
-        if (ev.target?.result) {
-          prepareImport(ev.target.result as string);
-        }
+        const result = ev.target?.result;
+        if (typeof result === 'string') prepareImport(result);
+        else showNotify('error', '無法讀取備份檔案。');
       };
+      reader.onerror = () => showNotify('error', '無法讀取備份檔案。');
       reader.readAsText(file);
     }
     e.target.value = '';
@@ -193,11 +195,13 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
       const result = await replacePortableData(previewContent.parsed.snapshot);
 
       if (!result.ok) {
+        if (result.code === 'rollback_failed') {
+          reloadPage();
+          return;
+        }
         const message = result.code === 'recovery_unavailable'
           ? '無法建立復原紀錄，目前資料尚未變更。'
-          : result.code === 'replacement_failed'
-            ? '匯入失敗，已還原原有資料。預覽仍保留，請取消或重新嘗試。'
-            : '匯入失敗且自動還原未完成，請保留此畫面並依啟動復原提示處理。';
+          : '匯入失敗，已還原原有資料。預覽仍保留，請取消或重新嘗試。';
         showNotify('error', message);
         return;
       }
@@ -350,6 +354,7 @@ export const Settings: React.FC<SettingsProps> = ({ onDataChange }) => {
                 <div className="bg-[#FBF7F0] p-3 rounded-lg border border-[#EDE4D6] text-xs">
                     <p className="text-[#3D3428]">備份時間：<span className="text-[#3D3428] font-bold">{new Date(previewContent.preview.metadata.createdAt).toLocaleString()}</span></p>
                     <p className="text-[#A69B87]">備份版本：<span className="text-[#3D3428] font-bold">{previewContent.preview.metadata.appVersion}</span></p>
+                    <p className="text-[#A69B87]">備份格式：<span className="text-[#3D3428] font-bold">Schema {previewContent.preview.metadata.schemaVersion}</span></p>
                 </div>
                 <div className="bg-amber-500/10 p-3 rounded-lg border border-amber-500/30 text-xs text-amber-700 flex items-start gap-2">
                     <AlertCircle size={20}/><span><span className="font-bold">完整取代</span>：確認前會先下載目前財務資料；API 憑證與此裝置設定不會被匯入檔覆蓋。</span>

@@ -131,6 +131,7 @@ describe('Settings safe backup and restore flows', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('previews current, imported, and delta counts from a local file before any write', async () => {
@@ -143,6 +144,7 @@ describe('Settings safe backup and restore flows', () => {
       '資料', '目前', '匯入後', '差異',
     ]);
     expectAssetPreview('1', '2', '+1');
+    expect(screen.getByText(/Schema 1/)).toBeInTheDocument();
     expect(mocks.replacePortableData).not.toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.ASSETS) ?? '[]')).toEqual([currentAsset]);
   });
@@ -224,6 +226,44 @@ describe('Settings safe backup and restore flows', () => {
     expect(mocks.replacePortableData).not.toHaveBeenCalled();
   });
 
+  it('routes an empty FileReader result through backup diagnostics', async () => {
+    const { container } = render(<Settings onDataChange={vi.fn()} />);
+    const input = container.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('File input not found');
+
+    fireEvent.change(input, {
+      target: { files: [new File([''], 'empty.json', { type: 'application/json' })] },
+    });
+
+    expect(await screen.findByText(/Backup is not valid JSON/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '匯入預覽' })).not.toBeInTheDocument();
+    expect(mocks.replacePortableData).not.toHaveBeenCalled();
+  });
+
+  it('reports a FileReader transport error without preparing an import', async () => {
+    class ErroringFileReader {
+      onload: FileReader['onload'] = null;
+      onerror: FileReader['onerror'] = null;
+
+      readAsText(): void {
+        const errorEvent = new ProgressEvent('error') as unknown as ProgressEvent<FileReader>;
+        this.onerror?.call(this as unknown as FileReader, errorEvent);
+      }
+    }
+    vi.stubGlobal('FileReader', ErroringFileReader);
+    const { container } = render(<Settings onDataChange={vi.fn()} />);
+    const input = container.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('File input not found');
+
+    fireEvent.change(input, {
+      target: { files: [new File(['backup'], 'unreadable.json', { type: 'application/json' })] },
+    });
+
+    expect(await screen.findByText(/無法讀取備份檔案/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '匯入預覽' })).not.toBeInTheDocument();
+    expect(mocks.replacePortableData).not.toHaveBeenCalled();
+  });
+
   it('shows all preview rows and migration notices without echoing ignored credential values', async () => {
     localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify([{ category: 'food', limit: 1000 }]));
     const legacyStockTransaction = {
@@ -257,7 +297,8 @@ describe('Settings safe backup and restore flows', () => {
   it('keeps the preview open and reports a recoverable replacement failure', async () => {
     mocks.replacePortableData.mockResolvedValue({ ok: false, code: 'replacement_failed', rolledBack: true });
     const onDataChange = vi.fn();
-    const { container } = render(<Settings onDataChange={onDataChange} />);
+    const reloadPage = vi.fn();
+    const { container } = render(<Settings onDataChange={onDataChange} reloadPage={reloadPage} />);
     await selectLocalBackup(container, currentBackup({ assets: targetAssets }));
 
     await act(async () => {
@@ -267,6 +308,29 @@ describe('Settings safe backup and restore flows', () => {
     expect(screen.getByRole('heading', { name: '匯入預覽' })).toBeInTheDocument();
     expect(screen.getByText(/已還原原有資料/)).toBeInTheDocument();
     expect(onDataChange).not.toHaveBeenCalled();
+    expect(reloadPage).not.toHaveBeenCalled();
+  });
+
+  it('reloads immediately after rollback failure so startup recovery can take over', async () => {
+    mocks.replacePortableData.mockResolvedValue({ ok: false, code: 'rollback_failed', rolledBack: false });
+    const onDataChange = vi.fn();
+    const reloadPage = vi.fn();
+    const { container } = render(<Settings onDataChange={onDataChange} reloadPage={reloadPage} />);
+    await selectLocalBackup(container, currentBackup({ assets: targetAssets }));
+    vi.useFakeTimers();
+
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '完整取代目前財務資料' }));
+      });
+
+      expect(mocks.downloadBackupFile).toHaveBeenCalledOnce();
+      expect(onDataChange).not.toHaveBeenCalled();
+      expect(reloadPage).toHaveBeenCalledOnce();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   it('downloads a serialized safe envelope for a local backup', () => {
