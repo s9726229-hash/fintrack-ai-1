@@ -1,5 +1,5 @@
 {
-  "name": "FinTrack AI v7.12.1",
+  "name": "FinTrack AI v7.12.2",
   "description": "本機優先的個人財務管理工具，支援安全備份與可復原的完整取代匯入。",
   "requestFramePermissions": [
     "microphone"

@@ -4,7 +4,6 @@ import { TrendingUp, TrendingDown, Minus, PlusCircle, BrainCircuit, List, Wallet
 import { Button, Card, Tabs } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, lookupStockName, getSharesHeldAtDate } from '../services/stock';
-import { getApiKey } from '../services/storage';
 import { formatMoneyCompact } from '../services/format';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
 import { TransactionFilters, TimeRangeTabs, TimeRange } from '../components/transactions/TransactionFilters';
@@ -65,7 +64,6 @@ export const Investments: React.FC<InvestmentsProps> = ({
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inventoryFileInputRef = useRef<HTMLInputElement>(null);
-    const hasApiKey = !!getApiKey();
     
     const [filter, setFilter] = useState('');
     const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
@@ -285,9 +283,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         </Button>
                     )}
                     {activeTab === 'DIVIDEND' && (
-                        <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching || !hasApiKey} loading={enrichStatus.dividend.isUpdating} title={!hasApiKey ? '需先在「系統設定」輸入 API 金鑰才能分析股息' : undefined} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20">
+                        <Button onClick={() => onUpdateDividends(null)} variant="secondary" disabled={isEnriching} loading={enrichStatus.dividend.isUpdating} className="h-8 text-xs bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20">
                             {!enrichStatus.dividend.isUpdating && <Landmark size={14}/>}
-                            {enrichStatus.dividend.isUpdating ? `分析中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : 'AI 分析股息'}
+                            {enrichStatus.dividend.isUpdating ? `更新中...(${enrichStatus.dividend.progress.current}/${enrichStatus.dividend.progress.total})` : '更新股息資料'}
                         </Button>
                     )}
                     {isAnyStockStale && !isEnriching && (<span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>)}
@@ -410,11 +408,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                         <div className="bg-[#FFFDF7] border border-[#EDE4D6] rounded-xl shadow-[0_1px_2px_rgba(60,50,30,0.05)] p-8 text-center space-y-3">
                             <Coins size={32} className="mx-auto text-[#C4A98A]"/>
                             <p className="text-sm font-bold text-[#3D3428]">尚未掃描股息資料</p>
-                            {hasApiKey ? (
-                                <p className="text-xs text-[#A69B87] leading-relaxed">按右上方「AI 分析股息」，系統會依 FinMind 實際配息資料，<br className="hidden md:block"/>找出你持股的本年度除息事件並協助入帳。</p>
-                            ) : (
-                                <p className="text-xs text-[#A69B87] leading-relaxed">「AI 分析股息」需要 API 金鑰才能使用，<br className="hidden md:block"/>請先前往「系統設定」輸入金鑰後再回來掃描。</p>
-                            )}
+                            <p className="text-xs text-[#A69B87] leading-relaxed">按右上方「更新股息資料」，系統會依 FinMind 官方配息資料，<br className="hidden md:block"/>找出你持股的本年度除息事件並協助入帳。</p>
                         </div>
                    )}
 

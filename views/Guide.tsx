@@ -39,7 +39,12 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-[#EDE4D6] space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.12.1 舊版備份相容性修正" date="Latest" color="text-amber-600">
+        <FeatureSection title="V7.12.2 股息與現價改用 FinMind 官方資料" date="Latest" color="text-amber-600">
+            <FeatureItem icon={RefreshCw} title="「更新股息資料」不再需要 Gemini 金鑰" description="股息掃描本來就只讀 FinMind 官方股利資料集（TaiwanStockDividend），但按鈕仍檢查已無處可設定的 Gemini 金鑰而永遠停用；現已解除，原「AI 分析股息」更名為「更新股息資料」。" />
+            <FeatureItem icon={TrendingUp} title="現價改抓 FinMind 官方日線收盤價" description="「更新全部現價」原本靠 Gemini 搜尋，在 AI 停用後只會靜默失敗、價格完全沒更新；改為讀取 FinMind TaiwanStockPrice 最新收盤價與官方股票名稱（為日線收盤價，非盤中即時報價）。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.12.1 舊版備份相容性修正" color="text-rose-600">
             <FeatureItem icon={RefreshCw} title="舊版股票資料可安全匯入" description="舊版備份若缺少股票歷史損益與持倉明細，會以 0 與空清單補齊；空白交易種類則標記為「未提供」，讓資料可通過預覽並執行完整取代。" />
             <FeatureItem icon={ShieldCheck} title="保留嚴格驗證與憑證隔離" description="只修補已知的舊版缺值；格式錯誤或非數值內容仍會拒絕匯入。舊備份中的 Gemini API Key 與 FinMind Token 仍會忽略，不會寫回裝置。" />
         </FeatureSection>

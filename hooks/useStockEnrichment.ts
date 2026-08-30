@@ -122,7 +122,7 @@ export const useStockEnrichment = ({ setToast, enabled, writerGate }: UseStockEn
    * 掃描指定股票代號本年度的除息事件並存回獨立 store（不依附庫存/Asset，全數賣出後仍可追蹤）。
    * 由呼叫端（App.tsx）在 updateDividends 完成後接續呼叫，因此不再檢查 enrichStatus 避免狀態競態。
    *
-   * 為降低每次「AI 分析股息」的 FinMind 查詢量：已出清股票的股息事件是固定歷史資料，只要掃過一次就不再重掃；
+   * 為降低每次「更新股息資料」的 FinMind 查詢量：已出清股票的股息事件是固定歷史資料，只要掃過一次就不再重掃；
    * 目前庫存股票則有 3 天冷卻期。
    */
   const updateDividendEvents = async (heldSymbols: string[], soldOutSymbols: string[], onSuccess: () => void) => {

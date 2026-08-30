@@ -248,39 +248,29 @@ export const calculateStockPerformance = (stock: Asset, transactions: Transactio
 };
 
 /**
- * [Fast Mode V7.0.1] Enriches a stock symbol with basic info like price.
+ * 以 FinMind 官方日線（TaiwanStockPrice）最新收盤價 + 官方股票名稱更新庫存基本資料。
+ * 原本的 Gemini 搜尋版本已隨全站 AI 停用（gemini.ts 的 AI_ENABLED=false、系統設定也不再提供金鑰欄位）而失效：
+ * 沒有金鑰時 getAI() 會直接 throw，被內層 catch 吞掉後回傳 null，導致「更新全部現價」按了等於沒按。
+ * 注意：FinMind 提供的是日線收盤價，不是盤中即時報價。
  */
 export const enrichStockBasicInfo = async (stock: Asset): Promise<Partial<Asset> | null> => {
-    try {
-        const ai = getAI();
-        const response = await ai.models.generateContent({
-            model: 'gemini-flash-latest',
-            contents: `Search "Taiwan stock ${stock.symbol} price Yahoo Finance TW". Find the current price and name. Return the NAME in Traditional Chinese (繁體中文). Do NOT use English. Return a single line of plain text in this exact format: PRICE:value, NAME:value. Example: PRICE:980, NAME:台積電`,
-            config: {
-                tools: [{ googleSearch: {} }],
-            }
-        });
+    if (!stock.symbol) return null;
 
-        const text = response.text || '';
-        const priceMatch = text.match(/PRICE:([\d.,]+)/);
-        const nameMatch = text.match(/NAME:([^,]+)/);
-        
-        const priceStr = priceMatch ? priceMatch[1].replace(/,/g, '') : '0';
-        const price = parseFloat(priceStr);
-        const name = nameMatch ? nameMatch[1].trim() : (stock.name || stock.symbol);
+    const [closes, officialName] = await Promise.all([
+        fetchFinMindHistory(stock.symbol),
+        lookupStockName(stock.symbol),
+    ]);
 
-        if (price > 0) {
-            return {
-                name: name,
-                currentPrice: price,
-            };
-        }
-        console.warn(`Could not parse price for symbol ${stock.symbol} from response: "${text}"`);
-        return null;
-    } catch (error) {
-        console.error(`Gemini basic info error for symbol ${stock.symbol}:`, error);
+    const latestClose = closes && closes.length > 0 ? closes[closes.length - 1] : 0;
+    if (!(latestClose > 0)) {
+        console.warn(`FinMind 查無 ${stock.symbol} 的收盤價，保留既有現價。`);
         return null;
     }
+
+    return {
+        name: officialName || stock.name || stock.symbol,
+        currentPrice: latestClose,
+    };
 };
 
 /** 從 FinMind 官方股利資料（TaiwanStockDividend）計算近12個月合計現金股利(TTM DPS)、配息頻率、最近除息/發放日，以及本年度所有除息事件清單 */
@@ -357,64 +347,19 @@ export const fetchDividendEventsForSymbol = async (symbol: string, existingEvent
 };
 
 /**
- * [Deep Mode V7.0.0] Enriches a stock symbol with TTM dividend information.
- * 優先使用 FinMind 官方股利資料集（TaiwanStockDividend），查無資料（如興櫃股票）才退回 AI 搜尋估算。
+ * 以 FinMind 官方股利資料集（TaiwanStockDividend）補上近 12 個月現金股利、配息頻率與最近除息/發放日。
+ * 查無資料（興櫃、從未配息等）時回傳 null，由呼叫端保留既有資料；不再退回 Gemini 搜尋估算——
+ * 該備援在 AI 全域停用後只會 throw，反而讓整批更新被標記為失敗。
  */
 export const enrichStockDividendInfo = async (stock: Asset): Promise<Partial<Asset> | null> => {
-    if (stock.symbol) {
-        const finmindResult = await fetchFinMindDividendTTM(stock.symbol);
-        if (finmindResult) {
-            const { eventsThisYear, ...ttmInfo } = finmindResult;
-            return ttmInfo;
-        }
-    }
+    if (!stock.symbol) return null;
 
-    try {
-        const ai = getAI();
-        const response = await ai.models.generateContent({
-            model: 'gemini-flash-latest',
-            contents: `Search "Stock ${stock.symbol} dividend history HiStock" or "Yahoo Finance TW". Find the Sum of Cash Dividends (現金股利) paid in the trailing 12 months. Ignore Stock Dividends (股票股利). Return a single line of plain text in this exact format: FREQUENCY:value, TTM_DPS:value, EX_DATE:value.`,
-            config: {
-                tools: [{ googleSearch: {} }],
-            }
-        });
+    const finmindResult = await fetchFinMindDividendTTM(stock.symbol);
+    if (!finmindResult) return null;
 
-        const text = response.text || '';
-        
-        const freqMatch = text.match(/FREQUENCY:([^,]+)/);
-        const dpsMatch = text.match(/TTM_DPS:([\d.]+)/);
-        const exDateMatch = text.match(/EX_DATE:(\d{4}-\d{2}-\d{2})/);
-
-        const dividendFrequency = freqMatch ? freqMatch[1].trim() : undefined;
-        const dividendPerShare = dpsMatch ? parseFloat(dpsMatch[1]) : undefined;
-        const exDate = exDateMatch ? exDateMatch[1].trim() : undefined;
-
-        if (dividendPerShare !== undefined) {
-            // Sanity Check: If calculated yield is > 20%, it's likely an error.
-            if (stock.currentPrice && stock.currentPrice > 0) {
-                const yieldCheck = dividendPerShare / stock.currentPrice;
-                if (yieldCheck > 0.20) {
-                    console.warn(`Sanity check failed for ${stock.symbol}: Calculated yield ${yieldCheck*100}% is abnormally high. Discarding dividend data.`);
-                    return { dividendPerShare: 0, dividendFrequency: 'N/A' }; // Reset data
-                }
-            }
-
-            return {
-                dividendPerShare,
-                dividendFrequency,
-                exDate,
-            };
-        }
-        
-        console.warn(`Could not parse TTM dividend info for symbol ${stock.symbol} from response: "${text}"`);
-        return null;
-
-    } catch (error) {
-        console.error(`Gemini dividend info error for symbol ${stock.symbol}:`, error);
-        return null;
-    }
+    const { eventsThisYear, ...ttmInfo } = finmindResult;
+    return ttmInfo;
 };
-
 
 /**
  * Parses free-text stock input into structured data using Gemini.

@@ -6,19 +6,19 @@ import { GuideView } from './Guide';
 describe('Guide release history', () => {
   afterEach(cleanup);
 
-  it('includes the 7.12.1 backup compatibility release', () => {
+  it('includes the 7.12.2 FinMind data source release', () => {
     render(<GuideView />);
 
-    expect(screen.getByRole('heading', { name: /^V7\.12\.1 / })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^V7\.12\.2 / })).toBeInTheDocument();
   });
 
-  it('marks only the 7.12.1 release as Latest', () => {
+  it('marks only the 7.12.2 release as Latest', () => {
     render(<GuideView />);
 
     const latestBadges = screen.getAllByText('Latest');
     expect(latestBadges).toHaveLength(1);
     const releaseHeader = latestBadges[0].parentElement;
     expect(releaseHeader).not.toBeNull();
-    expect(within(releaseHeader!).getByRole('heading', { name: /^V7\.12\.1 / })).toBeInTheDocument();
+    expect(within(releaseHeader!).getByRole('heading', { name: /^V7\.12\.2 / })).toBeInTheDocument();
   });
 });
