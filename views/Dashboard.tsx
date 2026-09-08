@@ -98,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [quickAmount, setQuickAmount] = useState('');
 
   const calculateEstimatedMonthlyPayment = (debt: Asset) => {
-      if (debt.type !== AssetType.DEBT || !debt.interestRate || !debt.termYears || !debt.amount) return 0;
+      if (debt.type !== AssetType.DEBT || debt.interestRate === undefined || !debt.termYears || !debt.amount) return 0;
       const graceYears = debt.interestOnlyPeriod || 0;
       const remainingYears = debt.termYears - graceYears;
       if (remainingYears <= 0) return 0;
@@ -117,7 +117,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return at < graceEnd;
   };
   const calculateMonthlyPaymentAt = (debt: Asset, at: Date) => {
-      if (debt.type !== AssetType.DEBT || !debt.interestRate || !debt.termYears || !debt.amount) return 0;
+      if (debt.type !== AssetType.DEBT || debt.interestRate === undefined || !debt.termYears || !debt.amount) return 0;
       if (isInGracePeriod(debt, at)) return debt.amount * (debt.interestRate / 100 / 12);
       return calculateEstimatedMonthlyPayment(debt);
   };
@@ -557,7 +557,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const prepaySimulation = useMemo(() => {
       const debt = financialPlanning.debts.find(d => d.id === simDebtId);
       const prepay = parseFloat(simAmount);
-      if (!debt || !prepay || prepay <= 0 || !debt.interestRate || !debt.termYears || !debt.amount) return null;
+      if (!debt || !prepay || prepay <= 0 || debt.interestRate === undefined || !debt.termYears || !debt.amount) return null;
       if (prepay >= debt.amount) return { payoff: true as const, debtName: debt.name };
 
       const r = debt.interestRate / 100 / 12;
@@ -1360,7 +1360,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               <div className="flex gap-3 flex-wrap">
                                   <Select value={simDebtId} onChange={e => setSimDebtId(e.target.value)} className="flex-1 min-w-[140px] bg-white">
                                       <option value="">選擇貸款...</option>
-                                      {financialPlanning.debts.filter(d => d.interestRate && d.termYears).map(d => (
+                                      {financialPlanning.debts.filter(d => d.interestRate !== undefined && d.termYears).map(d => (
                                           <option key={d.id} value={d.id}>{d.name}（{formatMoney(d.amount)}）</option>
                                       ))}
                                   </Select>

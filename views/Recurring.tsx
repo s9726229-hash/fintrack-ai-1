@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../constants';
 import { formatMoney } from '../services/format';
+import { wasRecurringExecuted, recurringPeriod } from '../services/recurringSchedule';
 
 interface RecurringProps {
   items: RecurringItem[];
@@ -79,11 +80,11 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
     good: 'text-[#6B9080]',
   }[healthAdvice.level];
 
-  const currentMonthKey = new Date().toISOString().substring(0, 7); // YYYY-MM
   const currentMonth = new Date().getMonth() + 1;
 
   const isExecuted = (id: string) => {
-    return executedLog[id]?.includes(currentMonthKey);
+    const item = items.find(item => item.id === id);
+    return item ? wasRecurringExecuted(item, executedLog[id] ?? []) : false;
   };
 
   const handleOpenModal = () => {
@@ -110,7 +111,10 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
   };
 
   const handleSubmit = () => {
-    if(!formData.name || !formData.amount) return;
+    if (!formData.name?.trim() || !Number.isFinite(formData.amount) || Number(formData.amount) <= 0 || !Number.isInteger(formData.dayOfMonth) || Number(formData.dayOfMonth) < 1 || Number(formData.dayOfMonth) > 31) {
+      alert('請填寫項目名稱、正數金額，以及 1 至 31 的整數日期。');
+      return;
+    }
     onAdd({
         id: crypto.randomUUID(),
         name: formData.name,
@@ -206,7 +210,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                 : `每月 ${item.dayOfMonth} 號`;
 
              // Calculate visual status
-             const isOverdue = !executed && new Date().getDate() >= item.dayOfMonth;
+             const isOverdue = !executed && recurringPeriod(item)?.due;
 
              return (
                <div key={item.id} className={`bg-white border border-[#EDE4D6] rounded-2xl overflow-hidden flex flex-col transition-all hover:border-[#C4A98A] ${executed ? 'opacity-80' : 'border-l-4 border-l-[#C4523A]'}`}>
@@ -248,7 +252,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                          <>
                             <CheckCircle2 size={12} className="shrink-0"/>
                             <span className="truncate md:hidden">已入帳</span>
-                            <span className="hidden md:inline truncate">本月已自動入帳</span>
+                            <span className="hidden md:inline truncate">{item.frequency === 'YEARLY' ? '本年度已入帳' : '本月已入帳'}</span>
                          </>
                      ) : (
                          <>

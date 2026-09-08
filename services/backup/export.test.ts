@@ -57,7 +57,7 @@ describe('safe portable backups', () => {
     expect(envelope.metadata).toMatchObject({
       format: 'fintrack-ai-backup',
       schemaVersion: 1,
-      appVersion: '7.12.2',
+      appVersion: '7.12.3',
       createdAt: '2026-08-13T00:00:00.000Z',
     });
     expect(JSON.parse(serialized)).toEqual(envelope);

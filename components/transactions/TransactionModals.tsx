@@ -35,7 +35,10 @@ export const AddTransactionModal: React.FC<TransactionFormModalProps> = ({ isOpe
   }, [isOpen, editingData]);
 
   const handleSubmit = () => {
-    if (!formData.amount || !formData.item) return;
+    if (!Number.isFinite(formData.amount) || Number(formData.amount) <= 0 || !formData.item?.trim() || !formData.date || !Number.isFinite(Date.parse(formData.date))) {
+      alert('請填寫有效日期、項目名稱及大於零的金額。');
+      return;
+    }
     const transactionData = {
         id: isEditing ? editingData.id : crypto.randomUUID(),
         date: formData.date || new Date().toISOString().split('T')[0],

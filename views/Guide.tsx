@@ -39,7 +39,12 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-[#EDE4D6] space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.12.2 股息與現價改用 FinMind 官方資料" date="Latest" color="text-amber-600">
+        <FeatureSection title="V7.12.3 記帳可靠性與刪除復原" date="Latest" color="text-amber-600">
+            <FeatureItem icon={RefreshCw} title="固定收支按期防重" description="年繳每年只入帳一次，月底不存在的日期改用當月最後一天；使用本地月份避免時區誤差。月繳僅補本月到期項目，年繳補本年度到期項目，程式開啟時執行。已存在的歷史重複帳目需另行核對。" />
+            <FeatureItem icon={ShieldCheck} title="刪除可復原與正確更新提示" description="資產、收支及固定項目刪除後，可逐筆復原最近 10 筆。復原紀錄僅保留於本次開啟期間，關閉提示或開始完整取代會清除。股票更新分列成功、無資料與失敗筆數，並修正 0% 貸款利率與記帳輸入檢查。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.12.2 股息與現價改用 FinMind 官方資料" color="text-amber-600">
             <FeatureItem icon={RefreshCw} title="「更新股息資料」不再需要 Gemini 金鑰" description="股息掃描本來就只讀 FinMind 官方股利資料集（TaiwanStockDividend），但按鈕仍檢查已無處可設定的 Gemini 金鑰而永遠停用；現已解除，原「AI 分析股息」更名為「更新股息資料」。" />
             <FeatureItem icon={TrendingUp} title="現價改抓 FinMind 官方日線收盤價" description="「更新全部現價」原本靠 Gemini 搜尋，在 AI 停用後只會靜默失敗、價格完全沒更新；改為讀取 FinMind TaiwanStockPrice 最新收盤價與官方股票名稱（為日線收盤價，非盤中即時報價）。" />
         </FeatureSection>

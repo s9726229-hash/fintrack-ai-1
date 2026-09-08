@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Asset, AssetType, DividendEvent } from '../types';
 import * as storage from '../services/storage';
-import { enrichStockBasicInfo, enrichStockDividendInfo, fetchDividendEventsForSymbol, fetchMarketRegime } from '../services/stock';
+import { enrichStockBasicInfo, enrichStockDividendInfo, fetchDividendEventsForSymbol } from '../services/stock';
 import type { FinancialWriterGate } from './useFinancialWriterGate';
 
 interface UseStockEnrichmentProps {
@@ -31,34 +31,31 @@ export const useStockEnrichment = ({ setToast, enabled, writerGate }: UseStockEn
     setEnrichStatus(prev => ({ ...prev, [type]: { isUpdating: true, progress: { current: 0, total: stocksToUpdate.length } } }));
     setToast({ message: `${type === 'price' ? '快速更新' : '深度分析'}：正在更新 ${stocksToUpdate.length} 筆資料...`, count: stocksToUpdate.length });
 
-    const currentAssets = storage.getAssets();
-    let hasError = false;
+    const updates = new Map<string, Partial<Asset>>();
+    let failedCount = 0;
+    let emptyCount = 0;
+    let successCount = 0;
     let processedCount = 0;
 
-    // Pre-warm market regime cache before parallel execution
-    await fetchMarketRegime(true);
+    // Price and dividend updates do not require a market-regime query.
 
     for (let i = 0; i < stocksToUpdate.length; i += BATCH_SIZE) {
       const batch = stocksToUpdate.slice(i, i + BATCH_SIZE);
       
       await Promise.all(batch.map(async (stock) => {
         try {
-          if (!stock.symbol) return;
+          if (!stock.symbol) { emptyCount++; return; }
           const info = await enrichFn(stock);
           
-          const assetIndex = currentAssets.findIndex(a => a.id === stock.id);
-          if (assetIndex !== -1 && info) {
-            const existingAsset = currentAssets[assetIndex];
-            const updatedAsset: Asset = { ...existingAsset, ...info, lastUpdated: Date.now() };
-
-            if (type === 'price' && info.currentPrice) {
-                 updatedAsset.amount = (Number(existingAsset.shares) || 0) * (Number(info.currentPrice) || 0);
-            }
-            currentAssets[assetIndex] = updatedAsset;
+          if (info) {
+            updates.set(stock.id, info);
+            successCount++;
+          } else {
+            emptyCount++;
           }
         } catch (error) {
           console.error(`Enrichment failed for ${stock.symbol}:`, error);
-          hasError = true;
+          failedCount++;
         } finally {
           processedCount++;
           setEnrichStatus(prev => ({
@@ -75,10 +72,27 @@ export const useStockEnrichment = ({ setToast, enabled, writerGate }: UseStockEn
       return;
     }
 
-    storage.saveAssets(currentAssets);
-    if (writerGate.canWrite(writerLease)) onSuccess(currentAssets);
+    if (successCount > 0) {
+      // Preserve edits, additions and deletions performed while the request was in flight.
+      let applied = 0;
+      const currentAssets = storage.getAssets().map(asset => {
+        const info = updates.get(asset.id);
+        if (!info) return asset;
+        applied++;
+        return {
+          ...asset, ...info, lastUpdated: Date.now(),
+          ...(type === 'price' && info.currentPrice ? { amount: (Number(asset.shares) || 0) * info.currentPrice } : {}),
+        };
+      });
+      emptyCount += successCount - applied;
+      successCount = applied;
+      if (applied) {
+        storage.saveAssets(currentAssets);
+        if (writerGate.canWrite(writerLease)) onSuccess(currentAssets);
+      }
+    }
 
-    setToast({ message: hasError ? `部分資料更新失敗` : `${stocksToUpdate.length} 筆資料更新完成！`, count: stocksToUpdate.length });
+    setToast({ message: `更新結果：成功 ${successCount} 筆、無資料 ${emptyCount} 筆、失敗 ${failedCount} 筆`, count: successCount });
     setTimeout(() => setToast(null), 3000);
     setEnrichStatus(prev => ({ ...prev, [type]: { isUpdating: false, progress: { current: 0, total: 0 } } }));
   };

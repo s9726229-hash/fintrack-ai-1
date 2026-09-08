@@ -13,7 +13,7 @@ export const calculateLoanBalance = (asset: Partial<Asset>): number => {
     }
 
     const principal = asset.originalAmount;
-    const annualRate = asset.interestRate || 2; // Default 2%
+    const annualRate = asset.interestRate ?? 2; // Preserve an explicitly entered 0%.
     const totalYears = asset.termYears || 20;
     const graceYears = asset.interestOnlyPeriod || 0;
     

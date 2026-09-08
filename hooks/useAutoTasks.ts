@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Transaction, RecurringItem } from '../types';
 import * as storage from '../services/storage';
+import { planRecurring } from '../services/recurringSchedule';
 
 interface UseAutoTasksProps {
   enabled: boolean;
@@ -12,83 +13,23 @@ interface UseAutoTasksProps {
   setToast: (toast: { message: string; count: number } | null) => void;
 }
 
-export const useAutoTasks = ({
-  enabled,
-  transactions,
-  recurring,
-  recurringExecuted,
-  setTransactions,
-  setRecurringExecuted,
-  setToast,
-}: UseAutoTasksProps) => {
+export function useAutoTasks({ enabled, transactions, recurring, recurringExecuted, setTransactions, setRecurringExecuted, setToast }: UseAutoTasksProps) {
   useEffect(() => {
-    if (!enabled) return;
-
-    if (recurring.length === 0) {
-      return;
+    if (!enabled || recurring.length === 0) return;
+    const currentTransactions = storage.getTransactions();
+    const currentLog = storage.getRecurringExecuted();
+    const { additions, nextLog } = planRecurring(recurring, currentLog, currentTransactions);
+    if (JSON.stringify(nextLog) === JSON.stringify(currentLog)) return;
+    try {
+      // Stable IDs allow recovery when transaction persistence succeeds but logging fails.
+      const updated = [...currentTransactions, ...additions];
+      if (additions.length) storage.saveTransactions(updated);
+      storage.saveRecurringExecuted(nextLog);
+      setTransactions(updated);
+      setRecurringExecuted(nextLog);
+      if (additions.length) setToast({ message: `系統自動補入 ${additions.length} 筆固定帳務`, count: additions.length });
+    } catch {
+      setToast({ message: '固定帳務儲存未完成，請備份資料並檢查瀏覽器儲存空間。', count: 0 });
     }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
-
-    let newTransactions: Transaction[] = [];
-    let executedCount = 0;
-    
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth() + 1;
-    const currentDay = today.getDate();
-    const currentMonthKey = today.toISOString().substring(0, 7);
-    let newLog = { ...recurringExecuted };
-
-    recurring.forEach(item => {
-        const itemLogs = newLog[item.id] || [];
-        if (itemLogs.includes(currentMonthKey)) return;
-
-        let shouldExecute = false;
-        let targetDate = '';
-
-        if (item.frequency === 'MONTHLY') {
-            if (currentDay >= item.dayOfMonth) {
-                shouldExecute = true;
-                targetDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(item.dayOfMonth).padStart(2, '0')}`;
-            }
-        } else if (item.frequency === 'YEARLY') {
-            const targetMonth = item.monthOfYear || 1;
-            if (currentMonth > targetMonth || (currentMonth === targetMonth && currentDay >= item.dayOfMonth)) {
-                 shouldExecute = true;
-                 targetDate = `${currentYear}-${String(targetMonth).padStart(2, '0')}-${String(item.dayOfMonth).padStart(2, '0')}`;
-            }
-        }
-
-        if (shouldExecute) {
-            newTransactions.push({
-                id: crypto.randomUUID(),
-                date: targetDate, 
-                amount: item.amount,
-                category: item.category,
-                item: `[固定] ${item.name}`,
-                type: item.type,
-                note: '系統自動入帳 (Auto-Executed)',
-                source: 'MANUAL' 
-            });
-            if (!newLog[item.id]) newLog[item.id] = [];
-            newLog[item.id].push(currentMonthKey);
-            executedCount++;
-        }
-    });
-
-    if (executedCount > 0) {
-        setRecurringExecuted(newLog);
-        storage.saveRecurringExecuted(newLog);
-    }
-    
-    if (newTransactions.length > 0) {
-        const updatedTransactions = [...transactions, ...newTransactions];
-        setTransactions(updatedTransactions);
-        storage.saveTransactions(updatedTransactions);
-        
-        setToast({ message: `系統自動補入 ${executedCount} 筆固定帳務`, count: executedCount });
-        setTimeout(() => setToast(null), 5000);
-    }
-  }, [enabled, recurring, recurringExecuted, transactions, setRecurringExecuted, setTransactions, setToast]);
-};
+  }, [enabled, recurring, recurringExecuted, transactions, setTransactions, setRecurringExecuted, setToast]);
+}

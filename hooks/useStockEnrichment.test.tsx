@@ -46,6 +46,19 @@ function createWriterGate() {
 }
 
 describe('useStockEnrichment import races', () => {
+  it('reports null results without claiming a successful update or changing timestamps', async () => {
+    const original = stockAsset();
+    localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify([original]));
+    stockMocks.enrichStockBasicInfo.mockResolvedValue(null);
+    const toast = vi.fn();
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useStockEnrichment({ enabled: true, setToast: toast, writerGate: createWriterGate().gate }));
+    act(() => result.current.updatePrices([original.id], onSuccess));
+    await waitFor(() => expect(result.current.enrichStatus.price.isUpdating).toBe(false));
+    expect(toast).toHaveBeenLastCalledWith({ message: '更新結果：成功 0 筆、無資料 1 筆、失敗 0 筆', count: 0 });
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.ASSETS)!)).toEqual([original]);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -73,6 +86,21 @@ describe('useStockEnrichment import races', () => {
     await waitFor(() => expect(result.current.enrichStatus.price.isUpdating).toBe(false));
 
     expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.ASSETS) ?? '[]')).toEqual([original]);
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+  it('does not resurrect an asset deleted while its price request is pending', async () => {
+    const original = stockAsset();
+    localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify([original]));
+    let resolve: (value: Partial<Asset>) => void = () => {};
+    stockMocks.enrichStockBasicInfo.mockReturnValue(new Promise(done => { resolve = done; }));
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useStockEnrichment({ enabled: true, setToast: vi.fn(), writerGate: createWriterGate().gate }));
+    act(() => result.current.updatePrices([original.id], onSuccess));
+    await waitFor(() => expect(stockMocks.enrichStockBasicInfo).toHaveBeenCalledOnce());
+    localStorage.setItem(STORAGE_KEYS.ASSETS, '[]');
+    await act(async () => resolve({ currentPrice: 200 }));
+    await waitFor(() => expect(result.current.enrichStatus.price.isUpdating).toBe(false));
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.ASSETS)!)).toEqual([]);
     expect(onSuccess).not.toHaveBeenCalled();
   });
 

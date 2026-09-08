@@ -20,6 +20,7 @@ import { useTheme } from './hooks/useTheme';
 import { useImportRecovery } from './hooks/useImportRecovery';
 import { ImportRecoveryGate } from './components/ImportRecoveryGate';
 import { useFinancialWriterGate } from './hooks/useFinancialWriterGate';
+import { useDeleteUndo } from './hooks/useDeleteUndo';
 
 // Helper function to normalize stock symbols for comparison
 const toNumericString = (s: string | undefined): string => {
@@ -37,6 +38,7 @@ export default function App() {
   const recoveryReady = recovery.status === 'ready';
   const writerGate = useFinancialWriterGate(recoveryReady);
   const writersEnabled = writerGate.enabled;
+  const deleteUndo = useDeleteUndo(writersEnabled);
 
   // App State
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -142,10 +144,17 @@ export default function App() {
   };
 
   const deleteAsset = (id: string) => {
-    setAssets(prev => {
-        const updated = prev.filter(a => a.id !== id);
-        storage.saveAssets(updated);
-        return updated;
+    const latest = storage.getAssets();
+    const removed = latest.find(a => a.id === id);
+    if (!removed) return;
+    const updated = latest.filter(a => a.id !== id);
+    storage.saveAssets(updated);
+    setAssets(updated);
+    deleteUndo.register(removed.name, () => {
+      const current = storage.getAssets();
+      const restored = current.some(a => a.id === id) ? current : [...current, removed];
+      storage.saveAssets(restored);
+      setAssets(restored);
     });
   };
 
@@ -178,9 +187,18 @@ export default function App() {
   };
 
   const deleteTransaction = (id: string) => {
-    const updated = transactions.filter(t => t.id !== id);
-    setTransactions(updated);
+    const latest = storage.getTransactions();
+    const removed = latest.find(t => t.id === id);
+    if (!removed) return;
+    const updated = latest.filter(t => t.id !== id);
     storage.saveTransactions(updated);
+    setTransactions(updated);
+    deleteUndo.register(removed.item, () => {
+      const current = storage.getTransactions();
+      const restored = current.some(t => t.id === id) ? current : [...current, removed];
+      storage.saveTransactions(restored);
+      setTransactions(restored);
+    });
   };
 
   // Recurring Handlers
@@ -191,9 +209,18 @@ export default function App() {
   };
 
   const deleteRecurring = (id: string) => {
-    const updated = recurring.filter(r => r.id !== id);
-    setRecurring(updated);
+    const latest = storage.getRecurring();
+    const removed = latest.find(r => r.id === id);
+    if (!removed) return;
+    const updated = latest.filter(r => r.id !== id);
     storage.saveRecurring(updated);
+    setRecurring(updated);
+    deleteUndo.register(removed.name, () => {
+      const current = storage.getRecurring();
+      const restored = current.some(r => r.id === id) ? current : [...current, removed];
+      storage.saveRecurring(restored);
+      setRecurring(restored);
+    });
   };
 
   // Budget Handlers
@@ -382,9 +409,18 @@ export default function App() {
       {view === 'SETTINGS' && (
         <Settings
           onDataChange={refreshData}
-          onImportStart={writerGate.beginImport}
+          onImportStart={async () => { deleteUndo.clear(); await writerGate.beginImport(); }}
           onImportFinish={writerGate.finishImport}
         />
+      )}
+      {deleteUndo.label && writersEnabled && (
+        <div role="status" className="fixed bottom-40 md:bottom-24 left-1/2 -translate-x-1/2 bg-white border border-[#EDE4D6] text-[#3D3428] px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 z-[60] max-w-[95vw]">
+          <span className="text-sm">已刪除「{deleteUndo.label}」</span>
+          <button className="text-[#C4523A] whitespace-nowrap font-semibold" onClick={() => {
+            try { deleteUndo.undo(); } catch { setToast({ message: '復原儲存失敗，請稍後重試。', count: 0 }); }
+          }}>復原刪除</button>
+          <button aria-label="關閉刪除復原" onClick={deleteUndo.clear}><X size={16} /></button>
+        </div>
       )}
       {toast && (
         <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-[60] animate-fade-in">

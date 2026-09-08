@@ -180,7 +180,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                         theme="warm"
                         className="border-[#B45B45]/30 focus:border-[#B45B45]"
                         type="number"
-                        value={formData.interestRate || ''}
+                        value={formData.interestRate ?? ''}
                         onChange={e => setFormData({...formData, interestRate: parseFloat(e.target.value)})}
                       />
                     </div>

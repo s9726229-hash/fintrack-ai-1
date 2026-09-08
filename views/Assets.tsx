@@ -88,7 +88,7 @@ export const Assets: React.FC<AssetsProps> = ({ assets, onAdd, onUpdate, onDelet
       exchangeRate: Number(formData.exchangeRate || 1),
       lastUpdated: Date.now(),
       startDate: formData.startDate,
-      interestRate: formData.interestRate ? Number(formData.interestRate) : undefined,
+      interestRate: formData.interestRate !== undefined ? Number(formData.interestRate) : undefined,
       termYears: formData.termYears ? Number(formData.termYears) : undefined,
       interestOnlyPeriod: formData.interestOnlyPeriod ? Number(formData.interestOnlyPeriod) : 0,
       paymentAccountId: formData.paymentAccountId,

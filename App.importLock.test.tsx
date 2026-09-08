@@ -29,13 +29,14 @@ vi.mock('./components/Layout', () => ({
   Layout: ({ children, onChangeView }: { children: React.ReactNode; onChangeView: (view: string) => void }) => (
     <div>
       <button onClick={() => onChangeView('SETTINGS')}>前往設定</button>
+      <button onClick={() => onChangeView('TRANSACTIONS')}>前往記帳</button>
       {children}
     </div>
   ),
 }));
 vi.mock('./views/Dashboard', () => ({ Dashboard: () => <div>儀表板</div> }));
 vi.mock('./views/Assets', () => ({ Assets: () => null }));
-vi.mock('./views/Transactions', () => ({ Transactions: () => null }));
+vi.mock('./views/Transactions', () => ({ Transactions: ({ onDelete }: { onDelete: (id: string) => void }) => <button onClick={() => onDelete('test-transaction')}>刪除測試交易</button> }));
 vi.mock('./views/Recurring', () => ({ Recurring: () => null }));
 vi.mock('./views/Guide', () => ({ GuideView: () => null }));
 vi.mock('./views/Budget', () => ({ Budget: () => null }));
@@ -123,5 +124,19 @@ describe('App import writer lock', () => {
       expect(lastEnabled(appMocks.useStockEnrichment)).toBe(true);
       expect(saveAssets).toHaveBeenCalledOnce();
     });
+  });
+  it('restores a deleted transaction without removing records added since deletion', async () => {
+    const transaction = { id: 'test-transaction', date: '2026-09-09', amount: 100, category: '餐飲', item: '午餐', type: 'EXPENSE' as const };
+    storage.saveTransactions([transaction]);
+    render(<App />);
+    await screen.findByText('儀表板');
+    fireEvent.click(screen.getByText('前往記帳'));
+    fireEvent.click(screen.getByText('刪除測試交易'));
+    expect(storage.getTransactions()).toEqual([]);
+    const later = { ...transaction, id: 'later' };
+    storage.saveTransactions([later]);
+    fireEvent.click(screen.getByText('復原刪除'));
+    expect(storage.getTransactions()).toEqual([later, transaction]);
+    expect(screen.queryByText('復原刪除')).not.toBeInTheDocument();
   });
 });
