@@ -21,7 +21,7 @@ export const PORTABLE_STORAGE_KEYS = [
   'ft_stock_fee_discount', 'ft_tech_params', 'ft_dividend_events', 'ft_dividend_scanned_at',
 ] as const;
 
-export const DEVICE_STORAGE_KEYS = ['ft_theme', 'ft_google_client_id'] as const;
+export const DEVICE_STORAGE_KEYS = ['ft_theme', 'ft_google_client_id', 'ft_backup_status'] as const;
 export const SECRET_STORAGE_KEYS = ['ft_api_key', 'ft_finmind_token'] as const;
 export const REBUILDABLE_CACHE_KEYS = ['ft_dsslab_raw_cache'] as const;
 export const UNSPECIFIED_STOCK_TRADE_TYPE = '未提供';

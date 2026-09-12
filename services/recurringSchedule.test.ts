@@ -4,6 +4,17 @@ import { localMonthKey, planRecurring } from './recurringSchedule';
 
 const item: RecurringItem = { id: 'rent', name: '租金', amount: 100, category: '居住', type: 'EXPENSE', frequency: 'MONTHLY', dayOfMonth: 31 };
 describe('recurring periods', () => {
+  it('never schedules paused or ended items and preserves the execution log', () => {
+    for (const status of ['PAUSED', 'ENDED'] as const) {
+      const result = planRecurring([{ ...item, status }], { rent: ['2026-01'] }, [], new Date(2026, 1, 28));
+      expect(result.additions).toEqual([]);
+      expect(result.nextLog).toEqual({ rent: ['2026-01'] });
+    }
+  });
+  it('respects an existing annual execution when reading a monthly item', () => {
+    const result = planRecurring([{ ...item, frequency: 'MONTHLY' }], { rent: ['2026'] }, [], new Date(2026, 1, 28));
+    expect(result.additions).toEqual([]);
+  });
   it('clamps month-end in both leap and ordinary February', () => {
     expect(planRecurring([item], {}, [], new Date(2026, 1, 28)).additions[0].date).toBe('2026-02-28');
     expect(planRecurring([item], {}, [], new Date(2024, 1, 29)).additions[0].date).toBe('2024-02-29');

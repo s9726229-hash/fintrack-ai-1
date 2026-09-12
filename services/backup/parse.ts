@@ -77,6 +77,7 @@ function validate(snapshot: PortableFinancialData, metadata: BackupMetadata): Ba
     if (!['EXPENSE', 'INCOME'].includes(item.type as string)) add(`${path}.type`, 'invalid_enum', 'Unsupported transaction type.');
     if (!['MONTHLY', 'YEARLY'].includes(item.frequency as string)) add(`${path}.frequency`, 'invalid_enum', 'Unsupported recurrence frequency.');
     optionalNumber(item.monthOfYear, `${path}.monthOfYear`);
+    if (item.status !== undefined && !['ACTIVE', 'PAUSED', 'ENDED'].includes(item.status as string)) add(`${path}.status`, 'invalid_enum', 'Unsupported recurrence status.');
   });
   if (Array.isArray(snapshot.portfolioHistory)) snapshot.portfolioHistory.forEach((item, index) => {
     const path = `data.portfolioHistory[${index}]`;

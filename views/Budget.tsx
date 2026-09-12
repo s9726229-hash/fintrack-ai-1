@@ -1,3 +1,4 @@
+import { isRecurringActive } from '../services/recurringSchedule';
 
 
 import React, { useMemo, useState } from 'react';
@@ -64,7 +65,7 @@ export const Budget: React.FC<BudgetProps> = ({ transactions, budgets, onUpdateB
 
     // Financial Context for Simulator
     const assets = getAssets();
-    const recurring = getRecurring();
+    const recurring = getRecurring().filter(isRecurringActive);
     
     let monthlyIncome = recurring.filter(r => r.type === 'INCOME').reduce((sum, r) => sum + (r.frequency === 'YEARLY' ? r.amount/12 : r.amount), 0);
     monthlyIncome += 5000; // Baseline buffer

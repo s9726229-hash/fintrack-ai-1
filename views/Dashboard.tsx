@@ -1,3 +1,5 @@
+import { isRecurringActive } from '../services/recurringSchedule';
+import { BackupStatusPanel } from '../components/BackupStatusPanel';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Button, Input, Select } from '../components/ui';
 import { Asset, Transaction, AssetType, RecurringItem, BudgetConfig, ViewState, StockSnapshot, StockTransaction } from '../types';
@@ -470,7 +472,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       // 固定收支（含年攤提，與固定收支頁同一算法）
       let fixedIncome = 0, fixedExpense = 0;
-      (recurring || []).forEach(item => {
+      (recurring || []).filter(isRecurringActive).forEach(item => {
           const monthly = item.frequency === 'YEARLY' ? Math.round(item.amount / 12) : item.amount;
           if (item.type === 'INCOME') fixedIncome += monthly; else fixedExpense += monthly;
       });
@@ -525,7 +527,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       // 多還本金回饋：固定收支項目金額 > 依利率計算的最低應繳 → 正向提示。
       // 名稱可能一對多（「房貸」同時符合房貸(本金)/房貸(保險)），同一個固定收支項目只配給金額最接近的那筆貸款。
       const candidates = debts.flatMap(d => {
-          const rec = (recurring || []).find(r =>
+          const rec = (recurring || []).filter(isRecurringActive).find(r =>
               r.type === 'EXPENSE' && r.name && d.name && (d.name.includes(r.name) || r.name.includes(d.name))
           );
           if (!rec) return [];
@@ -642,6 +644,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in md:p-6">
+      <BackupStatusPanel compact onOpenSettings={() => onChangeView('SETTINGS')} />
       {/* 0. 頁面標題列（與其他頁面一致；總覽頁沒有全域功能鍵，右側留空） */}
       <div className="flex justify-between items-center">
          <div>

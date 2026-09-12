@@ -11,12 +11,13 @@ import {
 } from 'lucide-react';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../constants';
 import { formatMoney } from '../services/format';
-import { wasRecurringExecuted, recurringPeriod } from '../services/recurringSchedule';
+import { wasRecurringExecuted, recurringPeriod, isRecurringActive } from '../services/recurringSchedule';
 
 interface RecurringProps {
   items: RecurringItem[];
   executedLog: Record<string, string[]>;
   onAdd: (item: RecurringItem) => void;
+  onUpdate: (item: RecurringItem) => void;
   onExecute: (item: RecurringItem, date: string) => void;
   onDelete: (id: string) => void;
 }
@@ -32,7 +33,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   '老婆': '家庭', '家用': '家庭', '雜費': '家庭', '孝親': '家庭', '小孩': '家庭', '學費': '教育'
 };
 
-export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd, onExecute, onDelete }) => {
+export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd, onUpdate, onDelete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<RecurringItem>>({
     type: 'EXPENSE',
@@ -46,7 +47,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
   const stats = useMemo(() => {
     let income = 0;
     let expense = 0;
-    items.forEach(item => {
+    items.filter(isRecurringActive).forEach(item => {
       const monthlyAmount = item.frequency === 'YEARLY' ? Math.round(item.amount / 12) : item.amount;
       if (item.type === 'INCOME') income += monthlyAmount;
       else expense += monthlyAmount;
@@ -115,8 +116,9 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
       alert('請填寫項目名稱、正數金額，以及 1 至 31 的整數日期。');
       return;
     }
-    onAdd({
-        id: crypto.randomUUID(),
+    (formData.id ? onUpdate : onAdd)({
+        id: formData.id || crypto.randomUUID(),
+        status: formData.status,
         name: formData.name,
         amount: Number(formData.amount),
         category: formData.category || '其他',
@@ -210,7 +212,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                 : `每月 ${item.dayOfMonth} 號`;
 
              // Calculate visual status
-             const isOverdue = !executed && recurringPeriod(item)?.due;
+             const isOverdue = isRecurringActive(item) && !executed && recurringPeriod(item)?.due;
 
              return (
                <div key={item.id} className={`bg-white border border-[#EDE4D6] rounded-2xl overflow-hidden flex flex-col transition-all hover:border-[#C4A98A] ${executed ? 'opacity-80' : 'border-l-4 border-l-[#C4523A]'}`}>
@@ -246,9 +248,16 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                      </div>
                   </div>
 
+                  <div className="flex flex-wrap gap-2 px-3 pb-3 text-xs">
+                    <button className="p-2 rounded border border-[#EDE4D6]" aria-label={`編輯 ${item.name}`} onClick={() => { setFormData({ ...item }); setIsModalOpen(true); }}>編輯</button>
+                    {item.status !== 'ENDED' && <>
+                      <button className="p-2 rounded border border-[#EDE4D6]" aria-label={`${isRecurringActive(item) ? '暫停' : '恢復'} ${item.name}`} onClick={() => onUpdate({ ...item, status: isRecurringActive(item) ? 'PAUSED' : 'ACTIVE' })}>{isRecurringActive(item) ? '暫停' : '恢復'}</button>
+                      <button className="p-2 rounded border border-[#EDE4D6]" aria-label={`結束 ${item.name}`} onClick={() => onUpdate({ ...item, status: 'ENDED' })}>結束</button>
+                    </>}
+                  </div>
                   {/* Status Bar */}
                   <div className={`p-1.5 md:p-2.5 border-t border-[#EDE4D6] flex items-center justify-center gap-1 md:gap-2 text-[10px] md:text-xs font-bold text-center ${executed ? 'bg-[#EAF1EC] text-[#6B9080]' : 'bg-[#FBF7F0] text-[#A69B87]'}`}>
-                     {executed ? (
+                     {!isRecurringActive(item) ? <span>{item.status === 'ENDED' ? '已結束' : '已暫停'}</span> : executed ? (
                          <>
                             <CheckCircle2 size={12} className="shrink-0"/>
                             <span className="truncate md:hidden">已入帳</span>
@@ -274,8 +283,9 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
           )}
        </div>
 
-       <Modal theme="warm" isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="新增固定項目">
+       <Modal theme="warm" isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={formData.id ? '編輯固定項目' : '新增固定項目'}>
           <div className="space-y-6">
+             <p className="text-xs text-[#8A7A63]">修改不會更動歷史帳目。暫停／結束不再自動入帳；恢復只處理本期，不補過去月份。結束後如需再次使用，請新增項目。頻率變更請結束舊項目後新增。</p>
              <div>
                 <label className="block text-sm text-[#A69B87] mb-2 font-medium">項目名稱 (Name)</label>
                 <Input
@@ -327,6 +337,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
                         <Select
                             theme="warm"
                             value={formData.frequency}
+                            disabled={!!formData.id}
                             onChange={e => setFormData({...formData, frequency: e.target.value as 'MONTHLY' | 'YEARLY'})}
                             className="h-12"
                         >
@@ -396,7 +407,7 @@ export const Recurring: React.FC<RecurringProps> = ({ items, executedLog, onAdd,
              </div>
 
              <Button theme="warm" className="w-full py-3.5 text-lg font-bold mt-2" onClick={handleSubmit}>
-                確認新增
+                {formData.id ? '儲存修改' : '確認新增'}
              </Button>
           </div>
        </Modal>

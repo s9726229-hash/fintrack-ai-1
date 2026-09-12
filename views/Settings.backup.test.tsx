@@ -120,6 +120,23 @@ function expectAssetPreview(before: string, after: string, delta: string): void 
 }
 
 describe('Settings safe backup and restore flows', () => {
+  it('records a manual export separately from a successful cloud backup', async () => {
+    localStorage.removeItem('ft_backup_status');
+    await renderConnectedSettings();
+    fireEvent.click(screen.getByRole('button', { name: /匯出 JSON 備份/ }));
+    expect(JSON.parse(localStorage.getItem('ft_backup_status') || '{}').exportedAt).toEqual(expect.any(String));
+    expect(JSON.parse(localStorage.getItem('ft_backup_status') || '{}').cloudAt).toBeUndefined();
+    fireEvent.click(screen.getByRole('button', { name: '雲端備份' }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('ft_backup_status') || '{}').cloudAt).toEqual(expect.any(String)));
+  });
+  it('does not record a failed cloud upload as a backup', async () => {
+    localStorage.removeItem('ft_backup_status');
+    mocks.uploadToDrive.mockRejectedValueOnce(new Error('offline'));
+    await renderConnectedSettings();
+    fireEvent.click(screen.getByRole('button', { name: '雲端備份' }));
+    await screen.findByText('上傳失敗，請檢查網路或授權。');
+    expect(localStorage.getItem('ft_backup_status')).toBeNull();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.checkConnection.mockReturnValue(true);
@@ -137,7 +154,7 @@ describe('Settings safe backup and restore flows', () => {
   it('shows the release version and accurate backup privacy copy', () => {
     render(<Settings onDataChange={vi.fn()} />);
 
-    expect(screen.getByText('FinTrack AI v7.12.3')).toBeInTheDocument();
+    expect(screen.getByText('FinTrack AI v7.13.0')).toBeInTheDocument();
     expect(screen.getByText(/備份不包含 Gemini API Key 與 FinMind Token/)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain('資料已加密');
   });
@@ -417,7 +434,7 @@ describe('Settings safe backup and restore flows', () => {
     });
     expect(uploadedJson).not.toContain('gemini-secret-value');
     expect(uploadedJson).not.toContain('finmind-secret-value');
-    const success = await screen.findByText(/備份成功/);
+    const success = await screen.findByText(/^備份成功！/);
     expect(success).not.toHaveTextContent('加密');
   });
 
@@ -428,6 +445,6 @@ describe('Settings safe backup and restore flows', () => {
     fireEvent.click(screen.getByRole('button', { name: '雲端備份' }));
 
     expect(await screen.findByText(/上傳失敗/)).toBeInTheDocument();
-    expect(screen.queryByText(/備份成功/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^備份成功！/)).not.toBeInTheDocument();
   });
 });

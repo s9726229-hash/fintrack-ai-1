@@ -1,5 +1,7 @@
 import type { RecurringItem, Transaction } from '../types';
 
+export const isRecurringActive = (item: RecurringItem) => item.status === undefined || item.status === 'ACTIVE';
+
 export const localMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
 export function recurringPeriod(item: RecurringItem, today = new Date()) {
@@ -17,13 +19,14 @@ export function recurringPeriod(item: RecurringItem, today = new Date()) {
 export function wasRecurringExecuted(item: RecurringItem, logs: string[], today = new Date()) {
   const period = recurringPeriod(item, today);
   if (!period) return false;
-  return logs.some(key => key === period.key || (item.frequency === 'YEARLY' && key.startsWith(`${period.key}-`)));
+  return logs.some(key => key === period.key || key === String(today.getFullYear()) || (item.frequency === 'YEARLY' && key.startsWith(`${period.key}-`)));
 }
 
 export function planRecurring(items: RecurringItem[], logs: Record<string, string[]>, transactions: Transaction[], today = new Date()) {
   const nextLog = { ...logs };
   const additions: Transaction[] = [];
   for (const item of items) {
+    if (!isRecurringActive(item)) continue;
     const period = recurringPeriod(item, today);
     if (!period?.due || !Number.isFinite(item.amount) || item.amount <= 0 || wasRecurringExecuted(item, logs[item.id] ?? [], today)) continue;
     const id = `recurring:${item.id}:${period.key}`;

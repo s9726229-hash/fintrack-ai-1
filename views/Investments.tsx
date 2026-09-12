@@ -3,6 +3,7 @@ import { Asset, AssetType, StockSnapshot, StockTransaction, Transaction, Dividen
 import { TrendingUp, TrendingDown, Minus, PlusCircle, BrainCircuit, List, Wallet, UploadCloud, ClipboardList, RefreshCw, Landmark, Edit2, Trash2, PieChart, Coins, CheckSquare } from 'lucide-react';
 import { Button, Card, Tabs } from '../components/ui';
 import { InvestmentInputModal } from '../components/investments/InvestmentInputModal';
+import { DividendReceiptModal, type DividendReceipt } from '../components/investments/DividendReceiptModal';
 import { calculateStockPerformance, parseStockTransactionCSV, parseStockInventoryCSV, lookupStockName, getSharesHeldAtDate } from '../services/stock';
 import { formatMoneyCompact } from '../services/format';
 import { TransactionAnalysisView } from '../components/investments/TransactionAnalysisView';
@@ -149,21 +150,22 @@ export const Investments: React.FC<InvestmentsProps> = ({
             symbolEvents.forEach(ev => {
                 const shares = getSharesHeldAtDate(symbol, ev.exDate, stockTransactions);
                 if (shares <= 0) return;
+                const receipt = transactions.find(t => t.id === `dividend:${symbol}:${ev.exDate}`);
                 events.push({
                     key: `${symbol}-${ev.exDate}`,
                     symbol,
                     name: stockNameMap[symbol] || symbol,
                     exDate: ev.exDate,
-                    paymentDate: ev.paymentDate,
+                    paymentDate: receipt?.date || ev.paymentDate,
                     dividendPerShare: ev.dividendPerShare,
                     shares,
-                    amount: Math.round(shares * ev.dividendPerShare),
-                    recorded: !!ev.recorded,
+                    amount: receipt?.amount ?? Math.round(shares * ev.dividendPerShare),
+                    recorded: !!receipt || !!ev.recorded,
                 });
             });
         });
         return events.sort((a, b) => a.exDate.localeCompare(b.exDate));
-    }, [dividendEvents, stockTransactions, stockNameMap]);
+    }, [dividendEvents, stockTransactions, stockNameMap, transactions]);
 
     // 尚未入帳的部分，供上方勾選確認、一鍵產生交易用
     const pendingDividendEvents = useMemo(
@@ -197,22 +199,12 @@ export const Investments: React.FC<InvestmentsProps> = ({
         });
     };
 
+    const [receiptEvents, setReceiptEvents] = useState<DividendReceipt[] | null>(null);
     const handleGenerateDividendTransactions = () => {
         const selected = pendingDividendEvents.filter(e => !uncheckedEventKeys.has(e.key));
         if (selected.length === 0) return;
 
-        const newTransactions: Transaction[] = selected.map(e => ({
-            id: crypto.randomUUID(),
-            date: e.paymentDate || e.exDate,
-            amount: e.amount,
-            category: '股息',
-            item: `${e.name} 股息`,
-            type: 'DIVIDEND',
-            source: 'MANUAL',
-        }));
-        onAddDividendTransactions?.(newTransactions);
-        onMarkDividendEventsRecorded?.(selected.map(e => ({ symbol: e.symbol, exDate: e.exDate })));
-        setUncheckedEventKeys(new Set());
+        setReceiptEvents(selected);
     };
 
     const { filteredStockTransactions, dateRangeLabel } = useMemo(() => {
@@ -251,6 +243,11 @@ export const Investments: React.FC<InvestmentsProps> = ({
     
     return (
         <div className="space-y-6 animate-fade-in md:p-6">
+            {receiptEvents && <DividendReceiptModal events={receiptEvents} onClose={() => setReceiptEvents(null)} onConfirm={receipts => {
+                if (!onAddDividendTransactions) throw new Error('Dividend writer unavailable');
+                onAddDividendTransactions(receipts);
+                setUncheckedEventKeys(new Set());
+            }} />}
             <div className="flex justify-between items-center gap-2">
                 <div className="min-w-0">
                     <div className="flex items-center gap-3">
@@ -458,7 +455,5 @@ export const Investments: React.FC<InvestmentsProps> = ({
         </div>
     );
 };
-
-
 
 

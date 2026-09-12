@@ -4,7 +4,7 @@
 
 **個人財務管理 × 股票庫存記錄**
 
-![Version](https://img.shields.io/badge/版本-V7.12.3-6366f1?style=for-the-badge)
+![Version](https://img.shields.io/badge/版本-V7.13.0-6366f1?style=for-the-badge)
 ![React](https://img.shields.io/badge/React-18-61dafb?style=for-the-badge&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=for-the-badge&logo=typescript)
 ![Vite](https://img.shields.io/badge/Vite-PWA-646cff?style=for-the-badge&logo=vite)

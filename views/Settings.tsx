@@ -12,6 +12,9 @@ import { buildBackupPreview } from '../services/backup/preview';
 import { replacePortableData } from '../services/backup/replace';
 import { APP_VERSION } from '../services/appVersion';
 import { readPortableSnapshot } from '../services/backup/snapshot';
+import { recordBackup } from '../services/backup/status';
+import { BackupStatusPanel } from '../components/BackupStatusPanel';
+import { BackupIgnoredFields } from '../components/BackupIgnoredFields';
 
 interface SettingsProps {
   onDataChange: () => void;
@@ -145,6 +148,10 @@ export const Settings: React.FC<SettingsProps> = ({
       setIsDriveLoading(true);
       try {
           await uploadToDrive(serializeCurrentBackup());
+          try { recordBackup(localStorage, 'cloudAt'); } catch {
+              showNotify('error', '雲端備份成功，但本機無法保存備份時間。');
+              return;
+          }
           showNotify('success', '備份成功！安全備份已儲存至您的 Google Drive。');
       } catch (e) {
           showNotify('error', '上傳失敗，請檢查網路或授權。');
@@ -173,10 +180,17 @@ export const Settings: React.FC<SettingsProps> = ({
   };
 
   const handleExportBackup = () => {
+    try {
       downloadBackupFile(
           serializeCurrentBackup(),
           `fintrack_ai_backup_${new Date().toISOString().split('T')[0]}.json`,
       );
+      try { recordBackup(localStorage, 'exportedAt'); } catch {
+          showNotify('error', '已送出下載，但無法保存匯出時間；請確認檔案已下載。');
+          return;
+      }
+      showNotify('success', '已送出備份下載，請確認檔案確實保存。');
+    } catch { showNotify('error', '備份匯出失敗，請重試。'); }
   };
 
   const handleImportFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -254,7 +268,7 @@ export const Settings: React.FC<SettingsProps> = ({
     <div className="space-y-8 animate-fade-in relative pb-20">
       <div>
          <h2 className="text-[19px] font-semibold mb-2 text-[#3D3428]">系統設定</h2>
-         <p className="text-[#A69B87]">管理 API 金鑰、雲端同步與資料安全性。</p>
+         <p className="text-[#A69B87]">管理 API 金鑰、備份還原與資料安全性。</p>
       </div>
 
       {notification && (
@@ -297,6 +311,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       <Card theme="warm">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-[#3D3428]"><History className="text-amber-600"/> 本地資料管理</h3>
+        <div className="mb-4"><BackupStatusPanel /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button theme="warm" onClick={handleExportBackup} variant="secondary" className="w-full text-xs"><Download size={16} className="mr-2"/> 匯出 JSON 備份</Button>
             <div className="relative">
@@ -312,7 +327,7 @@ export const Settings: React.FC<SettingsProps> = ({
       <Card theme="warm">
           <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2 text-[#3D3428]">
-                <Cloud className="text-blue-500"/> Google Drive 雲端同步
+                <Cloud className="text-blue-500"/> Google Drive 備份與還原
               </h3>
               {isDriveConnected && (
                   <span className="bg-[#EAF1EC] text-[#6B9080] text-[10px] px-2 py-1 rounded-full border border-[#6B9080]/30 flex items-center gap-1">
@@ -322,7 +337,7 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
           <div className="bg-[#FBF7F0] p-4 rounded-xl border border-[#EDE4D6] space-y-4">
               <div className="text-sm text-[#A69B87]">
-                  <p className="mb-4">將所有帳務資料備份至您的私人雲端 (Google Drive)，解決跨裝置同步需求。</p>
+                  <p className="mb-4">手動備份至私人 Google Drive，再於其他裝置還原。這不是即時同步：還原會取代本機帳目，不會合併兩台裝置的資料。</p>
 
                   <div className="space-y-2">
                       <label className="block text-xs font-medium text-[#A69B87] uppercase tracking-wider">OAuth Client ID</label>
@@ -406,12 +421,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 {Object.entries(previewContent.preview.deduplicationCounts).some(([, count]) => count > 0) && (
                     <div className="text-xs text-[#8A7A63]"><p className="font-bold">重複資料處理</p>{Object.entries(previewContent.preview.deduplicationCounts).filter(([, count]) => count > 0).map(([key, count]) => <p key={key}>{key} 已去除 {count} 筆重複資料。</p>)}</div>
                 )}
-                {previewContent.preview.ignoredSecretKeys.length > 0 && (
-                    <div className="text-xs text-[#8A7A63]"><p className="font-bold">已忽略舊版憑證欄位</p><p>{previewContent.preview.ignoredSecretKeys.join('、')}</p></div>
-                )}
-                {previewContent.preview.ignoredUnknownKeys.length > 0 && (
-                    <div className="text-xs text-[#8A7A63]"><p className="font-bold">已忽略未知欄位</p><p>{previewContent.preview.ignoredUnknownKeys.join('、')}</p></div>
-                )}
+                <BackupIgnoredFields secrets={previewContent.preview.ignoredSecretKeys} unknown={previewContent.preview.ignoredUnknownKeys} />
                 {previewContent.preview.rows.some((row) => row.reset) && (
                     <div className="text-xs text-[#C4523A]"><p className="font-bold">歸零提醒</p>{previewContent.preview.rows.filter((row) => row.reset).map((row) => <p key={row.key}>{row.label}將歸零。</p>)}</div>
                 )}

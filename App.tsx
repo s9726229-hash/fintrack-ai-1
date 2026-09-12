@@ -166,14 +166,18 @@ export default function App() {
   const addBatchTransactions = (ts: Transaction[]) => {
     if (ts.length === 0) return;
     const latest = storage.getTransactions();
-    const updated = [...latest, ...ts];
-    setTransactions(updated);
+    const seen = new Set(latest.map(t => t.id));
+    const additions = ts.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+    const updated = [...latest, ...additions];
     storage.saveTransactions(updated);
+    setTransactions(updated);
 
-    if (ts.length === 1) {
-        setToast({ message: `記帳成功！${ts[0].item} $${ts[0].amount}`, count: 1 });
+    if (additions.length === 0) {
+        setToast({ message: '已入帳，未重複新增。', count: 0 });
+    } else if (additions.length === 1) {
+        setToast({ message: `記帳成功！${additions[0].item} $${additions[0].amount}`, count: 1 });
     } else {
-        setToast({ message: `已成功分析並記錄 ${ts.length} 筆交易`, count: ts.length });
+        setToast({ message: `已成功記錄 ${additions.length} 筆交易`, count: additions.length });
     }
     setTimeout(() => setToast(null), 3000);
   };
@@ -202,6 +206,11 @@ export default function App() {
   };
 
   // Recurring Handlers
+  const updateRecurring = (item: RecurringItem) => {
+    const updated = storage.getRecurring().map(current => current.id === item.id ? item : current);
+    storage.saveRecurring(updated);
+    setRecurring(updated);
+  };
   const addRecurring = (item: RecurringItem) => {
     const updated = [...recurring, item];
     setRecurring(updated);
@@ -404,7 +413,7 @@ export default function App() {
       </div>
       {view === 'TRANSACTIONS' && <Transactions transactions={transactions} onAdd={addTransaction} onUpdate={updateTransaction} onDelete={deleteTransaction} initialFilter={transactionFilter} />}
       {view === 'BUDGET' && <Budget transactions={transactions} budgets={budgets} onUpdateBudgets={updateBudgets} />}
-      {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}
+      {view === 'RECURRING' && <Recurring items={recurring} executedLog={recurringExecuted} onAdd={addRecurring} onUpdate={updateRecurring} onDelete={deleteRecurring} onExecute={() => {}} />}
       {view === 'GUIDE' && <GuideView />}
       {view === 'SETTINGS' && (
         <Settings

@@ -30,6 +30,7 @@ vi.mock('./components/Layout', () => ({
     <div>
       <button onClick={() => onChangeView('SETTINGS')}>前往設定</button>
       <button onClick={() => onChangeView('TRANSACTIONS')}>前往記帳</button>
+      <button onClick={() => onChangeView('INVESTMENTS')}>前往投資</button>
       {children}
     </div>
   ),
@@ -40,7 +41,7 @@ vi.mock('./views/Transactions', () => ({ Transactions: ({ onDelete }: { onDelete
 vi.mock('./views/Recurring', () => ({ Recurring: () => null }));
 vi.mock('./views/Guide', () => ({ GuideView: () => null }));
 vi.mock('./views/Budget', () => ({ Budget: () => null }));
-vi.mock('./views/Investments', () => ({ Investments: () => null }));
+vi.mock('./views/Investments', () => ({ Investments: ({ onAddDividendTransactions }: { onAddDividendTransactions: (items: import('./types').Transaction[]) => void }) => <button onClick={() => onAddDividendTransactions([{ id: 'dividend:2330:2026-08-01', date: '2026-09-02', amount: 980, category: '股息', item: '台積電 股息', type: 'DIVIDEND' }])}>確認測試股息</button> }));
 vi.mock('./views/Settings', () => ({
   Settings: ({ onDataChange, onImportStart, onImportFinish }: {
     onDataChange: () => void | Promise<void>;
@@ -62,6 +63,15 @@ function lastEnabled(mock: ReturnType<typeof vi.fn>): boolean | undefined {
 }
 
 describe('App import writer lock', () => {
+  it('does not claim to add a duplicate dividend receipt', async () => {
+    render(<App />);
+    await screen.findByText('儀表板');
+    fireEvent.click(screen.getByRole('button', { name: '前往投資' }));
+    fireEvent.click(screen.getByRole('button', { name: '確認測試股息' }));
+    fireEvent.click(screen.getByRole('button', { name: '確認測試股息' }));
+    expect(storage.getTransactions().filter(t => t.id === 'dividend:2330:2026-08-01')).toHaveLength(1);
+    expect(screen.getByText('已入帳，未重複新增。')).toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     appMocks.useDailySnapshot.mockReturnValue({

@@ -39,7 +39,13 @@ export const GuideView: React.FC = () => {
 
       <div className="relative border-l-2 border-[#EDE4D6] space-y-12 ml-2 mt-8">
 
-        <FeatureSection title="V7.12.3 記帳可靠性與刪除復原" date="Latest" color="text-amber-600">
+        <FeatureSection title="V7.13.0 每週記帳與備份提醒" date="Latest" color="text-amber-600">
+            <FeatureItem icon={RefreshCw} title="固定收支可編輯、暫停與結束" description="修改名稱、金額或日期不更動歷史帳目；暫停／結束項目不再自動入帳，也不計入固定收支預估。恢復只處理本期，不補過去月份。既有項目的頻率保留不變，如需改頻率請結束後新增。" />
+            <FeatureItem icon={TrendingUp} title="股息先確認實收再入帳" description="勾選股息後，確認實收金額與日期才建立交易。未提供發放日需自行填寫，不再使用除息日代替。新股息依交易紀錄判斷入帳狀態，刪除後可重新確認；舊版已入帳標記仍保留。" />
+            <FeatureItem icon={ShieldCheck} title="備份操作時間與每週提醒" description="總覽及設定提示超過 7 天未匯出／備份；區分手動匯出和雲端備份成功時間，下載後仍請確認檔案保存。匯入通知區分憑證、本機設定、停用的技術參數及未知欄位。Google Drive 明確標示為手動備份與還原，不是即時同步。" />
+        </FeatureSection>
+
+        <FeatureSection title="V7.12.3 記帳可靠性與刪除復原" color="text-amber-600">
             <FeatureItem icon={RefreshCw} title="固定收支按期防重" description="年繳每年只入帳一次，月底不存在的日期改用當月最後一天；使用本地月份避免時區誤差。月繳僅補本月到期項目，年繳補本年度到期項目，程式開啟時執行。已存在的歷史重複帳目需另行核對。" />
             <FeatureItem icon={ShieldCheck} title="刪除可復原與正確更新提示" description="資產、收支及固定項目刪除後，可逐筆復原最近 10 筆。復原紀錄僅保留於本次開啟期間，關閉提示或開始完整取代會清除。股票更新分列成功、無資料與失敗筆數，並修正 0% 貸款利率與記帳輸入檢查。" />
         </FeatureSection>

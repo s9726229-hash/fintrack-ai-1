@@ -257,6 +257,7 @@ export interface Transaction {
 }
 
 export interface RecurringItem {
+  status?: 'ACTIVE' | 'PAUSED' | 'ENDED'; // 舊資料未提供時視為啟用
   id: string;
   name: string;
   amount: number;
